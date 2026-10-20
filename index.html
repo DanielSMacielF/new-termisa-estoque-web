@@ -111,7 +111,7 @@ function ntChunk(items,budget){ // evita cortar nomes compridos quando existir m
 }
 function ntReportCSS(){return `<style>
  @page ntportrait{size:A4 portrait;margin:0} @page ntlandscape{size:A4 landscape;margin:0}
- *{box-sizing:border-box}html,body{margin:0;font-family:Arial,Helvetica,sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;color:#153e4c;background:#e9eff1}
+ *{box-sizing:border-box}html,body{margin:0;font-family:Arial,Helvetica,sans-serif;font-synthesis:none;text-rendering:auto;color:#153e4c;background:#e9eff1}
  .toolbar{background:#153f4e;color:white;padding:12px 20px;text-align:center;font-size:13px;position:sticky;top:0;z-index:2}
  .toolbar button{background:#1a9da3;border:0;border-radius:7px;color:white;font-weight:bold;padding:10px 20px;margin-right:10px;cursor:pointer}
  .toolbar strong{color:#b0ebec}
@@ -126,37 +126,37 @@ function ntReportCSS(){return `<style>
  .company b{color:#153b4a;font-size:9.5pt;display:block}
  .line{height:2px;background:#209fa3;margin:5mm 0 8mm}
  .landscape .line{margin:4mm 0 6mm}
- .heading{font-size:21pt;color:#153b4a;line-height:1.18;letter-spacing:0;margin:0 0 2mm;font-weight:700}
- .kicker{font-size:8pt;color:#199ca0;letter-spacing:.6px;font-weight:700;margin-bottom:4mm}
+ .heading{font-size:21pt;color:#153b4a;line-height:1.18;letter-spacing:0;margin:0 0 2mm;font-weight:600}
+ .kicker{font-size:8pt;color:#199ca0;letter-spacing:.6px;font-weight:500;margin-bottom:4mm}
  .desc{font-size:9.4pt;color:#395d6a;line-height:1.45;margin:0 0 5mm}
- .sectionline{display:flex;justify-content:space-between;gap:4mm;align-items:center;margin:6mm 0 3mm;color:#153b4a;font-size:10pt;font-weight:700}
+ .sectionline{display:flex;justify-content:space-between;gap:4mm;align-items:center;margin:6mm 0 3mm;color:#153b4a;font-size:10pt;font-weight:500}
  .sectionline span:last-child{font-size:8.5pt;color:#405b66;font-weight:400}
  .metrics{display:grid;gap:3mm;grid-template-columns:repeat(4,1fr);margin:8mm 0 7mm}
  .metric{background:#e7f1f2;border-radius:3mm;padding:3.5mm 3.6mm;min-height:24mm}
- .metric small{display:block;font-size:8pt;color:#153b4a;font-weight:700;white-space:normal;line-height:1.2}
- .metric strong{display:block;color:#0a7d86;font-size:19pt;font-weight:700;margin-top:2mm}
+ .metric small{display:block;font-size:8.6pt;color:#153b4a;font-weight:400;white-space:normal;line-height:1.2}
+ .metric strong{display:block;color:#0a7d86;font-size:19pt;font-weight:600;margin-top:2mm}
  .metrics6{grid-template-columns:repeat(2,1fr);margin:7mm 0 9mm;gap:3.2mm}
  .metrics6 .metric{min-height:30mm;padding:4mm 5mm}
  .metrics6 .metric strong{font-size:24pt}
  .flag{font-size:7pt;color:#a07720;background:#fff5df;border-radius:2mm;padding:2.2mm 3mm;display:inline-block;font-weight:700}
  table{border-collapse:collapse;table-layout:fixed;width:100%;font-size:9.0pt;color:#153b4a}
  thead{display:table-header-group}thead tr{background:#194957;color:white}
- th{padding:3.1mm 1.3mm;text-align:left;font-size:7.8pt;overflow-wrap:anywhere;line-height:1.25;font-weight:700}
+ th{padding:3.1mm 1.3mm;text-align:left;font-size:8.3pt;overflow-wrap:anywhere;line-height:1.25;font-weight:500}
  td{padding:2.8mm 1.3mm;vertical-align:top;border-bottom:.3mm solid #c7d7db;line-height:1.4;overflow-wrap:anywhere;word-break:normal}
  tbody tr:nth-child(even){background:#f1f6f6}
  tbody tr{break-inside:avoid;page-break-inside:avoid}
- td.code,td.name{font-weight:700}td.qty{text-align:right;font-weight:700}th.right{text-align:right}
+ td.code,td.name{font-weight:400}td.qty{text-align:right;font-weight:400}th.right{text-align:right}
  .notice{background:#fdf3dc;color:#775a18;border-radius:2.5mm;padding:3.5mm 4mm;font-size:9pt;line-height:1.5}
  .note{margin-top:6mm;color:#395d6a;font-size:9pt;line-height:1.45}
  .sign{display:flex;justify-content:space-between;gap:12mm;margin-top:8mm;border-top:.3mm solid #dce8e9;padding-top:5mm;color:#395d6a;font-size:9pt}
  .sign i{width:45mm;border-bottom:1px solid #6c8590;display:inline-block;vertical-align:middle}
- .footer{position:absolute;bottom:10mm;left:14mm;right:14mm;border-top:.3mm solid #dce8e9;padding-top:3mm;display:flex;justify-content:space-between;color:#405b66;font-size:8pt;font-weight:600}
+ .footer{position:absolute;bottom:10mm;left:14mm;right:14mm;border-top:.3mm solid #dce8e9;padding-top:3mm;display:flex;justify-content:space-between;color:#405b66;font-size:8pt;font-weight:400}
  .landscape .footer{left:15mm;right:15mm;bottom:8mm}
  .bullet{font-size:10pt;line-height:1.7;color:#395d6a}
  .bullet li::marker{color:#1b9ca0}
  .empty{text-align:center;color:#405b66;font-style:italic;padding:10mm 4mm;font-size:9.5pt}
  .landscape .heading{font-size:17pt}.landscape .desc{font-size:9.2pt}.landscape .sectionline{margin:4mm 0 3mm}
- .landscape table{font-size:9pt}.landscape th{font-size:7.8pt;padding:3mm 1.5mm}.landscape td{padding:3mm 1.5mm}
+ .landscape table{font-size:9pt}.landscape th{font-size:8.3pt;padding:3mm 1.5mm}.landscape td{padding:3mm 1.5mm}
  @media print{html,body{background:white} .toolbar{display:none!important} .page{box-shadow:none!important;margin:0!important;height:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact} }
  </style>`}
 function ntTop(title,subtitle,date,compact=false){return `<div class="rhead"><img src="${NT_LOGO}" alt="New Termisa"><div class="company"><b>${compact?'FECHAMENTO DIÁRIO':'ALMOXARIFADO / NEW TERMISA'}</b>${ntPlain(ntDate(date))}</div></div><div class="line"></div><h1 class="heading">${ntPlain(title)}</h1><p class="desc">${ntPlain(subtitle)}</p>`}
