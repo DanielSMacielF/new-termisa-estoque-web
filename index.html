@@ -178,18 +178,43 @@ function ntCI(movements,date){
  }
  return ntHtml(`Comunicação Interna · ${ntDate(date)}`,pages);
 }
+function ntSaldosDoDia(movements){
+ // O primeiro saldo "antes" e o último "depois" são históricos daquele dia,
+ // não o saldo atual do catálogo. Sem registro confiável, mostra "—".
+ const ordered=[...movements].sort((a,b)=>{
+  const time=m=>{
+   const t=m.criadoEm;
+   if(t&&typeof t.toMillis==='function')return t.toMillis();
+   if(t&&Number.isFinite(Number(t.seconds)))return Number(t.seconds)*1000+(Number(t.nanoseconds)||0)/1e6;
+   const v=Date.parse(String(m.timeClient||''));
+   return Number.isFinite(v)?v:0;
+  };
+  const c=time(a)-time(b);
+  return c||String(a.timeClient||'').localeCompare(String(b.timeClient||''));
+ });
+ const found=new Map();
+ for(const m of ordered){
+  const code=String(m.codigo??'');
+  if(!code)continue;
+  const valid=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+  const previous=found.get(code);
+  if(!previous){found.set(code,{inicio:valid(m.antes)?Number(m.antes):null,fim:valid(m.depois)?Number(m.depois):null});}
+  else{previous.fim=valid(m.depois)?Number(m.depois):null;}
+ }
+ return found;
+}
 function ntClosing(movements,date){
- const grouped=dayRows(movements); const positives=grouped.filter(x=>x.consumoLiquido>0).length;
+ const grouped=dayRows(movements); const balances=ntSaldosDoDia(movements); const positives=grouped.filter(x=>x.consumoLiquido>0).length;
  const types={SAIDA:new Set(),DEVOLUCAO:new Set(),ENTRADA:new Set(),AJUSTE:new Set()};
  for(const m of movements)if(!testeIdentificado(m)&&types[m.tipo])types[m.tipo].add(m.codigo);
  const tests=movements.filter(testeIdentificado).length;
  const measures=[['MATERIAIS MOVIMENTADOS',String(grouped.length)],['MATERIAIS COM SAÍDA',String(types.SAIDA.size)],['MATERIAIS COM DEVOLUÇÃO',String(types.DEVOLUCAO.size)],['MATERIAIS COM ENTRADA',String(types.ENTRADA.size)],['MATERIAIS COM AJUSTE',String(types.AJUSTE.size)],['REGISTROS DE TESTE',String(tests)]];
- const recs=grouped.map(g=>({codigo:String(g.codigo||''),nome:String(g.nome||''),unidade:String(g.unidade||''),saida:fmt(g.saida),devolucao:fmt(g.devolucao),consumo:fmt(g.consumoLiquido),entrada:fmt(g.entrada),ajuste:fmt(g.ajuste),testes:String(g.testes)}));
+ const recs=grouped.map(g=>{const balance=balances.get(String(g.codigo||''));return {codigo:String(g.codigo||''),nome:String(g.nome||''),unidade:String(g.unidade||''),saida:fmt(g.saida),devolucao:fmt(g.devolucao),consumo:fmt(g.consumoLiquido),entrada:fmt(g.entrada),ajuste:fmt(g.ajuste),testes:String(g.testes),saldoInicial:balance?.inicio==null?'—':fmt(balance.inicio),saldoFinal:balance?.fim==null?'—':fmt(balance.fim)}});
  const chunks=ntChunk(recs,[7,9]);const total=1+chunks.length;
- const summary=`<section class="page portrait">${ntTop('FECHAMENTO DIÁRIO','Resumo executivo para a gerência | '+ntDate(date),date)}<div class="sectionline"><span>INDICADORES OPERACIONAIS</span><span>${ntPlain(ntDate(date))}</span></div><div class="metrics metrics6">${measures.map(([name,count])=>`<div class="metric"><small>${ntPlain(name)}</small><strong>${ntPlain(count)}</strong></div>`).join('')}</div><div class="sectionline"><span>LEITURA RÁPIDA PARA A GERÊNCIA</span></div><ul class="bullet"><li>Consumo operacional = saídas menos devoluções, sempre por material e unidade.</li><li>Entradas são reposição de estoque e não representam consumo.</li><li>Ajustes físicos são apresentados separadamente, sem inflar o consumo.</li><li>Simulações identificadas não entram na Comunicação Interna.</li></ul><div class="notice"><b>Atenção:</b> registros de teste são reconhecidos pelos textos “Não contabilizar”, “Simulação”, “Teste do sistema” ou “Homologação”. Confira o histórico antes de contabilizar. Materiais sem conferência física não devem ser retirados.</div>${ntFooter(1,total)}</section>`;
+ const summary=`<section class="page portrait">${ntTop('FECHAMENTO DIÁRIO','Resumo executivo para a gerência | '+ntDate(date),date)}<div class="sectionline"><span>INDICADORES OPERACIONAIS</span><span>${ntPlain(ntDate(date))}</span></div><div class="metrics metrics6">${measures.map(([name,count])=>`<div class="metric"><small>${ntPlain(name)}</small><strong>${ntPlain(count)}</strong></div>`).join('')}</div><div class="sectionline"><span>LEITURA RÁPIDA PARA A GERÊNCIA</span></div><ul class="bullet"><li>Consumo operacional = saídas menos devoluções, sempre por material e unidade.</li><li>Entradas são reposição de estoque e não representam consumo.</li><li>Ajustes físicos são apresentados separadamente, sem inflar o consumo.</li><li>Simulações identificadas não entram na Comunicação Interna.</li></ul>${ntFooter(1,total)}</section>`;
  const details=[];
  for(let i=0;i<chunks.length;i++){
-  const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','SAÍDAS','DEVOL.','CONSUMO','ENTRADAS','AJUSTES','TESTES'],[12,28,5,8,8,9,10,11,9],chunks[i].map(x=>[x.codigo,x.nome,x.unidade,x.saida,x.devolucao,x.consumo,x.entrada,x.ajuste,x.testes]));
+  const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','SAÍDAS','DEVOL.','CONSUMO','ENTRADAS','AJUSTES','TESTES','SALDO INICIAL','SALDO FINAL'],[11,21,5,7,7,8,9,10,6,8,8],chunks[i].map(x=>[x.codigo,x.nome,x.unidade,x.saida,x.devolucao,x.consumo,x.entrada,x.ajuste,x.testes,x.saldoInicial,x.saldoFinal]));
   details.push(`<section class="page landscape">${ntTop('RESUMO DETALHADO POR MATERIAL','Movimentações consolidadas por código. Unidades diferentes não são somadas.',date,true)}<div class="sectionline"><span>${i?'CONTINUAÇÃO DOS LANÇAMENTOS':'MOVIMENTAÇÕES DE ESTOQUE'}</span><span>${ntPlain(ntDate(date))}</span></div>${body}<p class="note">Consumo operacional = saídas − devoluções. Ajustes e simulações não entram no consumo.</p>${ntFooter(i+2,total)}</section>`)
  }
  return ntHtml(`Fechamento Diário · ${ntDate(date)}`,[summary,...details]);
