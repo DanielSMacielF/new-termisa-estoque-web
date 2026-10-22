@@ -35,6 +35,25 @@
 .inventory-line .line-count{float:right;color:#a9c0d6}
 .inventory-history-row{background:#102e4b;border:1px solid #325b7a;border-radius:13px;padding:12px;margin:10px 0}
 @media(max-width:570px){.inventory-filter-grid{grid-template-columns:1fr;gap:8px}.inventory-rows{grid-template-columns:1fr}.inventory-summary .summary-head{align-items:center}.inventory-summary{padding:12px 13px}}
+
+/* Ajustes exclusivos de Materiais e do seletor de etiquetas; sem mudanças nas rotinas de estoque */
+.nt-material-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:0 0 10px}
+.nt-material-heading h2{margin:0}
+.nt-label-shortcut{flex:none;white-space:nowrap;min-height:42px;padding:10px 16px;background:linear-gradient(125deg,#1372b5,#139bbf);border-color:#7bd5f4;box-shadow:0 2px 10px #020e2526}
+.nt-label-shortcut:hover,.nt-label-shortcut:focus-visible{filter:brightness(1.13)}
+.nt-material-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.nt-material-actions>*{min-width:0}
+.modal:has(.nt-qr-modal-shell){overflow:hidden;padding:0}
+.nt-qr-modal-shell{display:flex;flex-direction:column;width:100%;max-height:calc(92vh - 24px);min-height:0}
+.nt-qr-modal-head{flex:none;padding:17px 20px 8px}
+.nt-qr-modal-head h2{margin:0 0 7px}
+.nt-qr-modal-head p{margin:0 0 9px;line-height:1.4}
+.nt-qr-modal-head .field{margin:8px 0}
+.nt-qr-modal-head .buttons .btn{padding:9px 10px;font-size:.9rem;min-width:0}
+.nt-qr-modal-list{flex:1 1 auto;min-height:52px;overflow-y:auto;overscroll-behavior:contain;margin:0 20px;border:1px solid #33536e;border-radius:12px;padding:3px 9px}
+.nt-qr-modal-footer{flex:none;padding:12px 20px 16px;background:linear-gradient(180deg,#123854,#102b48);border-top:1px solid #476b88;box-shadow:0 -5px 20px #02111d25}
+.nt-qr-modal-footer .btn{line-height:1.25}
+@media(max-width:520px){.nt-material-actions{gap:6px}.nt-material-actions .btn{font-size:.82rem;padding:11px 6px}.nt-label-shortcut{font-size:.84rem;padding:10px 11px}.nt-qr-modal-head{padding:12px 13px 6px}.nt-qr-modal-list{margin:0 13px}.nt-qr-modal-footer{padding:10px 13px 13px}.nt-qr-modal-head .buttons .btn{font-size:.77rem;padding:8px 4px}}
 </style></head>
 <body><div class="shell"><header><div class="brand"><div class="mark">NT</div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento"><span>▣</span>Fechamento</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
 <script>
@@ -103,7 +122,7 @@ async function execute(fn,codigos=[],esperados={}){
 function homeConfig(){return `<div class="pane"><div class="alert"><b>Configuração necessária</b><p class="small">Conecte ao Firebase do seu projeto antes de usar. O arquivo de cadastro fica separado para não ficar público.</p></div><form id="configForm" class="card"><h2>Conectar projeto Firebase</h2><p class="small">No Firebase: Configurações do projeto → Seus apps → Web → Configuração. Copie apenas o objeto <b>firebaseConfig</b>. Não envie sua senha.</p><div class="field"><label>Configuração Web do Firebase</label><textarea required id="configText" placeholder="const firebaseConfig = { apiKey: '...', authDomain: '...', projectId: '...', appId: '...' };"></textarea></div><button class="btn" type="submit">Salvar configuração neste navegador</button></form><p class="foot">Este endereço deve ser publicado em HTTPS. Não use a cópia local content:// para fazer lançamentos.</p></div>`}
 function parseConfig(str){let s=str.trim();let ob;if(s.startsWith('{')){try{ob=JSON.parse(s)}catch(_){ /* formulário aceita também objeto JS copiado do console */ }}if(!ob){let p={};for(const k of ['apiKey','authDomain','projectId','appId','messagingSenderId','storageBucket','measurementId']){const re=new RegExp('(?:["\\\']?'+k+'["\\\']?)\\s*:\\s*["\\\']([^"\\\']+)["\\\']');const m=s.match(re);if(m)p[k]=m[1]}ob=p}if(!ob.apiKey||!ob.projectId||!ob.appId||!ob.authDomain)throw Error('Copie toda a configuração Web (apiKey, authDomain, projectId e appId).');return ob}
 function loginView(){return `<div class="pane"><div class="card"><h2>Entrar no estoque da empresa</h2><p class="small">Utilize a conta de e-mail e senha criada em Authentication no Firebase. A conta Google do Chrome não precisa ser a mesma.</p><form id="loginForm"><div class="field"><label>E-mail autorizado</label><input type="email" id="email" autocomplete="username" required></div><div class="field"><label>Senha</label><input type="password" id="senha" autocomplete="current-password" required></div><button class="btn" type="submit">Entrar no almoxarifado</button></form></div><div class="notice"><b>Controle de acesso</b><div class="small">Somente os UIDs permitidos nas regras do Firestore poderão consultar ou alterar o estoque.</div></div><button class="btn ghost" data-action="resetconfig">Trocar projeto Firebase</button></div>`}
-function mainNotice(){return `<div class="alert"><b>ESTOQUE A CONFERIR</b><p class="small">As quantidades vieram do app V32. Cada saldo precisa ser conferido fisicamente antes de servir de base para uma retirada. Movimentos exigem confirmação do Firebase.</p></div>`}
+function mainNotice(){return ''}
 function material(c){return mats.find(x=>x.codigo===c)}function itemSelect(id){return `<input type="search" id="${id}Search" data-material-filter="${id}" class="material-filter" placeholder="Digite parte do nome ou código" aria-label="Pesquisar material" autocomplete="off" spellcheck="false"><select id="${id}" required><option value="">Depois escolha o material abaixo…</option>${mats.map(x=>`<option value="${esc(x.codigo)}">${esc(x.codigo)} · ${esc(x.nome)}</option>`).join('')}</select><div class="small" id="${id}SearchHint">Busque por nome, parte do nome, código ou localização.</div><button class="btn ghost" type="button" data-action="scan-qr" data-scan-target="${id}" style="margin-top:8px">Ler QR Code</button>`}
 function normMaterial(s){return String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()}
 function filterMaterialSelect(id){
@@ -149,13 +168,13 @@ function ntLabelSelectPanel() {
       '<input data-label-toggle="'+esc(code)+'" type="checkbox" '+(ntLabelCodes.has(code)?'checked':'')+' style="margin-top:4px;width:18px;height:18px;accent-color:#3496f5;flex:none">'+
       '<span style="min-width:0"><b>'+esc(m.nome)+'</b><span class="small" style="display:block">'+esc(code)+' · '+esc(loc)+'</span></span></label>';
   }).join('');
-  panel('<h2>Etiquetas QR Code</h2><p class="small">Modelo final aprovado: QR grande, somente a posição numérica, código, nome completo e logomarca pequena. A rua permanece apenas no sistema. Somente impressão; nenhuma quantidade será alterada.</p>'+
+  panel('<div class="nt-qr-modal-shell"><div class="nt-qr-modal-head"><h2>Etiquetas QR Code</h2><p class="small">Selecione os materiais para criar etiquetas com QR Code, posição numérica, código e nome completo. A rua permanece no cadastro do sistema.</p>'+
     '<div class="field"><label for="ntLabelSearch">Pesquisar materiais</label><input id="ntLabelSearch" type="search" placeholder="Digite nome, código ou posição" autocomplete="off"></div>'+
     '<div class="buttons"><button class="btn alt" type="button" data-action="nt-label-all">Marcar todos</button><button class="btn alt" type="button" data-action="nt-label-visible">Marcar filtrados</button><button class="btn ghost" type="button" data-action="nt-label-clear">Limpar</button></div>'+
-    '<p id="ntLabelCount" class="small" style="margin:12px 0"></p>'+
-    '<div style="border:1px solid #33536e;border-radius:12px;max-height:43vh;overflow-y:auto;padding:3px 8px">'+rows+'</div>'+
-    '<p class="small" style="margin:12px 0">Folha A4 em pé: 8 etiquetas por folha (2 colunas × 4 linhas). Escolha Imprimir ou Salvar como PDF na nova aba.</p>'+
-    '<div class="buttons"><button class="btn" type="button" data-action="nt-label-print">Gerar etiquetas selecionadas</button><button class="btn ghost" type="button" data-action="close">Voltar</button></div>');
+    '<p id="ntLabelCount" class="small" style="margin:10px 0 5px"></p></div>'+
+    '<div class="nt-qr-modal-list" aria-label="Materiais para etiquetar">'+rows+'</div>'+
+    '<div class="nt-qr-modal-footer"><p class="small" style="margin:0 0 9px">Impressão em A4. O padrão já vem pronto e pode ser personalizado na prévia.</p>'+
+    '<div class="buttons"><button class="btn" type="button" data-action="nt-label-print">Gerar etiquetas selecionadas</button><button class="btn ghost" type="button" data-action="close">Voltar</button></div></div></div>');
   ntRefreshLabelPanel();
 }
 function ntRefreshLabelPanel() {
@@ -328,9 +347,9 @@ function materialList(){
     <div class="field"><label for="streetSelect">Localização</label><select id="streetSelect">${options(streets,materialStreet)}</select></div>
     <div class="field"><label for="sortSelect">Ordenar por</label><select id="sortSelect">${options(sorts,materialSort)}</select></div></div>
     </details>`;
-  return `<h2>Materiais · ${mats.length}</h2><div class="field"><input type="search" id="searchInput" placeholder="Código, nome, rua ou número" value="${esc(filter)}" aria-label="Pesquisar materiais"></div>
+  return `<div class="nt-material-heading"><h2>Materiais · ${mats.length}</h2><button class="btn nt-label-shortcut" type="button" data-action="nt-label-open" title="Selecionar e imprimir etiquetas QR Code">▦ &nbsp; Criar etiquetas QR</button></div><div class="field"><input type="search" id="searchInput" placeholder="Código, nome, rua ou número" value="${esc(filter)}" aria-label="Pesquisar materiais"></div>
   ${inventorySummary(filterMarkup)}
-  <div class="buttons"><button class="btn alt" data-action="novo">+ Novo material</button><button class="btn ghost" data-action="csv-stock">Exportar estoque</button><button class="btn ghost" type="button" data-action="scan-qr" data-scan-target="materiais">Ler QR Code</button><button class="btn" type="button" data-action="nt-label-open">Etiquetas QR Code · A4</button></div><div class="gap"></div>
+  <div class="buttons nt-material-actions"><button class="btn alt" data-action="novo">+ Novo material</button><button class="btn ghost" data-action="csv-stock">Exportar estoque</button><button class="btn ghost" type="button" data-action="scan-qr" data-scan-target="materiais">Ler QR Code</button></div><div class="gap"></div>
   <p class="small" style="margin:0 0 9px">${matches.length} material(is) encontrado(s) com os filtros atuais.</p>
   <div class="list">${matches.slice(0,visibleMaterials).map(i=>`<button class="item" data-details="${esc(i.codigo)}" style="text-align:left;color:inherit;width:100%"><div><strong>${esc(i.nome)}</strong><p class="small">${esc(i.codigo)} · ${esc(i.rua||'Sem rua')}-${esc(i.posicao||'?')} · ${esc(i.unidade||'')}</p><span class="pill ${i.conferido?'':'bad'}">${i.conferido?'Conferido':'A conferir'}</span></div><div style="text-align:right"><strong>${fmt(i.quantidade)}</strong><p class="small">${money(i.preco)}</p></div></button>`).join('')||'<div class="small">Nenhum material encontrado neste filtro.</div>'}${matches.length>visibleMaterials?`<button class="btn ghost" type="button" data-action="more-mats">Ver mais materiais (${matches.length-visibleMaterials} restantes)</button>`:''}<p class="small">Mostrando ${Math.min(matches.length,visibleMaterials)} de ${matches.length}</p></div>`;
 }
@@ -474,83 +493,111 @@ function ntInventoryReportEntry(){
  return `<div class="card" style="margin-bottom:12px"><h2>Relatório geral do inventário</h2>
  <p class="small" style="margin:7px 0 12px">Estoque completo da New Termisa: todos os materiais, inclusive os que não tiveram movimento hoje. Inclui código, descrição, unidade, rua/posição, saldo, mínimo, preço, valor e situação da conferência.</p>
  <div class="buttons"><button class="btn" type="button" data-action="print-full-inventory">Gerar inventário completo · PDF</button></div>
- <p class="small" style="margin-top:10px">Consulta diretamente ao Firebase na hora da emissão. Este relatório é independente da data do fechamento diário e não altera contagens nem quantidades.</p>
+ <p class="small" style="margin-top:10px">Resumo executivo na primeira página e relação completa dos materiais em anexo. Consulta o Firebase no momento da emissão.</p>
  </div>`;
 }
-function ntFullInventoryReport(items,generatedAt,operator){
- const stamp=generatedAt instanceof Date?generatedAt:new Date(generatedAt);
- const date=Number.isFinite(stamp.getTime())?`${stamp.getFullYear()}-${String(stamp.getMonth()+1).padStart(2,'0')}-${String(stamp.getDate()).padStart(2,'0')}`:day();
- const at=Number.isFinite(stamp.getTime())?stamp.toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):ntDate(date);
- const moneyBR=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)||0);
- const safeNum=v=>Number.isFinite(Number(v))?Number(v):0;
- const place=m=>(String(m.rua||'').trim()&&String(m.posicao||'').trim())?String(m.rua).trim().toUpperCase()+'-'+String(m.posicao).trim().padStart(2,'0'):'Sem localização';
- const rows=[...items].map(m=>{
-   const qtd=safeNum(m.quantidade),min=safeNum(m.minimo),price=safeNum(m.preco);
-   return {codigo:String(m.codigo??''),nome:String(m.nome??'').trim()||'SEM DESCRIÇÃO',unidade:String(m.unidade??'').trim()||'—',
-     rua:String(m.rua??'').trim().toUpperCase(),local:place(m),qtd,min,price,total:Math.round(qtd*price*100)/100,
-     conferido:!!m.conferido};
- }).sort((a,b)=>{
-   const la=a.local==='Sem localização',lb=b.local==='Sem localização';
-   if(la!==lb)return la?1:-1;
-   const street=a.rua.localeCompare(b.rua,'pt-BR');
-   const pos=Number.parseInt(a.local.split('-')[1],10)-Number.parseInt(b.local.split('-')[1],10);
-   return street||(Number.isFinite(pos)?pos:0)||a.nome.localeCompare(b.nome,'pt-BR');
- });
- const total=rows.length,checked=rows.filter(m=>m.conferido).length,pending=total-checked;
- const noLocation=rows.filter(m=>m.local==='Sem localização').length;
- const low=rows.filter(m=>m.qtd<=m.min).length;
- const zero=rows.filter(m=>m.qtd<=0).length;
- const totalValue=rows.reduce((sum,m)=>sum+m.total,0);
- const checkedValue=rows.filter(m=>m.conferido).reduce((sum,m)=>sum+m.total,0);
- const groups=[...'ABCDEFGH','Sem localização'].map(key=>{
-   const sub=rows.filter(m=>key==='Sem localização'?m.local==='Sem localização':m.rua===key&&m.local!=='Sem localização');
-   return {name:key==='Sem localização'?'Sem localização':'Rua '+key,total:sub.length,checked:sub.filter(m=>m.conferido).length,
-      value:sub.reduce((sum,m)=>sum+m.total,0)};
- }).filter(x=>x.total>0);
- const percent=total?Math.round(checked*1000/total)/10:0;
- const extraCSS=`<style>
-   .nt-inv-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm;margin:7mm 0 6mm}
-   .nt-inv-metrics .metric{min-height:22mm;padding:3mm 3mm}
-   .nt-inv-metrics .metric small{font-size:8pt}.nt-inv-metrics .metric strong{font-size:17pt}
-   .nt-inv-groups{font-size:9pt}.nt-inv-groups th{font-size:8pt;padding:2.3mm 2mm}.nt-inv-groups td{padding:2.15mm 2mm;line-height:1.23}
-   .nt-inv-table{font-size:8.25pt}
-   .nt-inv-table th{font-size:8pt;padding:2.3mm 1.4mm}
-   .nt-inv-table td{padding:2.35mm 1.4mm;line-height:1.22}
-   .nt-inv-table .inv-num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-   .nt-inv-table .inv-code{font-weight:bold;white-space:nowrap}
-   .nt-inv-table .inv-name{font-weight:600;overflow-wrap:anywhere}
-   .nt-inv-table .inv-status{font-size:7.9pt;font-weight:600}
-   .nt-inv-table .inv-pending{color:#8a5617}
-   .nt-inv-section-note{color:#496471;font-size:8.15pt;line-height:1.4;margin:3mm 0}
-   @media print{.nt-inv-table tbody tr{break-inside:avoid;page-break-inside:avoid}}
- </style>`;
- const summaryGroups=`<table class="nt-inv-groups"><colgroup><col style="width:32%"><col style="width:19%"><col style="width:19%"><col style="width:30%"></colgroup><thead><tr><th>LOCAL</th><th>ITENS</th><th>CONFERIDOS</th><th>VALOR CADASTRADO</th></tr></thead><tbody>${groups.map(g=>`<tr><td>${ntPlain(g.name)}</td><td>${g.total}</td><td>${g.checked}</td><td>${moneyBR(g.value)}</td></tr>`).join('')}</tbody></table>`;
- const head=ntTop('INVENTÁRIO GERAL DE MATERIAIS','Posição atual de todos os materiais cadastrados | Emissão: '+at,date);
- const metrics=[['MATERIAIS CADASTRADOS',total],['CONFERIDOS',checked],['AGUARDANDO CONFERÊNCIA',pending],['CONFERÊNCIA CONCLUÍDA',String(percent).replace('.',',')+'%'],['SEM LOCALIZAÇÃO',noLocation],['NO MÍNIMO OU ABAIXO',low]];
- const sum=`<section class="page portrait">${head}<div class="sectionline"><span>PANORAMA DO ALMOXARIFADO</span><span>${ntPlain(at)}</span></div>
- <div class="nt-inv-metrics">${metrics.map(([name,value])=>`<div class="metric"><small>${ntPlain(name)}</small><strong>${ntPlain(value)}</strong></div>`).join('')}</div>
- <div class="sectionline"><span>VALORIZAÇÃO DO ESTOQUE</span></div>
- <div class="metrics" style="grid-template-columns:repeat(2,1fr);margin:3mm 0 6mm"><div class="metric"><small>VALOR TOTAL PELOS PREÇOS CADASTRADOS</small><strong style="font-size:16pt">${moneyBR(totalValue)}</strong></div><div class="metric"><small>VALOR DOS MATERIAIS JÁ CONFERIDOS</small><strong style="font-size:16pt">${moneyBR(checkedValue)}</strong></div></div>
- <div class="sectionline"><span>DISTRIBUIÇÃO POR RUA</span><span>${zero} material(is) com saldo zerado</span></div>${summaryGroups}
- <p class="nt-inv-section-note">Valores estimados com base nos preços e saldos cadastrados. Itens não conferidos ainda precisam de validação física. Quantidades de unidades diferentes não são somadas. Estoque mínimo ou abaixo inclui saldos iguais ao mínimo cadastrado (inclusive zero).</p>
- <p class="nt-inv-section-note">Fonte: consulta ao servidor Firebase. Emitido por ${ntPlain(operator||'usuário autenticado')}. Este documento é um retrato do estoque no momento da emissão, não um histórico de movimentações diárias.</p>
- ${ntFooter(1,1+Math.max(1,Math.ceil(rows.length/9)))}</section>`;
- const chunks=[];
- for(let i=0;i<rows.length;i+=9)chunks.push(rows.slice(i,i+9));
- if(!chunks.length)chunks.push([]);
- const totalPages=1+chunks.length;
- // Paginação controlada para não cortar linhas e nomes compridos em A4 paisagem.
- const details=chunks.map((part,page)=>{
-   const body=`<table class="nt-inv-table"><colgroup><col style="width:11%"><col style="width:27%"><col style="width:5%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:8%"></colgroup>
-   <thead><tr><th>CÓDIGO</th><th>MATERIAL / DESCRIÇÃO</th><th>UN.</th><th>RUA - POS.</th><th>SALDO ATUAL</th><th>EST. MÍN.</th><th>PREÇO UN.</th><th>VALOR TOTAL</th><th>SITUAÇÃO</th></tr></thead>
-   <tbody>${part.length?part.map(m=>`<tr><td class="inv-code">${ntPlain(m.codigo)}</td><td class="inv-name">${ntPlain(m.nome)}</td><td>${ntPlain(m.unidade)}</td><td>${ntPlain(m.local)}</td><td class="inv-num">${fmt(m.qtd)}</td><td class="inv-num">${fmt(m.min)}</td><td class="inv-num">${moneyBR(m.price)}</td><td class="inv-num">${moneyBR(m.total)}</td><td class="inv-status ${m.conferido?'':'inv-pending'}">${m.conferido?'Conferido':'Pendente'}</td></tr>`).join(''):'<tr><td colspan="9" class="empty">Nenhum material cadastrado no momento da consulta.</td></tr>'}</tbody></table>`;
-   return `<section class="page landscape">${ntTop('RELAÇÃO COMPLETA DE MATERIAIS','Estoque atual, preços, localização e conferência | '+at,date)}
-   <div class="sectionline"><span>MATERIAIS CADASTRADOS · ${page*9+1}–${Math.min((page+1)*9,rows.length)} DE ${rows.length}</span><span>${ntPlain(at)}</span></div>
-   ${body}<p class="nt-inv-section-note">Saldo atual obtido do cadastro do Firebase; conferidos e pendentes aparecem separados na coluna SITUAÇÃO. Não representa o movimento do dia.</p>
-   ${ntFooter(page+2,totalPages)}</section>`;
- });
- return ntHtml('Inventário Geral de Materiais · '+ntDate(date),[sum,...details]).replace('</head>',extraCSS+'</head>');
+function ntFullInventoryReport(items, generatedAt, operator) {
+  // Apresentação gerencial. Só recebe registros consultados e gera HTML, sem gravar dados no Firebase.
+  const when = generatedAt instanceof Date ? generatedAt : new Date(generatedAt);
+  const emitted = Number.isFinite(when.getTime())
+    ? when.toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'}) : 'Data não disponível';
+  const asNum = v => Number.isFinite(Number(v)) ? Number(v) : 0;
+  const brNum = v => new Intl.NumberFormat('pt-BR', {maximumFractionDigits:2}).format(asNum(v));
+  const brPrice = v => new Intl.NumberFormat('pt-BR', {style:'currency', currency:'BRL'}).format(asNum(v));
+  const moneyCol = v => new Intl.NumberFormat('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}).format(asNum(v));
+  const place = m => String(m.rua||'').trim() && String(m.posicao||'').trim()
+    ? String(m.rua).trim().toUpperCase() + '-' + String(m.posicao).trim().padStart(2,'0') : '—';
+  const rows = [...items].map(m => ({
+    code: String(m.codigo??''), name: String(m.nome??'').trim() || 'SEM DESCRIÇÃO',
+    loc: place(m), unit: String(m.unidade??'').trim() || '—',
+    qty: asNum(m.quantidade), price: asNum(m.preco),
+    min: asNum(m.minimo), checked: !!m.conferido
+  })).map(x=>({...x,value:x.qty*x.price})).sort((a,b) => a.name.localeCompare(b.name,'pt-BR') || a.code.localeCompare(b.code,'pt-BR'));
+  const total=rows.length, confirmed=rows.filter(r=>r.checked).length, pending=total-confirmed;
+  const missing=rows.filter(r=>r.loc==='—').length;
+  const low=rows.filter(r=>r.qty<=r.min).length;
+  const value=rows.reduce((x,r)=>x+r.value,0), checkedValue=rows.filter(r=>r.checked).reduce((x,r)=>x+r.value,0);
+  const pct=total?Math.round(confirmed/total*1000)/10:0;
+  // Paginação com compensação para descrições compridas.
+  const chunks=[];let part=[],units=0;
+  for (const item of rows) {
+    const wordCount=item.name.length;
+    const weight=1+(wordCount>44?0.7:0)+(wordCount>65?0.65:0);
+    if(part.length&&units+weight>15){chunks.push(part);part=[];units=0;}
+    part.push(item); units+=weight;
+  }
+  if(part.length || !chunks.length)chunks.push(part);
+  const pages=chunks.length+1;
+  const ntFooterNew=(n)=>`<footer class="nto-foot"><span>NEW TERMISA / ALMOXARIFADO &nbsp;•&nbsp; Base: ${ntPlain(emitted)} &nbsp;•&nbsp; Saldos sujeitos à conferência</span><strong>${n} / ${pages}</strong></footer>`;
+  const ntHeadNew=(title,subtitle)=>`<header class="nto-head"><div><div class="nto-brandline">NEW TERMISA &nbsp;/&nbsp; ALMOXARIFADO</div><h1>${ntPlain(title)}</h1><p>${ntPlain(subtitle)}</p></div><img src="${NT_LOGO}" alt="New Termisa"></header>`;
+  const cards=[['MATERIAIS',total,'No cadastro'],['CONFERIDOS',confirmed,'Contagem validada'],['PENDENTES',pending,'Sem conferência'],['SEM LOCALIZAÇÃO',missing,'Endereço pendente'],['ESTOQUE BAIXO',low,'Mínimo ou abaixo']].map(([h,v,s])=>`<div class="nto-kpi"><small>${h}</small><b>${v}</b><span>${s}</span></div>`).join('');
+  const cover=`<section class="nto-page">${ntHeadNew('RELATÓRIO GERAL DO INVENTÁRIO','Posição consolidada dos materiais cadastrados • Emissão: '+emitted)}
+    <div class="nto-summary"><div><small>VALOR ESTIMADO DO ESTOQUE</small><strong>${brPrice(value)}</strong></div><div class="nto-confirmed"><small>VALOR DOS ITENS CONFERIDOS</small><b>${brPrice(checkedValue)}</b></div></div>
+    <div class="nto-kpis">${cards}</div>
+    <div class="nto-progress-head"><b>PROGRESSO DA CONFERÊNCIA FÍSICA</b><span>${confirmed} de ${total} materiais • ${String(pct).replace('.',',')}%</span></div>
+    <div class="nto-meter"><div style="width:${pct}%"></div></div>
+    <div class="nto-info"><b>LEITURA GERENCIAL</b><p>Este relatório reúne todos os materiais cadastrados, inclusive aqueles sem movimentações no dia.</p><p>Os materiais pendentes ainda não tiveram a quantidade validada por conferência física. Os valores são estimativas baseadas nos saldos e preços cadastrados.</p></div>
+    <div class="nto-annex"><b>ANEXO • RELAÇÃO COMPLETA</b><p>${total} materiais organizados por nome, com código, localização, unidade, saldo, preço, valor e conferência. Não se somam quantidades de unidades diferentes.</p></div>${ntFooterNew(1)}</section>`;
+  const list=chunks.map((chunk,index)=>{
+    const first=chunks.slice(0,index).reduce((n,a)=>n+a.length,0)+1;
+    const last=first+chunk.length-1;
+    const trs=chunk.map(x=>`<tr>
+      <td class="nto-code">${ntPlain(x.code)}</td><td class="nto-name">${ntPlain(x.name)}</td>
+      <td>${ntPlain(x.loc)}</td><td>${ntPlain(x.unit)}</td>
+      <td class="nto-num nto-bold">${brNum(x.qty)}</td><td class="nto-num">${moneyCol(x.price)}</td>
+      <td class="nto-num nto-bold">${moneyCol(x.value)}</td>
+      <td class="nto-check ${x.checked?'nto-ok':'nto-pend'}">${x.checked?'SIM':'NÃO'}</td></tr>`).join('');
+    return `<section class="nto-page">${ntHeadNew('RELAÇÃO COMPLETA DE MATERIAIS',`Listagem alfabética • ${total} materiais • Valores em reais (R$)`)}
+    <div class="nto-tablehead"><b>REGISTROS ${first} A ${last} DE ${total}</b><span>Quantidades na unidade de cada material</span></div>
+    <table class="nto-table"><colgroup><col style="width:11%"><col style="width:34.5%"><col style="width:7.5%"><col style="width:5.2%"><col style="width:8.4%"><col style="width:10.4%"><col style="width:13%"><col style="width:10%"></colgroup>
+    <thead><tr><th>CÓDIGO</th><th>MATERIAL / DESCRIÇÃO</th><th>LOCAL</th><th>UN.</th><th class="nto-num">SALDO</th><th class="nto-num">PREÇO (R$)</th><th class="nto-num">VALOR (R$)</th><th class="nto-check">CONFER.</th></tr></thead><tbody>${trs}</tbody></table>${ntFooterNew(index+2)}</section>`;
+  }).join('');
+  const style=`<style>
+    @page{size:A4 landscape;margin:0}
+    *{box-sizing:border-box}
+    html,body{padding:0;margin:0;background:#e9eef1;font-family:Arial,Helvetica,sans-serif;color:#102e42}
+    .nto-toolbar{position:sticky;top:0;z-index:2;padding:12px 17px;text-align:center;background:#102e42;color:#fff;font-size:13px}
+    .nto-toolbar button{background:#158f95;color:#fff;border:0;border-radius:7px;padding:10px 18px;margin-right:12px;font-weight:700;cursor:pointer}
+    .nto-page{position:relative;width:297mm;height:210mm;padding:12mm 15mm 15mm;margin:16px auto;background:white;box-shadow:0 4px 18px #0002;break-after:page;page-break-after:always;overflow:hidden}
+    .nto-page:last-child{break-after:auto;page-break-after:auto}
+    .nto-page:before{content:'';position:absolute;top:0;left:0;right:0;height:3.2mm;background:#102e42}
+    .nto-page:after{content:'';position:absolute;top:3.2mm;left:0;width:41mm;height:1mm;background:#14979a}
+    .nto-head{height:32mm;border-bottom:1px solid #dce6ea;display:flex;align-items:flex-start;justify-content:space-between;gap:12mm;padding-top:2mm}
+    .nto-brandline{color:#14979a;font-size:8.5pt;font-weight:700;margin-bottom:6mm}
+    .nto-head h1{font-size:19pt;letter-spacing:-.35px;color:#102e42;line-height:1.1;margin:0}
+    .nto-head p{font-size:9pt;color:#617884;margin:3mm 0 0}
+    .nto-head img{width:46mm;max-height:15mm;object-fit:contain;object-position:right center}
+    .nto-summary{display:flex;justify-content:space-between;align-items:center;margin:8mm 0 6mm;padding:6mm 7mm;border-radius:3mm;background:#ebf6f5}
+    .nto-summary small{display:block;color:#168d94;font-weight:700;font-size:10pt;margin-bottom:3mm}
+    .nto-summary strong{display:block;color:#102e42;font-size:27pt;line-height:1}
+    .nto-confirmed{text-align:right}.nto-confirmed small{color:#617884;font-size:8pt}.nto-confirmed b{font-size:13pt}
+    .nto-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:3mm;margin-bottom:8mm}
+    .nto-kpi{border:1px solid #dce6ea;border-radius:2.5mm;padding:3.5mm;min-height:27mm;display:flex;flex-direction:column}
+    .nto-kpi small{font-size:8pt;color:#617884;font-weight:700}.nto-kpi b{font-size:22pt;margin:3mm 0 1mm}.nto-kpi span{font-size:7.7pt;color:#617884}
+    .nto-progress-head{display:flex;justify-content:space-between;gap:4mm;align-items:center;font-size:10pt}
+    .nto-progress-head span{color:#15989b;font-weight:700}
+    .nto-meter{margin:4mm 0 8mm;width:100%;height:4mm;background:#dce6ea;border-radius:6mm;overflow:hidden}
+    .nto-meter div{height:100%;background:#15989b;border-radius:6mm}
+    .nto-info b,.nto-annex b{display:block;margin-bottom:3mm;font-size:10pt}
+    .nto-info{margin:0 0 6mm}.nto-info p{margin:0;font-size:9.1pt;color:#526f7d;line-height:1.7}
+    .nto-annex p{font-size:9pt;color:#617884;margin:0}
+    .nto-tablehead{display:flex;justify-content:space-between;align-items:center;margin:6mm 0 3mm;color:#14979a;font-size:8.3pt}
+    .nto-tablehead span{color:#617884}
+    .nto-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.7pt}
+    .nto-table th{font-size:7.7pt;background:#102e42;color:white;text-align:left;padding:2.5mm 2mm}
+    .nto-table td{padding:2.1mm 2mm;border-bottom:1px solid #e2eaed;line-height:1.27;vertical-align:middle;overflow-wrap:anywhere}
+    .nto-table tbody tr:nth-child(odd){background:#f4f8fa}
+    .nto-table .nto-num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .nto-table .nto-code,.nto-table .nto-bold{font-weight:700}
+    .nto-table .nto-check{text-align:center;font-weight:700}
+    .nto-table .nto-ok{color:#137b67}.nto-table .nto-pend{color:#9c631b}
+    .nto-foot{position:absolute;left:15mm;right:15mm;bottom:8mm;border-top:1px solid #dce6ea;padding-top:2.5mm;display:flex;justify-content:space-between;color:#617884;font-size:7.4pt}
+    .nto-foot strong{color:#102e42}
+    @media print{html,body{background:#fff}.nto-toolbar{display:none!important}.nto-page{margin:0;box-shadow:none}}
+    </style>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inventário Geral | New Termisa</title>${style}</head><body><div class="nto-toolbar"><button onclick="window.print()">Imprimir / Salvar PDF</button>Relatório geral do inventário • confira os dados antes de imprimir</div>${cover}${list}</body></html>`;
 }
+
 function ntOpenFullInventory(){
  if(!user||!serverReady||!navigator.onLine){notice('Aguarde a sincronização com o Firebase para emitir o inventário completo.',true);return}
  // Abrir no clique para evitar bloqueio do navegador antes da consulta assíncrona.
