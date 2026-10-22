@@ -69,6 +69,42 @@
 .nt-repos-history{display:flex;justify-content:space-between;gap:12px;padding:13px;border-bottom:1px solid #345675;align-items:center}
 .nt-repos-history:last-child{border-bottom:none}
 @media(max-width:540px){.nt-repos-line{grid-template-columns:22px minmax(0,1fr) 75px;gap:7px;padding:9px 6px}.nt-repos-line input[data-repos-qty]{padding:8px 3px;font-size:.83rem}.nt-repos-history{align-items:flex-start;flex-direction:column}.nt-repos-footer .buttons{display:grid;grid-template-columns:1fr}}
+
+/* AJUSTE PONTUAL 2026-10-22: alinhamento da navegacao inferior em celular.
+   Apenas CSS de apresentacao. Nao altera Firebase, estoque nem logica de negocio. */
+@media (max-width: 700px) {
+  #navigation.bar {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    overflow-x: hidden;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  #navigation.bar button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: initial;
+    min-width: 0;
+    min-height: 58px;
+    padding: 8px 0 9px;
+    font-size: clamp(9px, 2.7vw, 12px);
+    line-height: 1.22;
+    text-align: center;
+    white-space: nowrap;
+  }
+  #navigation.bar button span {
+    display: block;
+    font-size: 1.18rem;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  #navigation.bar button[data-go="fechamento"] {
+    font-size: clamp(9px, 2.45vw, 11px);
+  }
+}
 </style></head>
 <body><div class="shell"><header><div class="brand"><div class="mark">NT</div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento"><span>▣</span>Fechamento</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
 <script>
