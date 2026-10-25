@@ -486,7 +486,7 @@ function ntReposReportHtml(snapshot){
  if(group.length)chunks.push(group);
  const total=chunks.length;
  chunks.forEach((items,idx)=>{
- const body=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO','MÍN.','QTD. A COMPRAR'],[16,40,8,11,10,15],items.map(r=>[r.codigo,r.nome,r.unidadeMedida||'—',r.saldoAtual==null?'—':fmt(r.saldoAtual),r.minimo==null?'—':fmt(r.minimo),quantity(r.quantidadeComprar)]));
+ const body=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO','QTD. A COMPRAR'],[18,42,9,12,19],items.map(r=>[r.codigo,r.nome,r.unidadeMedida||'—',r.saldoAtual==null?'—':fmt(r.saldoAtual),quantity(r.quantidadeComprar)]));
  const intro=idx===0?`<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO</span><span>${rows.length} ${rows.length===1?'ITEM':'ITENS'}</span></div>`:`<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO · CONTINUAÇÃO</span><span>${idx+1} / ${total}</span></div>`;
  const ending=idx===total-1?`<div style="margin-top:9mm"><div class="sectionline"><span>ENCAMINHAMENTO</span></div><p class="note">Solicita-se análise e providências para aquisição dos materiais relacionados. As quantidades em branco serão definidas pelo setor responsável pelas compras.</p></div>`:'';
  pages.push(`<section class="page portrait">${ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais para análise e aquisição pelo setor de compras.',date)}${intro}${body}${ending}${ntFooter(idx+1,total)}</section>`);
@@ -671,29 +671,64 @@ function ntSaldosDoDia(movements){
  return found;
 }
 function ntClosing(movements,date,catalog=mats){
- const grouped=dayRows(movements); const balances=ntSaldosDoDia(movements); const positives=grouped.filter(x=>x.consumoLiquido>0).length;
- const types={SAIDA:new Set(),DEVOLUCAO:new Set(),ENTRADA:new Set(),AJUSTE:new Set()};
- for(const m of movements)if(!testeIdentificado(m)&&types[m.tipo])types[m.tipo].add(m.codigo);
- const tests=movements.filter(testeIdentificado).length;
- const measures=[['MATERIAIS MOVIMENTADOS',String(grouped.length)],['MATERIAIS COM SAÍDA',String(types.SAIDA.size)],['MATERIAIS COM DEVOLUÇÃO',String(types.DEVOLUCAO.size)],['MATERIAIS COM ENTRADA',String(types.ENTRADA.size)],['MATERIAIS COM AJUSTE',String(types.AJUSTE.size)],['REGISTROS DE TESTE',String(tests)]];
- const recs=grouped.map(g=>{const balance=balances.get(String(g.codigo||''));return {codigo:String(g.codigo||''),nome:String(g.nome||''),unidade:ntReportMeasure(g.codigo,catalog),saida:fmt(g.saida),devolucao:fmt(g.devolucao),consumo:fmt(g.consumoLiquido),entrada:fmt(g.entrada),ajuste:fmt(g.ajuste),testes:String(g.testes),saldoInicial:balance?.inicio==null?'—':fmt(balance.inicio),saldoFinal:balance?.fim==null?'—':fmt(balance.fim)}});
- const chunks=ntChunk(recs,[7,9]);const orderedMovements=[...movements].sort((a,b)=>String(a.timeClient||'').localeCompare(String(b.timeClient||'')));const movementChunks=orderedMovements.length?ntChunk(orderedMovements,[10,12]):[];const total=1+chunks.length+movementChunks.length;
- const summary=`<section class="page portrait">${ntTop('FECHAMENTO DIÁRIO','Resumo executivo para a gerência | '+ntDate(date),date)}<div class="sectionline"><span>INDICADORES OPERACIONAIS</span><span>${ntPlain(ntDate(date))}</span></div><div class="metrics metrics6">${measures.map(([name,count])=>`<div class="metric"><small>${ntPlain(name)}</small><strong>${ntPlain(count)}</strong></div>`).join('')}</div><div class="sectionline"><span>LEITURA RÁPIDA PARA A GERÊNCIA</span></div><ul class="bullet"><li>Consumo operacional = saídas menos devoluções, sempre por material e unidade.</li><li>Entradas são reposição de estoque e não representam consumo.</li><li>Ajustes físicos são apresentados separadamente, sem inflar o consumo.</li><li>Simulações identificadas não entram na Comunicação Interna.</li></ul>${ntFooter(1,total)}</section>`;
- const details=[];
- for(let i=0;i<chunks.length;i++){
-  const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','SAÍDAS','DEVOL.','CONSUMO','ENTRADAS','AJUSTES','TESTES','SALDO INICIAL','SALDO FINAL'],[11,21,5,7,7,8,9,10,6,8,8],chunks[i].map(x=>[x.codigo,x.nome,x.unidade,x.saida,x.devolucao,x.consumo,x.entrada,x.ajuste,x.testes,x.saldoInicial,x.saldoFinal]));
-  details.push(`<section class="page landscape">${ntTop('RESUMO DETALHADO POR MATERIAL','Movimentações consolidadas por código. Unidades diferentes não são somadas.',date,true)}<div class="sectionline"><span>${i?'CONTINUAÇÃO DOS LANÇAMENTOS':'MOVIMENTAÇÕES DE ESTOQUE'}</span><span>${ntPlain(ntDate(date))}</span></div>${body}<p class="note">Consumo operacional = saídas − devoluções. Ajustes e simulações não entram no consumo.</p>${ntFooter(i+2,total)}</section>`)
- }
+ // Relatório executivo mostra SOMENTE movimentos operacionais reais.
+ // Ajustes e simulações permanecem íntegros no histórico/auditoria, fora deste PDF.
+ const operational=movements.filter(m=>['SAIDA','ENTRADA','DEVOLUCAO'].includes(String(m.tipo))&&!testeIdentificado(m));
+ const grouped=dayRows(operational),balances=ntSaldosDoDia(operational);
+ const types={SAIDA:new Set(),DEVOLUCAO:new Set(),ENTRADA:new Set()};
+ for(const m of operational)types[m.tipo].add(String(m.codigo));
+ const measures=[
+  ['MATERIAIS MOVIMENTADOS',String(grouped.length)],
+  ['MATERIAIS COM SAÍDA',String(types.SAIDA.size)],
+  ['MATERIAIS COM ENTRADA',String(types.ENTRADA.size)],
+  ['MATERIAIS COM DEVOLUÇÃO',String(types.DEVOLUCAO.size)]
+ ];
+ const recs=grouped.map(g=>{
+  const balance=balances.get(String(g.codigo||''));
+  return {codigo:String(g.codigo||''),nome:String(g.nome||''),
+   unidade:ntReportMeasure(g.codigo,catalog),saida:fmt(g.saida),
+   devolucao:fmt(g.devolucao),consumo:fmt(g.consumoLiquido),entrada:fmt(g.entrada),
+   saldoInicial:balance?.inicio==null?'—':fmt(balance.inicio),
+   saldoFinal:balance?.fim==null?'—':fmt(balance.fim)};
+ });
+ const chunks=recs.length?ntChunk(recs,[8,10]):[];
+ const orderedMovements=[...operational].sort((a,b)=>{
+  const asTime=m=>{
+   const timestamp=m.criadoEm;
+   if(timestamp&&typeof timestamp.toMillis==='function')return timestamp.toMillis();
+   const n=Date.parse(String(m.timeClient||''));
+   return Number.isFinite(n)?n:0;
+  };
+  return asTime(a)-asTime(b)||String(a.timeClient||'').localeCompare(String(b.timeClient||''));
+ });
+ const movementChunks=orderedMovements.length?ntChunk(orderedMovements,[11,13]):[];
+ const total=1+chunks.length+movementChunks.length;
+ const overview=operational.length
+ ?'<div class="sectionline"><span>LEITURA RÁPIDA</span></div><p class="note">Consumo líquido = saídas − devoluções, calculado individualmente por material. Entradas representam reposição do estoque.</p>'
+ :'<div class="sectionline"><span>SEM MOVIMENTAÇÕES OPERACIONAIS</span></div><p class="note">Não há entradas, saídas ou devoluções registradas para a data selecionada.</p>';
+ const summary='<section class="page portrait">'+ntTop('FECHAMENTO DIÁRIO','Resumo das entradas e saídas operacionais · '+ntDate(date),date)+
+  '<div class="sectionline"><span>INDICADORES DO DIA</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
+  '<div class="metrics">'+measures.map(([name,count])=>'<div class="metric"><small>'+ntPlain(name)+'</small><strong>'+ntPlain(count)+'</strong></div>').join('')+'</div>'+
+  overview+ntFooter(1,total)+'</section>';
+ const details=chunks.map((chunk,i)=>{
+  const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','SAÍDAS','DEVOL.','CONSUMO','ENTRADAS','SALDO INICIAL','SALDO FINAL'],
+  [13,26,6,8,8,9,10,10,10],chunk.map(x=>[x.codigo,x.nome,x.unidade,x.saida,x.devolucao,x.consumo,x.entrada,x.saldoInicial,x.saldoFinal]));
+  return '<section class="page landscape">'+ntTop('FECHAMENTO POR MATERIAL','Entradas, saídas, devoluções e saldos históricos.',date,true)+
+   '<div class="sectionline"><span>'+(i?'MATERIAIS · CONTINUAÇÃO':'RELAÇÃO DE MATERIAIS')+'</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
+   body+'<p class="note">Consumo líquido = saídas − devoluções. Os saldos refletem os valores registrados nas operações.</p>'+
+   ntFooter(i+2,total)+'</section>';
+ });
  const tracePages=movementChunks.map((part,i)=>{
-  const items=part.map(m=>[ntTime(m),String(m.codigo||''),String(m.nome||''),ntReportMeasure(m.codigo,catalog),
-    testeIdentificado(m)?String(m.tipo||'')+' (TESTE)':String(m.tipo||''),
-    m.tipo==='AJUSTE'?fmt(Number(m.delta)||0):fmt(ntQty(m)),m.antes==null?'—':fmt(m.antes),m.depois==null?'—':fmt(m.depois),String(m.solicitante||m.operador||'—')]);
-  const rows=ntTable(['HORA','CÓDIGO','MATERIAL','UN.','TIPO','QTDE.','ANTES','DEPOIS','RESPONSÁVEL'],
-    [8,13,23,6,12,8,8,9,13],items);
-  return '<section class="page landscape">'+ntTop('MOVIMENTAÇÕES DO DIA','Histórico de cada lançamento, com saldo anterior e saldo posterior.',date,true)+
-    '<div class="sectionline"><span>RASTREABILIDADE DE ENTRADAS E SAÍDAS</span><span>'+ntDate(date)+'</span></div>'+rows+
-    '<p class="note">Saldos antes/depois são os registrados na operação. Simulações identificadas são assinaladas como TESTE.</p>'+
-    ntFooter(2+chunks.length+i,total)+'</section>';
+  const items=part.map(m=>[
+   ntTime(m),String(m.codigo||''),String(m.nome||''),ntReportMeasure(m.codigo,catalog),
+   String(m.tipo||''),fmt(ntQty(m)),m.antes==null?'—':fmt(m.antes),
+   m.depois==null?'—':fmt(m.depois),String(m.solicitante||m.operador||'—')]);
+  const body=ntTable(['HORA','CÓDIGO','MATERIAL','UN.','TIPO','QTDE.','ANTES','DEPOIS','RESPONSÁVEL'],
+   [8,13,23,6,12,8,8,9,13],items);
+  return '<section class="page landscape">'+ntTop('MOVIMENTAÇÕES DO DIA','Rastreabilidade dos lançamentos operacionais e saldos antes e depois.',date,true)+
+   '<div class="sectionline"><span>DETALHAMENTO DAS OPERAÇÕES</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
+   body+'<p class="note">Quantidades e saldos históricos registrados no Firebase no momento da operação.</p>'+
+   ntFooter(2+chunks.length+i,total)+'</section>';
  });
  return ntHtml('Fechamento Diário · '+ntDate(date),[summary,...details,...tracePages]);
 }
@@ -1040,18 +1075,20 @@ function ntManagerReport(materials,movements,from,to,periodLabel){
  const lows=materials.filter(m=>Number(m.quantidade)<=Number(m.minimo)).sort((a,b)=>Number(a.quantidade)-Number(a.minimo)-(Number(b.quantidade)-Number(b.minimo)));
  const valueStock=materials.reduce((sum,m)=>sum+(Number(m.quantidade)||0)*(Number(m.preco)||0),0);
  const usage=materials.map(m=>used.get(String(m.codigo))||{codigo:String(m.codigo),nome:String(m.nome),unidadeMedida:String(m.unidadeMedida||'—'),saidas:0,quantidadeSaida:0,devolucoes:0});
- const most=[...usage].sort((a,b)=>b.saidas-a.saidas||b.quantidadeSaida-a.quantidadeSaida||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5);
- const least=[...usage].sort((a,b)=>a.saidas-b.saidas||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5);
+ const moving=usage.filter(x=>x.saidas>0);
+ const most=[...moving].sort((a,b)=>b.saidas-a.saidas||b.quantidadeSaida-a.quantidadeSaida||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5);
+ const least=moving.length>1?[...moving].sort((a,b)=>a.saidas-b.saidas||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5):[];
  const noExit=usage.filter(x=>!x.saidas).length;
  const mRows=arr=>arr.map(x=>[x.codigo,x.nome,x.unidadeMedida,String(x.saidas),fmt(x.quantidadeSaida)]);
  const metrics=[['MATERIAIS CADASTRADOS',String(materials.length)],['SAÍDAS NO PERÍODO',String(kinds.SAIDA)],['ESTOQUE NO MÍNIMO',String(lows.length)],['VALOR DO ESTOQUE',money(valueStock)]];
  const parts='<div class="metrics">'+metrics.map(r=>'<div class="metric"><small>'+ntPlain(r[0])+'</small><strong style="font-size:'+(r[0]==='VALOR DO ESTOQUE'?'12pt':'18pt')+'">'+ntPlain(r[1])+'</strong></div>').join('')+'</div>'+
  '<div class="sectionline"><span>RESUMO DAS MOVIMENTAÇÕES</span><span>'+ntPlain(periodLabel)+'</span></div>'+
  '<p class="note" style="margin-top:1mm">Entradas: <b>'+kinds.ENTRADA+'</b> &nbsp;·&nbsp; Devoluções: <b>'+kinds.DEVOLUCAO+'</b> &nbsp;·&nbsp; Ajustes: <b>'+kinds.AJUSTE+'</b> &nbsp;·&nbsp; Solicitantes: <b>'+people.size+'</b> &nbsp;·&nbsp; Testes identificados: <b>'+ignored+'</b></p>'+
- '<div class="sectionline"><span>MAIOR FREQUÊNCIA DE SAÍDA</span><span>Por número de retiradas</span></div>'+
- ntTable(['CÓDIGO','MATERIAL','UN.','RETIRADAS','QTDE. SAÍDA'],[18,46,8,12,16],mRows(most))+
- '<div class="sectionline"><span>MENOR FREQUÊNCIA DE SAÍDA</span><span>Inclui materiais sem saída</span></div>'+
- ntTable(['CÓDIGO','MATERIAL','UN.','RETIRADAS','QTDE. SAÍDA'],[18,46,8,12,16],mRows(least))+
+ (most.length?'<div class="sectionline"><span>MAIOR FREQUÊNCIA DE SAÍDA</span><span>Por número de retiradas</span></div>'+
+ ntTable(['CÓDIGO','MATERIAL','UN.','RETIRADAS','QTDE. SAÍDA'],[18,46,8,12,16],mRows(most)):
+ '<div class="sectionline"><span>SAÍDAS NO PERÍODO</span></div><p class="note">Nenhuma saída registrada neste período. Os rankings aparecerão quando houver retiradas reais.</p>')+
+ (least.length?'<div class="sectionline"><span>MENOR FREQUÊNCIA DE SAÍDA</span><span>Entre materiais com saídas registradas</span></div>'+
+ ntTable(['CÓDIGO','MATERIAL','UN.','RETIRADAS','QTDE. SAÍDA'],[18,46,8,12,16],mRows(least)):'')+
  '<p class="note"><b>'+noExit+'</b> material(is) sem saída no período; <b>'+lows.length+'</b> no mínimo ou abaixo. Valor bruto estimado das saídas, calculado com o preço atual: <b>'+money(valueOfOutbound)+'</b>. Não soma quantidades de unidades diferentes.</p>'+
  '<p class="note">O valor do estoque e a situação de reposição refletem a posição ATUAL na emissão; não representam necessariamente a posição histórica de '+ntPlain(periodLabel)+'.</p>';
  return ntHtml('Resumo gerencial · '+periodLabel,['<section class="page landscape">'+ntTop('RESUMO GERENCIAL','Indicadores de '+periodLabel+' e posição atual do estoque.',to)+parts+ntFooter(1,1)+'</section>']);
