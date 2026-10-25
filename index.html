@@ -1141,12 +1141,18 @@ function ntReceiptReport(records,date){
   for(let i=0;i<r.itens.length;i+=11)chunks.push(r.itens.slice(i,i+11));
   if(!chunks.length)chunks.push([]);
   for(const items of chunks){
-   const rows=items.map(x=>[x.codigo,x.nome,x.unidadeMedida||'—',fmt(x.quantidadeNota),fmt(x.quantidadeRecebida),fmt(rnd(Number(x.quantidadeRecebida)-Number(x.quantidadeNota)))]);
+   const status=x=>x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO'?'PENDENTE DE CADASTRO':
+    x.statusEntrada==='ESTOQUE_ATUALIZADO'?'ENTRADA NO ESTOQUE':
+    x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA':'DOCUMENTO ANTIGO (SEM VÍNCULO)';
+   const rows=items.map(x=>[x.codigo||'SEM CÓD.',String(x.nome||'—')+' · '+status(x),x.unidadeMedida||'—',
+    fmt(x.quantidadeNota),fmt(x.quantidadeRecebida),fmt(rnd(Number(x.quantidadeRecebida)-Number(x.quantidadeNota)))]);
    const info='<div class="sectionline"><span>FORNECEDOR: '+ntPlain(r.fornecedor)+'</span><span>RECEBIDO EM '+ntPlain(ntDate(r.dataRecebimento))+'</span></div>'+
     '<p class="note" style="margin-top:2mm">PEDIDO DE COMPRA: <b>'+ntPlain(r.pedidoCompra)+'</b> &nbsp;&nbsp; NOTA FISCAL: <b>'+ntPlain(r.notaFiscal)+'</b></p>';
    const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE. NF','RECEBIDA','DIFERENÇA'],[16,40,7,12,12,13],rows);
    const issues=items.filter(x=>Number(x.quantidadeNota)!==Number(x.quantidadeRecebida)).length;
-   const foot='<p class="note">Diferenças neste bloco: <b>'+issues+'</b>. '+ntPlain(r.observacao||'Quantidades conforme conferência registrada.')+'</p>';
+   const linked=items.filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO').length,unknown=items.filter(x=>x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO').length;
+   const foot='<p class="note">Divergências NF x recebido: <b>'+issues+'</b> · Entradas vinculadas ao estoque: <b>'+linked+'</b> · Pendentes de cadastro: <b>'+unknown+'</b>.</p>'+
+   '<p class="note">'+ntPlain(r.observacao||'Confira as quantidades e a situação de cada material. Registros antigos podem não possuir vínculo.')+'</p>';
    pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Conferência por fornecedor, pedido de compra e nota fiscal.',date)+(pages.length===0?metrics:'')+info+body+foot+'__FOOT__</section>');
   }
  }
@@ -1191,7 +1197,7 @@ async function ntManualHistory(kind){
   const rows=records.map(r=>'<div class="nt-repos-history"><div><b>'+ntPlain(ntDate(type==='receipt'?r.dataRecebimento:r.dataProducao))+'</b><p class="small">'+
    ntPlain(type==='receipt'?(r.fornecedor+' · PC '+r.pedidoCompra+' · NF '+r.notaFiscal):(r.itens.length+' linha(s) de produção'))+
    '</p></div><button class="btn alt" type="button" data-action="nt-manual-record" data-kind="'+type+'" data-code="'+ntPlain(r.numero)+'">Abrir PDF</button></div>').join('');
-  panel('<h2>Histórico de '+(type==='receipt'?'recebimentos':'produção')+'</h2><p class="small">Registros administrativos salvos no Firebase; não representam movimentações automáticas de estoque.</p><div class="card">'+(rows||'<p class="small">Nenhum registro salvo.</p>')+'</div><button class="btn ghost" type="button" data-action="close">Fechar</button>');
+  panel('<h2>Histórico de '+(type==='receipt'?'recebimentos':'produção')+'</h2><p class="small">Recebimentos integrados podem atualizar o estoque; registros anteriores podem ser apenas documentais. Esta consulta não altera quantidades.</p><div class="card">'+(rows||'<p class="small">Nenhum registro salvo.</p>')+'</div><button class="btn ghost" type="button" data-action="close">Fechar</button>');
  }catch(e){panel('<h2>Histórico indisponível</h2><p class="small">'+esc(e.message||'Erro')+'</p><button class="btn" data-action="close">Fechar</button>')}
 }
 function ntManualRecord(type,id){
@@ -1309,7 +1315,8 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
   nome:String(x.nome||byCode.get(String(x.codigo))?.nome||'—'),
   unidade:String(byCode.get(String(x.codigo))?.unidadeMedida||x.unidadeMedida||'—'),
   prevista:ntDayNumber(x.quantidadeNota),recebida:ntDayNumber(x.quantidadeRecebida),
-  observacao:String(r.observacao||''),numero:String(r.numero||'')
+  semCadastro:!!x.semCadastro,statusEntrada:String(x.statusEntrada||''),
+  movimentacaoId:String(x.movimentacaoId||''),observacao:String(r.observacao||''),numero:String(r.numero||'')
  })));
  const stockMap=new Map();
  for(const mv of all){
@@ -1344,7 +1351,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
   return row;
  }).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
  const receivedByCode=new Map(),registeredByCode=new Map();
- for(const x of receiptRows)receivedByCode.set(x.codigo,rnd((receivedByCode.get(x.codigo)||0)+x.recebida));
+ for(const x of receiptRows){if(!x.codigo)continue;receivedByCode.set(x.codigo,rnd((receivedByCode.get(x.codigo)||0)+x.recebida))}
  for(const x of incoming){const code=String(x.codigo||'');registeredByCode.set(code,rnd((registeredByCode.get(code)||0)+ntQty(x)))}
  const compareCodes=[...new Set([...receivedByCode.keys(),...registeredByCode.keys()])].sort();
  const comparisons=compareCodes.map(code=>{
@@ -1367,6 +1374,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
    suppliers:new Set(receipts.map(r=>String(r.fornecedor||'').trim()).filter(Boolean)).size,
    receipts:receipts.length,receiptLines:receiptRows.length,
    receiptDifferences:receiptRows.filter(x=>Math.abs(x.prevista-x.recebida)>.0001).length,
+   pendingCodes:receiptRows.filter(x=>!x.codigo).length,
    stockItems:stockRows.length,stockNotReconciled:stockRows.filter(x=>x.validar).length,
    stockEntries:incoming.length,returnLines:operating.filter(m=>m.tipo==='DEVOLUCAO').length,
    notes:comparisons.filter(x=>Math.abs(x.diferenca)>.0001).length}
@@ -1403,7 +1411,7 @@ function ntGeneralDayPDF(model){
  const readout='<div class="sectionline"><span>PANORAMA DO DIA</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
  '<p class="note"><b>Produção:</b> '+fmt(totals.machines)+' máquina(s) concluída(s) de '+fmt(totals.machinesRequested)+' informada(s) como pedida(s) nos registros do dia.</p>'+
  '<p class="note"><b>Comunicação Interna:</b> '+totals.requestsLines+' linha(s) de retirada para '+totals.requestsMaterials+' material(is) distinto(s); '+totals.orders+' pedido(s) com número preenchido.</p>'+
- '<p class="note"><b>Recebimentos:</b> '+totals.receipts+' documento(s) de entrega, '+totals.receiptLines+' linha(s) de material, '+totals.suppliers+' fornecedor(es) e '+totals.receiptDifferences+' divergência(s) entre NF e recebido.</p>'+
+ '<p class="note"><b>Recebimentos:</b> '+totals.receipts+' documento(s) de entrega, '+totals.receiptLines+' linha(s) de material, '+totals.suppliers+' fornecedor(es), '+totals.receiptDifferences+' divergência(s) NF x recebido e '+totals.pendingCodes+' item(ns) sem código pendente(s).</p>'+
  '<p class="note"><b>Estoque:</b> '+totals.stockItems+' material(is) com registro de movimentação; '+totals.stockNotReconciled+' com variação que exige conferir o histórico completo.</p>'+
  '<div class="sectionline"><span>IMPORTANTE PARA A GERÊNCIA</span></div>'+
  '<p class="note">Os recebimentos e as produções são documentos informados manualmente. Eles <b>não</b> adicionam nem retiram estoque. As quantidades iniciais e finais vêm do histórico de movimentações do Firebase, não do formulário de recebimento.</p>'+
@@ -1443,7 +1451,9 @@ function ntGeneralDayPDF(model){
     const info='<div class="sectionline"><span>FORNECEDOR: '+ntPlain(doc.fornecedor||'—')+'</span><span>DATA '+ntPlain(ntDate(date))+'</span></div>'+
     '<p class="note">Pedido de compra: <b>'+ntPlain(doc.pedidoCompra||'—')+'</b> &nbsp;·&nbsp; Nota fiscal: <b>'+ntPlain(doc.notaFiscal||'—')+'</b></p>';
     const table=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTD. NF','RECEBIDA','DIFERENÇA'],[16,41,7,12,12,12],
-      part.map(x=>[String(x.codigo||''),String(x.nome||'—'),String(x.unidadeMedida||'—'),fmt(x.quantidadeNota),fmt(x.quantidadeRecebida),
+      part.map(x=>[String(x.codigo||'SEM CÓD.'),String(x.nome||'—')+
+    (x.semCadastro?' · PENDENTE DE CADASTRO':x.statusEntrada==='ESTOQUE_ATUALIZADO'?' · ENTRADA VINCULADA':x.statusEntrada==='NAO_ENTROU'?' · SEM ENTRADA':' · DOCUMENTO ANTIGO'),
+    String(x.unidadeMedida||'—'),fmt(x.quantidadeNota),fmt(x.quantidadeRecebida),
         fmt(rnd(ntDayNumber(x.quantidadeRecebida)-ntDayNumber(x.quantidadeNota)))]));
     page('RECEBIMENTOS DE FORNECEDORES','Conferência documental das mercadorias recebidas.',info+table+
      (String(doc.observacao||'').trim()?'<p class="note"><b>Observação:</b> '+ntPlain(doc.observacao)+'</p>':'')+
