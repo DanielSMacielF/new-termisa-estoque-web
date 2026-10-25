@@ -138,7 +138,7 @@ setTimeout(function(){
 </script><script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import {getFirestore,collection,doc,setDoc,getDocsFromServer,onSnapshot,query,where,orderBy,limit,writeBatch,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import {getFirestore,collection,doc,setDoc,getDocsFromServer,getDocFromServer,onSnapshot,query,where,orderBy,limit,writeBatch,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 const $=x=>document.getElementById(x),esc=x=>String(x??'').replace(/[&<>"']/g,t=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[t])),fmt=(x)=>Number(x||0).toLocaleString('pt-BR',{maximumFractionDigits:4}),money=x=>Number(x||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),nval=x=>Number(String(x??'').trim().replace(',','.')),rnd=x=>Math.round((x+Number.EPSILON)*10000)/10000;
 const day=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 let appAuth,db,user=null,mats=[],recent=[],todayMoves=[],cart=[],tab='painel',filter='',visibleMaterials=100,materialStatus='todos',materialStreet='todas',materialSort='nome',filterPanelOpen=false,kind='SAIDA',dateFilter=day(),busy=false,serverReady=false,cloudOk=false,unsubs=[],closedDay=true,lastEventDate=day();
@@ -910,13 +910,22 @@ function ntReceiptCapture(){
   observacao:$('nrNotes').value.trim()
  };
 }
-function ntReceiptNew(){
- if(ntReceiptItems.length||ntReceiptDraft.fornecedor||ntReceiptDraft.pedidoCompra||ntReceiptDraft.notaFiscal){
-  if(!confirm('Limpar os campos e materiais do recebimento não confirmado? Nada será alterado no estoque.'))return;
+async function ntReceiptNew(){
+ if(ntReceiptCommitRef){
+  isReady();
+  const check=await getDocFromServer(ntReceiptCommitRef);
+  if(check.exists()){
+   ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''};
+   ntReceiptItems=[];ntReceiptManualMode=false;ntReceiptCommitRef=null;draw();
+   notice('Recebimento anterior já consta no histórico. Nenhuma entrada foi repetida.');
+   return;
+  }
+  if(!confirm('A última tentativa não foi encontrada no servidor. Limpar o formulário e cancelar essa tentativa?'))return;
+ }else if(ntReceiptItems.length||ntReceiptDraft.fornecedor||ntReceiptDraft.pedidoCompra||ntReceiptDraft.notaFiscal){
+  if(!confirm('Limpar os campos e materiais ainda não confirmados? Nada será alterado no estoque.'))return;
  }
  ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''};
- ntReceiptItems=[];ntReceiptManualMode=false;ntReceiptCommitRef=null;
- draw();
+ ntReceiptItems=[];ntReceiptManualMode=false;ntReceiptCommitRef=null;draw();
 }
 function ntReceiptView(){
  const d=ntReceiptDraft;
@@ -938,7 +947,7 @@ function ntReceiptView(){
  return '<section class="card" style="margin-top:13px">'+
   '<h2>Entrada · Recebimento de materiais</h2>'+
   '<p class="small" style="margin:7px 0 14px">Informe os dados da entrega. Ao confirmar, materiais cadastrados entram no estoque e o documento de recebimento é registrado junto, sem lançamento duplicado.</p>'+
-  ntField('Data do recebimento','nrDate',d.dataRecebimento,'date')+
+  '<div class="field"><label for="nrDate">Data do recebimento (hoje)</label><input type="date" id="nrDate" value="'+esc(d.dataRecebimento)+'" readonly></div>'+
   ntField('Fornecedor','nrSupplier',d.fornecedor)+
   ntField('Número do pedido de compra','nrPO',d.pedidoCompra)+
   ntField('Número da nota fiscal','nrInvoice',d.notaFiscal)+
@@ -1010,6 +1019,7 @@ function ntReceiptValidate(d,items){
  if(items.length>50)throw Error('Máximo de 50 materiais por recebimento.');
 }
 async function ntReceiptSave(){
+ if(tab!=='movimentar'||kind!=='ENTRADA')throw Error('Use Movimentar → Entrada para registrar recebimento.');
  ntReceiptCapture();isReady();
  const d={...ntReceiptDraft},items=ntReceiptItems.map(x=>({...x}));
  ntReceiptValidate(d,items);
@@ -1695,7 +1705,7 @@ async function openQr(target){
 
 async function handleActions(e){const act=e.target.closest('[data-action]');if(!act)return;const a=act.dataset.action;try{if(a==='nt-geral-pdf'){ntGeneralDayOpenPDF();return}if(a==='nt-geral-excel'){await ntGeneralDayOpenExcel();return}
 if(a==='nt-repos-suggest'){ntReposSuggest();return}
-if(a==='nt-receipt-new'){ntReceiptNew();return}
+if(a==='nt-receipt-new'){await ntReceiptNew();return}if(a==='nt-receipt-mode'){ntReceiptCapture();ntReceiptManualMode=act.dataset.mode==='unknown';draw();return}
 if(a==='nt-receipt-add'){ntReceiptAdd();return}
 if(a==='nt-receipt-remove'){ntReceiptCapture();ntReceiptItems.splice(Number(act.dataset.index),1);ntReceiptForm();return}
 if(a==='nt-receipt-save'){await ntReceiptSave();return}
