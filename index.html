@@ -901,7 +901,7 @@ const ntManualButtons=(primary,secondary)=>'<div class="buttons"><button class="
    Material cadastrado: movimentação + documento de recebimento na MESMA transação.
    Produto sem cadastro: documento pendente SEM modificar qualquer saldo. */
 let ntReceiptManualMode=false;
-let ntReceiptCommitRef=null;
+let ntReceiptCommitRef=null,ntReceiptCommitSignature=null;
 function ntReceiptCapture(){
  if(!$('nrSupplier'))return;
  ntReceiptDraft={
@@ -916,7 +916,7 @@ async function ntReceiptNew(){
   const check=await getDocFromServer(ntReceiptCommitRef);
   if(check.exists()){
    ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''};
-   ntReceiptItems=[];ntReceiptManualMode=false;ntReceiptCommitRef=null;draw();
+   ntReceiptItems=[];ntReceiptManualMode=false;ntReceiptCommitRef=null;ntReceiptCommitSignature=null;draw();
    notice('Recebimento anterior já consta no histórico. Nenhuma entrada foi repetida.');
    return;
   }
@@ -925,7 +925,7 @@ async function ntReceiptNew(){
   if(!confirm('Limpar os campos e materiais ainda não confirmados? Nada será alterado no estoque.'))return;
  }
  ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''};
- ntReceiptItems=[];ntReceiptManualMode=false;ntReceiptCommitRef=null;draw();
+ ntReceiptItems=[];ntReceiptManualMode=false;ntReceiptCommitRef=null;ntReceiptCommitSignature=null;draw();
 }
 function ntReceiptView(){
  const d=ntReceiptDraft;
@@ -1041,7 +1041,9 @@ async function ntReceiptSave(){
   '\n'+pending.length+' produto(s) sem código serão apenas documentados, pendentes de cadastro.'+
   '\nOs saldos de itens não cadastrados NÃO serão alterados. Continuar?';
  if(!confirm(message))return;
- if(!ntReceiptCommitRef)ntReceiptCommitRef=doc(db,'nt_web_auditoria',ntReceiptKey(d));
+ const signature=JSON.stringify({d,items});
+ if(ntReceiptCommitRef&&ntReceiptCommitSignature!==signature)throw Error('Os dados da nota foram alterados após uma tentativa. Consulte o histórico antes de repetir.');
+ if(!ntReceiptCommitRef){ntReceiptCommitRef=doc(db,'nt_web_auditoria',ntReceiptKey(d));ntReceiptCommitSignature=signature;}
  const receiptRef=ntReceiptCommitRef;
  const moveLinks=new Map(registered.map(x=>[String(x.codigo),moveRef()]));
  const stamp=new Date().toISOString(),today=day();
@@ -1091,7 +1093,7 @@ async function ntReceiptSave(){
    tx.set(receiptRef,auditData);
    return 'SALVO';
   });
-  ntReceiptCommitRef=null;ntReceiptItems=[];ntReceiptManualMode=false;
+  ntReceiptCommitRef=null;ntReceiptCommitSignature=null;ntReceiptItems=[];ntReceiptManualMode=false;
   ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''};
   if(tab==='movimentar'&&kind==='ENTRADA')draw();
   if(result==='EXISTENTE')notice('Fornecedor, pedido e NF já constam como recebimento do dia. Nenhuma entrada foi duplicada.');
@@ -1208,7 +1210,9 @@ async function ntManualHistory(kind){
   const rows=records.map(r=>'<div class="nt-repos-history"><div><b>'+ntPlain(ntDate(type==='receipt'?r.dataRecebimento:r.dataProducao))+'</b><p class="small">'+
    ntPlain(type==='receipt'?(r.fornecedor+' · PC '+r.pedidoCompra+' · NF '+r.notaFiscal):(r.itens.length+' linha(s) de produção'))+
    '</p></div><button class="btn alt" type="button" data-action="nt-manual-record" data-kind="'+type+'" data-code="'+ntPlain(r.numero)+'">Abrir PDF</button></div>').join('');
-  panel('<h2>Histórico de '+(type==='receipt'?'recebimentos':'produção')+'</h2><p class="small">Recebimentos integrados podem atualizar o estoque; registros anteriores podem ser apenas documentais. Esta consulta não altera quantidades.</p><div class="card">'+(rows||'<p class="small">Nenhum registro salvo.</p>')+'</div><button class="btn ghost" type="button" data-action="close">Fechar</button>');
+  panel('<h2>Histórico de '+(type==='receipt'?'recebimentos':'produção')+'</h2><p class="small">'+
+   (type==='receipt'?'Entradas integradas podem atualizar o estoque; documentos anteriores podem ser apenas administrativos.':'Registros de produção são informativos e não dão baixa automática nos componentes.')+
+   ' Esta consulta não modifica quantidades.</p><div class="card">'+(rows||'<p class="small">Nenhum registro salvo.</p>')+'</div><button class="btn ghost" type="button" data-action="close">Fechar</button>');
  }catch(e){panel('<h2>Histórico indisponível</h2><p class="small">'+esc(e.message||'Erro')+'</p><button class="btn" data-action="close">Fechar</button>')}
 }
 function ntManualRecord(type,id){
@@ -1730,7 +1734,7 @@ async function handleActions(e){const act=e.target.closest('[data-action]');if(!
 if(a==='nt-repos-suggest'){ntReposSuggest();return}
 if(a==='nt-receipt-new'){await ntReceiptNew();return}if(a==='nt-receipt-mode'){ntReceiptCapture();ntReceiptManualMode=act.dataset.mode==='unknown';draw();return}
 if(a==='nt-receipt-add'){ntReceiptAdd();return}
-if(a==='nt-receipt-remove'){ntReceiptCapture();ntReceiptItems.splice(Number(act.dataset.index),1);ntReceiptForm();return}
+if(a==='nt-receipt-remove'){if(ntReceiptCommitRef)throw Error('Aguarde a confirmação do recebimento antes de alterar os materiais.');ntReceiptCapture();ntReceiptItems.splice(Number(act.dataset.index),1);ntReceiptForm();return}
 if(a==='nt-receipt-save'){await ntReceiptSave();return}
 if(a==='nt-receipt-pdf'){await ntManualPDF('receipt');return}
 if(a==='nt-receipt-history'){await ntManualHistory('receipt');return}
