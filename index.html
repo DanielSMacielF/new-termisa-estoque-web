@@ -896,49 +896,187 @@ let ntProductionDraft={dataProducao:day(),observacao:''},ntProductionItems=[];
 let ntReceiptCache=new Map(),ntProductionCache=new Map();
 const ntField=(label,id,value,type)=>'<div class="field"><label for="'+id+'">'+esc(label)+'</label><input id="'+id+'" type="'+(type||'text')+'" value="'+esc(value??'')+'"></div>';
 const ntManualButtons=(primary,secondary)=>'<div class="buttons"><button class="btn" type="button" data-action="'+primary+'">Salvar somente no histórico</button><button class="btn ghost" type="button" data-action="'+secondary+'">Cancelar</button></div>';
+
+/* Movimentar -> Entrada
+   Material cadastrado: movimentação + documento de recebimento na MESMA transação.
+   Produto sem cadastro: documento pendente SEM modificar qualquer saldo. */
+let ntReceiptManualMode=false;
+let ntReceiptCommitRef=null;
 function ntReceiptCapture(){
  if(!$('nrSupplier'))return;
- ntReceiptDraft={fornecedor:$('nrSupplier').value.trim(),pedidoCompra:$('nrPO').value.trim(),notaFiscal:$('nrInvoice').value.trim(),dataRecebimento:$('nrDate').value,observacao:$('nrNotes').value.trim()};
+ ntReceiptDraft={
+  fornecedor:$('nrSupplier').value.trim(),pedidoCompra:$('nrPO').value.trim(),
+  notaFiscal:$('nrInvoice').value.trim(),dataRecebimento:$('nrDate').value,
+  observacao:$('nrNotes').value.trim()
+ };
 }
 function ntReceiptNew(){
- ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:dateFilter,observacao:''};ntReceiptItems=[];ntReceiptForm();
+ if(ntReceiptItems.length||ntReceiptDraft.fornecedor||ntReceiptDraft.pedidoCompra||ntReceiptDraft.notaFiscal){
+  if(!confirm('Limpar os campos e materiais do recebimento não confirmado? Nada será alterado no estoque.'))return;
+ }
+ ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''};
+ ntReceiptItems=[];ntReceiptManualMode=false;ntReceiptCommitRef=null;
+ draw();
 }
-function ntReceiptForm(){
+function ntReceiptView(){
  const d=ntReceiptDraft;
- const listed=ntReceiptItems.map((x,i)=>'<div class="nt-repos-history"><div><strong>'+esc(x.nome)+'</strong><div class="small">'+esc(x.codigo)+' · '+esc(x.unidadeMedida)+' · NF: '+fmt(x.quantidadeNota)+' · Recebido: '+fmt(x.quantidadeRecebida)+'</div></div><button type="button" class="btn ghost" data-action="nt-receipt-remove" data-index="'+i+'">Remover</button></div>').join('');
- const html='<h2>Registrar recebimento de materiais</h2><p class="small">Um fornecedor, pedido de compra e nota fiscal por registro. Não movimenta o estoque.</p>'+
- ntField('Data do recebimento','nrDate',d.dataRecebimento,'date')+
- ntField('Fornecedor','nrSupplier',d.fornecedor)+ntField('Número do pedido de compra','nrPO',d.pedidoCompra)+ntField('Número da nota fiscal','nrInvoice',d.notaFiscal)+
- '<div class="nt-rc-lines"><h3>Materiais recebidos</h3><div class="field"><label>Pesquisar material por nome ou código</label>'+itemSelect('nrItem')+'</div>'+
- ntField('Quantidade conforme nota fiscal','nrExpected','','number')+ntField('Quantidade realmente recebida','nrReceived','','number')+
- '<button type="button" class="btn alt" data-action="nt-receipt-add">Adicionar material</button></div>'+
- '<div class="nt-rc-lines">'+(listed||'<p class="small">Nenhum material adicionado.</p>')+'</div>'+
- '<div class="field"><label for="nrNotes">Observações (opcional)</label><textarea id="nrNotes">'+esc(d.observacao)+'</textarea></div>'+
- ntManualButtons('nt-receipt-save','close');
- panel(html);
- for(const id of ['nrExpected','nrReceived']){const el=$(id);if(el){el.step='any';el.min='0';el.inputMode='decimal';}}
+ if(!d.dataRecebimento)d.dataRecebimento=day();
+ const listed=ntReceiptItems.map((x,i)=>{
+  const pending=!!x.semCadastro;
+  return '<div class="nt-repos-history" style="gap:12px"><div style="flex:1;min-width:0">'+
+   '<b>'+esc(x.nome)+'</b><p class="small">'+(pending?'Sem código · PENDENTE DE CADASTRO':esc(x.codigo))+
+   ' · '+esc(x.unidadeMedida||'—')+' · NF: '+fmt(x.quantidadeNota)+' · Recebido: '+fmt(x.quantidadeRecebida)+'</p>'+
+   (pending?'<p class="small">Somente no relatório; sem entrada automática.</p>':'')+
+   '</div><button class="btn ghost" type="button" data-action="nt-receipt-remove" data-index="'+i+'">Remover</button></div>';
+ }).join('');
+ const known='<div class="field"><label>Pesquisar material cadastrado</label>'+itemSelect('nrItem')+'</div>';
+ const unregistered='<div class="field"><label for="nrUnknownName">Nome do produto sem código</label>'+
+  '<input type="text" id="nrUnknownName" maxlength="140" autocomplete="off" placeholder="Digite o nome completo conforme a nota fiscal"></div>'+
+  '<div class="field"><label for="nrUnknownUnit">Unidade de medida</label>'+
+  '<input type="text" id="nrUnknownUnit" maxlength="12" placeholder="UN, KG, M, L..." autocomplete="off"></div>'+
+  '<div class="nt-rc-note" style="margin:0 0 12px">Produtos ainda não cadastrados ficam registrados como <b>pendentes de cadastro</b>. O sistema não inventa código nem altera o estoque desses produtos.</div>';
+ return '<section class="card" style="margin-top:13px">'+
+  '<h2>Entrada · Recebimento de materiais</h2>'+
+  '<p class="small" style="margin:7px 0 14px">Informe os dados da entrega. Ao confirmar, materiais cadastrados entram no estoque e o documento de recebimento é registrado junto, sem lançamento duplicado.</p>'+
+  ntField('Data do recebimento','nrDate',d.dataRecebimento,'date')+
+  ntField('Fornecedor','nrSupplier',d.fornecedor)+
+  ntField('Número do pedido de compra','nrPO',d.pedidoCompra)+
+  ntField('Número da nota fiscal','nrInvoice',d.notaFiscal)+
+  '<div class="nt-rc-lines"><h3>Adicionar materiais</h3>'+
+  '<p class="small" style="margin:7px 0">Escolha um item já cadastrado ou registre o nome de um produto que chegou sem código.</p>'+
+  '<div class="buttons"><button type="button" class="btn '+(ntReceiptManualMode?'ghost':'alt')+'" data-action="nt-receipt-mode" data-mode="known">Cadastrado</button>'+
+  '<button type="button" class="btn '+(ntReceiptManualMode?'alt':'ghost')+'" data-action="nt-receipt-mode" data-mode="unknown">Sem código</button></div>'+
+  (ntReceiptManualMode?unregistered:known)+
+  ntField('Quantidade conforme nota fiscal','nrExpected','','number')+
+  ntField('Quantidade realmente recebida','nrReceived','','number')+
+  '<button class="btn alt" type="button" data-action="nt-receipt-add">Adicionar ao recebimento</button></div>'+
+  '<div class="nt-rc-lines"><h3>Materiais da nota ('+ntReceiptItems.length+')</h3>'+
+  (listed||'<p class="small">Nenhum material adicionado. Preencha a entrega e adicione os itens.</p>')+
+  '</div><div class="field"><label for="nrNotes">Observações (opcional)</label><textarea id="nrNotes">'+esc(d.observacao)+'</textarea></div>'+
+  '<div class="buttons" style="margin-top:14px"><button class="btn" type="button" data-action="nt-receipt-save">Confirmar recebimento e atualizar estoque</button>'+
+  '<button class="btn ghost" type="button" data-action="nt-receipt-new">Limpar formulário</button></div>'+
+  '<p class="small" style="margin-top:10px"><b>Segurança:</b> Itens com código e quantidade recebida maior que zero geram entrada oficial. Itens sem código ficam no histórico para cadastro posterior, sem alteração de saldo.</p></section>';
 }
+function ntReceiptForm(){if(tab==='movimentar'&&kind==='ENTRADA')draw()}
 function ntReceiptAdd(){
  ntReceiptCapture();
- const code=$('nrItem')?.value,m=material(code);
- const expected=nval($('nrExpected')?.value),received=nval($('nrReceived')?.value);
- if(!m)throw Error('Selecione um material cadastrado.');
- if(!$('nrExpected').value.trim()||!$('nrReceived').value.trim()||!Number.isFinite(expected)||!Number.isFinite(received)||expected<=0||received<0)throw Error('Informe as quantidades da NF (maior que zero) e recebida (zero ou mais).');
- if(ntReceiptItems.some(x=>x.codigo===String(code)))throw Error('Este material já está no recebimento. Para vários lançamentos, registre outra NF.');
- if(ntReceiptItems.length>=50)throw Error('Limite de 50 materiais por recebimento.');
- ntReceiptItems.push({codigo:String(m.codigo),nome:String(m.nome),unidadeMedida:ntReportMeasure(m.codigo),quantidadeNota:rnd(expected),quantidadeRecebida:rnd(received)});
+ if(ntReceiptCommitRef)throw Error('Existe uma tentativa de recebimento a conferir. Abra o histórico antes de modificar a entrega para evitar lançamento duplicado.');
+ const expectedText=String($('nrExpected')?.value||'').trim(),receivedText=String($('nrReceived')?.value||'').trim();
+ const expected=rnd(nval(expectedText)),received=rnd(nval(receivedText));
+ if(!expectedText||!receivedText||!Number.isFinite(expected)||!Number.isFinite(received)||
+    expected<=0||received<0||expected>99999999||received>99999999)
+   throw Error('Informe quantidades válidas: NF maior que zero e recebida igual ou maior que zero.');
+ if(!/^\d{1,8}([,.]\d{1,4})?$/.test(expectedText)||!/^\d{1,8}([,.]\d{1,4})?$/.test(receivedText))
+   throw Error('Informe até quatro casas decimais e use vírgula ou ponto.');
+ if(ntReceiptItems.length>=50)throw Error('Máximo de 50 materiais por recebimento.');
+ if(ntReceiptManualMode){
+  const name=String($('nrUnknownName')?.value||'').trim(),unit=String($('nrUnknownUnit')?.value||'').trim().toUpperCase();
+  if(name.length<3||name.length>140)throw Error('Informe o nome do produto sem código com pelo menos três caracteres.');
+  if(!/^[A-Z0-9²./ -]{1,12}$/.test(unit))throw Error('Informe uma unidade de medida válida, como UN, KG, M ou L.');
+  if(mats.some(x=>normMaterial(x.nome)===normMaterial(name)))throw Error('Já existe material com esse nome no cadastro. Use a opção Cadastrado.');
+  if(ntReceiptItems.some(x=>x.semCadastro&&normMaterial(x.nome)===normMaterial(name)))
+   throw Error('Produto sem código já incluído nesta nota.');
+  ntReceiptItems.push({codigo:'',nome:name,unidadeMedida:unit,
+    quantidadeNota:expected,quantidadeRecebida:received,semCadastro:true});
+ }else{
+  const code=String($('nrItem')?.value||'').trim(),m=material(code);
+  if(!m)throw Error('Selecione um material cadastrado ou toque em Sem código.');
+  if(!/^\d{9}$/.test(code))throw Error('O código cadastrado do material é inválido; corrija o cadastro antes da entrada.');
+  if(ntReceiptItems.some(x=>!x.semCadastro&&x.codigo===code))throw Error('Material já incluído nesta nota. Remova-o para corrigir a quantidade.');
+  ntReceiptItems.push({codigo:code,nome:String(m.nome),unidadeMedida:String(m.unidadeMedida||'—'),
+    quantidadeNota:expected,quantidadeRecebida:received,semCadastro:false});
+ }
  ntReceiptForm();
+}
+function ntReceiptValidate(d,items){
+ if(!d.fornecedor||d.fornecedor.length>160||!d.pedidoCompra||d.pedidoCompra.length>90||
+    !d.notaFiscal||d.notaFiscal.length>90||!items.length)
+   throw Error('Preencha fornecedor, pedido de compra, número da NF e pelo menos um material.');
+ if(d.dataRecebimento!==day())throw Error('A data do recebimento precisa ser hoje para que o saldo e o relatório coincidam. Reabra a Entrada antes de lançar.');
+ if(d.observacao.length>500)throw Error('Observação deve conter no máximo 500 caracteres.');
+ const codes=new Set();
+ for(const item of items){
+  if(!(Number(item.quantidadeNota)>0)||!(Number(item.quantidadeRecebida)>=0)||
+     !Number.isFinite(Number(item.quantidadeRecebida)))throw Error('Há quantidades inválidas no recebimento.');
+  if(item.semCadastro){
+   if(item.codigo||!String(item.nome||'').trim()||!String(item.unidadeMedida||'').trim())
+     throw Error('Produto sem código precisa ter nome e unidade de medida.');
+  }else{
+   if(!/^\d{9}$/.test(String(item.codigo)))throw Error('Código inválido em um material.');
+   if(codes.has(String(item.codigo)))throw Error('Material repetido no recebimento: '+item.codigo);
+   codes.add(String(item.codigo));
+  }
+ }
+ if(items.length>50)throw Error('Máximo de 50 materiais por recebimento.');
 }
 async function ntReceiptSave(){
  ntReceiptCapture();isReady();
- const d=ntReceiptDraft;
- if(!d.fornecedor||!d.pedidoCompra||!d.notaFiscal||!/^\d{4}-\d{2}-\d{2}$/.test(d.dataRecebimento)||!ntReceiptItems.length)throw Error('Preencha fornecedor, pedido de compra, NF, data e pelo menos um material.');
- if(!confirm('Registrar recebimento com '+ntReceiptItems.length+' material(is)? Salvará apenas um documento no histórico. NENHUMA entrada será lançada no estoque.'))return;
- const ref=doc(collection(db,'nt_web_auditoria'));
- const data={acao:NT_RECEIPT_ACTION,formato:'NEW_TERMISA_RECEBIMENTO_V1',numero:ref.id,fornecedor:d.fornecedor,pedidoCompra:d.pedidoCompra,notaFiscal:d.notaFiscal,dataRecebimento:d.dataRecebimento,observacao:d.observacao,itens:ntReceiptItems.map(x=>({...x})),operador:user.email||'',uid:user.uid,criadoEmLocal:new Date().toISOString(),criadoEm:serverTimestamp()};
- loader(true);try{
-  await setDoc(ref,data);
-  ntReceiptItems=[];close();notice('Recebimento registrado no histórico. Nenhuma quantidade do estoque foi alterada.');
+ const d={...ntReceiptDraft},items=ntReceiptItems.map(x=>({...x}));
+ ntReceiptValidate(d,items);
+ const registered=items.filter(x=>!x.semCadastro&&x.quantidadeRecebida>0);
+ const pending=items.filter(x=>x.semCadastro);
+ const message='Confirmar recebimento da NF '+d.notaFiscal+' (PC '+d.pedidoCompra+')?'+
+  '\n'+registered.length+' material(is) cadastrado(s) com entrada no estoque.'+
+  '\n'+pending.length+' produto(s) sem código serão apenas documentados, pendentes de cadastro.'+
+  '\nOs saldos de itens não cadastrados NÃO serão alterados. Continuar?';
+ if(!confirm(message))return;
+ if(!ntReceiptCommitRef)ntReceiptCommitRef=doc(collection(db,'nt_web_auditoria'));
+ const receiptRef=ntReceiptCommitRef;
+ const moveLinks=new Map(registered.map(x=>[String(x.codigo),moveRef()]));
+ const stamp=new Date().toISOString(),today=day();
+ loader(true);
+ try{
+  const result=await runTransaction(db,async tx=>{
+   const existing=await tx.get(receiptRef);
+   if(existing.exists())return 'EXISTENTE';
+   const stockSnaps=[];
+   for(const item of registered)stockSnaps.push(await tx.get(itemRef(item.codigo)));
+   const stockDetails=new Map();
+   for(let i=0;i<registered.length;i++){
+    const item=registered[i],snap=stockSnaps[i];
+    if(!snap.exists())throw Error('Material não existe mais no Firebase: '+item.codigo);
+    const real=snap.data();
+    if(String(real.codigo||'')!==String(item.codigo))
+     throw Error('Código divergente no servidor. Operação cancelada: '+item.codigo);
+    const prev=Number(real.quantidade),q=Number(item.quantidadeRecebida);
+    if(!Number.isFinite(prev)||prev<0)throw Error('Saldo atual inválido para '+item.codigo);
+    const next=rnd(prev+q);
+    if(!Number.isFinite(next)||next<prev)throw Error('Quantidade inválida para '+item.codigo);
+    stockDetails.set(String(item.codigo),{real,prev,next});
+   }
+   const docs=items.map(item=>{
+    if(item.semCadastro)return {...item,statusEntrada:'PENDENTE_CADASTRO',movimentacaoId:''};
+    if(!item.quantidadeRecebida)return {...item,statusEntrada:'NAO_ENTROU',movimentacaoId:''};
+    return {...item,statusEntrada:'ESTOQUE_ATUALIZADO',movimentacaoId:moveLinks.get(item.codigo).id};
+   });
+   const auditData={acao:NT_RECEIPT_ACTION,formato:'NEW_TERMISA_RECEBIMENTO_INTEGRADO_V2',
+    modo:'ENTRADA_INTEGRADA',numero:receiptRef.id,fornecedor:d.fornecedor,pedidoCompra:d.pedidoCompra,
+    notaFiscal:d.notaFiscal,dataRecebimento:today,observacao:d.observacao,itens:docs,
+    qtdItensComEntrada:registered.length,qtdItensPendentes:pending.length,
+    operador:user.email||'',uid:user.uid,criadoEmLocal:stamp,criadoEm:serverTimestamp()};
+   for(const item of registered){
+    const info=stockDetails.get(String(item.codigo)),ref=moveLinks.get(item.codigo);
+    const quantity=Number(item.quantidadeRecebida);
+    const record={id:ref.id,codigo:String(item.codigo),nome:info.real.nome,
+     unidade:info.real.unidade,tipo:'ENTRADA',quantidade:quantity,delta:quantity,
+     antes:info.prev,depois:info.next,solicitante:user.email||'Almoxarifado',
+     pedido:d.pedidoCompra,observacao:'Recebimento de fornecedor · NF '+d.notaFiscal,
+     fornecedor:d.fornecedor,notaFiscal:d.notaFiscal,pedidoCompra:d.pedidoCompra,
+     reciboId:receiptRef.id,origem:'RECEBIMENTO_INTEGRADO',
+     operador:user.email||'',uid:user.uid,dia:today,timeClient:stamp,criadoEm:serverTimestamp()};
+    tx.update(itemRef(item.codigo),{quantidade:info.next,ultimoMovimentoId:ref.id,atualizadoEm:serverTimestamp()});
+    tx.set(ref,record);
+   }
+   tx.set(receiptRef,auditData);
+   return 'SALVO';
+  });
+  ntReceiptCommitRef=null;ntReceiptItems=[];ntReceiptManualMode=false;
+  ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''};
+  if(tab==='movimentar'&&kind==='ENTRADA')draw();
+  if(result==='EXISTENTE')notice('Esse recebimento já estava confirmado no histórico. Nenhuma entrada foi repetida.');
+  else notice('Recebimento confirmado. '+registered.length+' item(ns) com entrada no estoque e '+pending.length+' sem código pendente(s).');
+ }catch(err){
+  notice('Recebimento NÃO confirmado nesta tela. Antes de repetir, consulte o Histórico de Recebimentos para evitar duplicações: '+String(err.message||err),true);
  }finally{loader(false)}
 }
 function ntProductionCapture(){
