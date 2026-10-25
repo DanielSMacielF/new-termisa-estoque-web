@@ -1018,6 +1018,17 @@ function ntReceiptValidate(d,items){
  }
  if(items.length>50)throw Error('Máximo de 50 materiais por recebimento.');
 }
+function ntReceiptKey(d){
+ const norm=x=>String(x||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/s+/g,' ').trim().toLowerCase();
+ const key=['nt_entrada_v2',d.dataRecebimento,norm(d.fornecedor),norm(d.pedidoCompra),norm(d.notaFiscal)].join('|');
+ let h1=2166136261,h2=2166136261^0x9e3779b9;
+ for(let i=0;i<key.length;i++){
+  const c=key.charCodeAt(i);
+  h1=Math.imul(h1^c,16777619);
+  h2=Math.imul(h2^c,2246822519);
+ }
+ return 'ENTRADA_'+d.dataRecebimento.replace(/-/g,'')+'_'+(h1>>>0).toString(16).padStart(8,'0')+(h2>>>0).toString(16).padStart(8,'0');
+}
 async function ntReceiptSave(){
  if(tab!=='movimentar'||kind!=='ENTRADA')throw Error('Use Movimentar → Entrada para registrar recebimento.');
  ntReceiptCapture();isReady();
@@ -1030,7 +1041,7 @@ async function ntReceiptSave(){
   '\n'+pending.length+' produto(s) sem código serão apenas documentados, pendentes de cadastro.'+
   '\nOs saldos de itens não cadastrados NÃO serão alterados. Continuar?';
  if(!confirm(message))return;
- if(!ntReceiptCommitRef)ntReceiptCommitRef=doc(collection(db,'nt_web_auditoria'));
+ if(!ntReceiptCommitRef)ntReceiptCommitRef=doc(db,'nt_web_auditoria',ntReceiptKey(d));
  const receiptRef=ntReceiptCommitRef;
  const moveLinks=new Map(registered.map(x=>[String(x.codigo),moveRef()]));
  const stamp=new Date().toISOString(),today=day();
@@ -1083,7 +1094,7 @@ async function ntReceiptSave(){
   ntReceiptCommitRef=null;ntReceiptItems=[];ntReceiptManualMode=false;
   ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''};
   if(tab==='movimentar'&&kind==='ENTRADA')draw();
-  if(result==='EXISTENTE')notice('Esse recebimento já estava confirmado no histórico. Nenhuma entrada foi repetida.');
+  if(result==='EXISTENTE')notice('Fornecedor, pedido e NF já constam como recebimento do dia. Nenhuma entrada foi duplicada.');
   else notice('Recebimento confirmado. '+registered.length+' item(ns) com entrada no estoque e '+pending.length+' sem código pendente(s).');
  }catch(err){
   notice('Recebimento NÃO confirmado nesta tela. Antes de repetir, consulte o Histórico de Recebimentos para evitar duplicações: '+String(err.message||err),true);
