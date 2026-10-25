@@ -956,8 +956,8 @@ function ntReceiptView(){
   '<div class="buttons"><button type="button" class="btn '+(ntReceiptManualMode?'ghost':'alt')+'" data-action="nt-receipt-mode" data-mode="known">Cadastrado</button>'+
   '<button type="button" class="btn '+(ntReceiptManualMode?'alt':'ghost')+'" data-action="nt-receipt-mode" data-mode="unknown">Sem código</button></div>'+
   (ntReceiptManualMode?unregistered:known)+
-  ntField('Quantidade conforme nota fiscal','nrExpected','','number')+
-  ntField('Quantidade realmente recebida','nrReceived','','number')+
+  '<div class="field"><label for="nrExpected">Quantidade conforme nota fiscal</label><input type="text" id="nrExpected" inputmode="decimal" maxlength="14" placeholder="Ex.: 5 ou 1,5" autocomplete="off"></div>'+
+  '<div class="field"><label for="nrReceived">Quantidade realmente recebida</label><input type="text" id="nrReceived" inputmode="decimal" maxlength="14" placeholder="Ex.: 5 ou 1,5" autocomplete="off"></div>'+
   '<button class="btn alt" type="button" data-action="nt-receipt-add">Adicionar ao recebimento</button></div>'+
   '<div class="nt-rc-lines"><h3>Materiais da nota ('+ntReceiptItems.length+')</h3>'+
   (listed||'<p class="small">Nenhum material adicionado. Preencha a entrega e adicione os itens.</p>')+
