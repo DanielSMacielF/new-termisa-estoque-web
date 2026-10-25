@@ -821,7 +821,7 @@ async function importOnlyMeasures(file){
  const header=parse(lines.shift()||'').map(x=>x.trim());
  const codeIdx=header.indexOf('Código'),measureIdx=header.indexOf('Unidade de medida sugerida'),statusIdx=header.indexOf('Situação');
  if(codeIdx<0||measureIdx<0||statusIdx<0)throw Error('CSV inválido: use o arquivo de unidades conferidas.');
- const allowed=new Set(['UN','KG','G','M','M²','L','ML','CX','PCT','PAR','ROL','JG']);
+ const allowed=new Set(['UN','KG','G','M','M²','M2','L','ML','CX','PCT','PAR','ROL','JG']);
  const planned=[],seen=new Set();let skipped=0;
  for(const line of lines){
    const row=parse(line),code=(row[codeIdx]||'').trim(),unit=(row[measureIdx]||'').trim().toUpperCase(),state=(row[statusIdx]||'').trim();
