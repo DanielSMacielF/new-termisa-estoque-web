@@ -1324,15 +1324,22 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
   pedida:ntDayNumber(x.quantidadePedida),concluida:ntDayNumber(x.quantidadeConcluida),
   observacao:String(r.observacao||'')
  })));
- const receiptRows=receipts.flatMap(r=>(r.itens||[]).map(x=>({
-  fornecedor:String(r.fornecedor||'—'),pedidoCompra:String(r.pedidoCompra||'—'),
-  notaFiscal:String(r.notaFiscal||'—'),codigo:String(x.codigo||''),
-  nome:String(x.nome||byCode.get(String(x.codigo))?.nome||'—'),
-  unidade:String(byCode.get(String(x.codigo))?.unidadeMedida||x.unidadeMedida||'—'),
-  prevista:ntDayNumber(x.quantidadeNota),recebida:ntDayNumber(x.quantidadeRecebida),
-  semCadastro:!!x.semCadastro,statusEntrada:String(x.statusEntrada||''),
-  movimentacaoId:String(x.movimentacaoId||''),observacao:String(r.observacao||''),numero:String(r.numero||'')
- })));
+ const entranceById=new Map(operating.filter(m=>m.tipo==='ENTRADA'&&m.id).map(m=>[String(m.id),m]));
+ const receiptRows=receipts.flatMap(r=>(r.itens||[]).map(x=>{
+  const codigo=String(x.codigo||''),movimentacaoId=String(x.movimentacaoId||''),move=entranceById.get(movimentacaoId);
+  const linked=!!(movimentacaoId&&move&&String(move.codigo)===codigo&&String(move.reciboId||'')===String(r.numero||'')&&
+    Math.abs(ntQty(move)-ntDayNumber(x.quantidadeRecebida))<0.0001);
+  return {
+   fornecedor:String(r.fornecedor||'—'),pedidoCompra:String(r.pedidoCompra||'—'),
+   notaFiscal:String(r.notaFiscal||'—'),codigo,
+   nome:String(x.nome||byCode.get(codigo)?.nome||'—'),
+   unidade:String(byCode.get(codigo)?.unidadeMedida||x.unidadeMedida||'—'),
+   prevista:ntDayNumber(x.quantidadeNota),recebida:ntDayNumber(x.quantidadeRecebida),
+   semCadastro:!!x.semCadastro,statusEntrada:String(x.statusEntrada||''),
+   movimentacaoId,entradaConfirmada:linked,
+   observacao:String(r.observacao||''),numero:String(r.numero||'')
+  };
+ }));
  const stockMap=new Map();
  for(const mv of all){
   const code=String(mv.codigo||'');
@@ -1372,11 +1379,15 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
  const comparisons=compareCodes.map(code=>{
   const doc=receivedByCode.get(code)||0,stock=registeredByCode.get(code)||0;
   const item=byCode.get(code),seen=receiptRows.find(x=>x.codigo===code);
+  const docItems=receiptRows.filter(x=>x.codigo===code&&x.recebida>0);
+  const allLinked=docItems.length>0&&docItems.every(x=>x.entradaConfirmada);
   return {codigo:code,nome:String(item?.nome||seen?.nome||'—'),
    unidade:String(item?.unidadeMedida||seen?.unidade||'—'),
    recebido:doc,entradas:stock,diferenca:rnd(doc-stock),
    situacao:!doc?'Sem recebimento documental no dia':!stock?'Sem entrada registrada no dia':
-    Math.abs(doc-stock)>.0001?'Quantidades diferentes':'Quantidades iguais; vínculo não confirmado'};
+    allLinked&&Math.abs(doc-stock)<.0001?'Entradas integradas e vinculadas':
+    allLinked?'Entradas vinculadas; há outras movimentações':
+    Math.abs(doc-stock)>.0001?'Quantidades diferentes; verificar vínculos':'Quantidades iguais; vínculo não confirmado'};
  });
  const totalMachines=machineRows.reduce((n,r)=>n+r.concluida,0);
  const totalAsked=machineRows.reduce((n,r)=>n+r.pedida,0);
@@ -1429,7 +1440,7 @@ function ntGeneralDayPDF(model){
  '<p class="note"><b>Recebimentos:</b> '+totals.receipts+' documento(s) de entrega, '+totals.receiptLines+' linha(s) de material, '+totals.suppliers+' fornecedor(es), '+totals.receiptDifferences+' divergência(s) NF x recebido e '+totals.pendingCodes+' item(ns) sem código pendente(s).</p>'+
  '<p class="note"><b>Estoque:</b> '+totals.stockItems+' material(is) com registro de movimentação; '+totals.stockNotReconciled+' com variação que exige conferir o histórico completo.</p>'+
  '<div class="sectionline"><span>IMPORTANTE PARA A GERÊNCIA</span></div>'+
- '<p class="note">Os recebimentos e as produções são documentos informados manualmente. Eles <b>não</b> adicionam nem retiram estoque. As quantidades iniciais e finais vêm do histórico de movimentações do Firebase, não do formulário de recebimento.</p>'+
+ '<p class="note">Recebimentos integrados de materiais cadastrados registram entradas e atualizam saldos no Firebase; itens sem código ficam pendentes, sem atualizar o estoque. Documentos de recebimento antigos podem não ter sido vinculados a uma entrada. Os registros de produção são informativos. Saldos vêm exclusivamente das movimentações oficiais.</p>'+
  '<p class="note">Documento gerado com consultas novas ao servidor; registros incluídos depois desta emissão não aparecem neste arquivo.</p>';
  page('RELATÓRIO GERAL DO DIA','Resumo executivo · Produção, pedidos, entregas e estoque.',blocks+readout,false);
  const machineRows=model.machineRows;
@@ -1467,7 +1478,7 @@ function ntGeneralDayPDF(model){
     '<p class="note">Pedido de compra: <b>'+ntPlain(doc.pedidoCompra||'—')+'</b> &nbsp;·&nbsp; Nota fiscal: <b>'+ntPlain(doc.notaFiscal||'—')+'</b></p>';
     const table=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTD. NF','RECEBIDA','DIFERENÇA'],[16,41,7,12,12,12],
       part.map(x=>[String(x.codigo||'SEM CÓD.'),String(x.nome||'—')+
-    (x.semCadastro?' · PENDENTE DE CADASTRO':x.statusEntrada==='ESTOQUE_ATUALIZADO'?' · ENTRADA VINCULADA':x.statusEntrada==='NAO_ENTROU'?' · SEM ENTRADA':' · DOCUMENTO ANTIGO'),
+    (x.semCadastro?' · PENDENTE DE CADASTRO':x.entradaConfirmada?' · ENTRADA CONFIRMADA':x.statusEntrada==='ESTOQUE_ATUALIZADO'?' · VERIFICAR VÍNCULO':x.statusEntrada==='NAO_ENTROU'?' · SEM ENTRADA':' · DOCUMENTO ANTIGO'),
     String(x.unidadeMedida||'—'),fmt(x.quantidadeNota),fmt(x.quantidadeRecebida),
         fmt(rnd(ntDayNumber(x.quantidadeRecebida)-ntDayNumber(x.quantidadeNota)))]));
     page('RECEBIMENTOS DE FORNECEDORES','Conferência documental das mercadorias recebidas.',info+table+
@@ -1553,7 +1564,7 @@ function ntDayExcelExport(model,XLSX){
    stock?.unidade||'',ntQty(x),ntDayValidSaldo(x.antes)??'',ntDayValidSaldo(x.depois)??'']}));
  sheet('Recebimentos',['DATA','FORNECEDOR','PEDIDO DE COMPRA','NOTA FISCAL','CÓDIGO','MATERIAL','UNIDADE','QTD. NOTA','QTD. RECEBIDA','DIFERENÇA','SITUAÇÃO ENTRADA','ID MOVIMENTAÇÃO','OBSERVAÇÕES'],
   model.receiptRows.map(x=>[date,x.fornecedor,x.pedidoCompra,x.notaFiscal,x.codigo,x.nome,x.unidade,x.prevista,x.recebida,rnd(x.recebida-x.prevista),
-    x.semCadastro?'PENDENTE DE CADASTRO':x.statusEntrada==='ESTOQUE_ATUALIZADO'?'ESTOQUE ATUALIZADO':x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA':'DOCUMENTO ANTERIOR',x.movimentacaoId,x.observacao]));
+    x.semCadastro?'PENDENTE DE CADASTRO':x.entradaConfirmada?'ENTRADA CONFIRMADA':x.statusEntrada==='ESTOQUE_ATUALIZADO'?'VERIFICAR VÍNCULO':x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA':'DOCUMENTO ANTERIOR',x.movimentacaoId,x.observacao]));
  sheet('Estoque Movimentado',['DATA','CÓDIGO','MATERIAL','UNIDADE','SALDO INICIAL','SAÍDAS','DEVOLUÇÕES','ENTRADAS','OUTRAS VARIAÇÕES','SALDO FINAL','CONFERÊNCIA'],
   model.stockRows.map(x=>[date,x.codigo,x.nome,x.unidade,x.inicio??'',x.saida,x.devolucao,x.entrada,x.outras??'',x.fim??'',x.validar?'Conferir histórico':'']));
  sheet('Conferência de Entradas',['DATA','CÓDIGO','MATERIAL','UNIDADE','RECEBIDO NO DOCUMENTO','ENTRADAS NO ESTOQUE','DIFERENÇA','SITUAÇÃO'],
