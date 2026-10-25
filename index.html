@@ -438,6 +438,20 @@ function ntReposModal(){
  const rows=sorted.map(m=>{const code=String(m.codigo),name=String(m.nome||'');return `<div class="nt-repos-line" data-repos-row="${esc(normMaterial(code+' '+name))}"><input aria-label="Incluir ${esc(name)}" type="checkbox" data-repos-check="${esc(code)}"><label data-repos-tick="${esc(code)}"><b>${esc(name)}</b><span class="nt-repos-code">${esc(code)}</span></label><input inputmode="decimal" data-repos-qty="${esc(code)}" type="text" aria-label="Quantidade opcional a comprar para ${esc(name)}" placeholder="Qtd. (opcional)" disabled autocomplete="off"></div>`}).join('');
  panel(`<h2>Relatório de reposição</h2><p class="small">Marque os materiais para solicitar compra. Quantidade a comprar: opcional. Não altera o estoque.</p><div class="field"><label for="ntReposSearch">Buscar material</label><input id="ntReposSearch" type="search" autocomplete="off" placeholder="Código ou parte do nome"></div><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-all">Marcar todos</button><button type="button" class="btn ghost" data-action="nt-repos-visible">Marcar filtrados</button><button type="button" class="btn ghost" data-action="nt-repos-clear">Limpar</button></div><p class="small" id="ntReposCount" style="margin:9px 0">0 materiais selecionados</p><div class="nt-repos-choices">${rows}</div><div class="nt-repos-footer"><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-preview">Visualizar PDF (sem salvar)</button><button type="button" class="btn" data-action="nt-repos-issue">Salvar no histórico e gerar PDF</button><button type="button" class="btn ghost" data-action="close">Cancelar</button></div></div>`);
 }
+function ntReposSuggest(){
+ ntReposModal();
+ if(!$('ntReposCount'))return;
+ ntReposSelected.clear();ntReposAmounts.clear();
+ for(const m of mats){
+  const q=Number(m.quantidade)||0,minimum=Number(m.minimo)||0;
+  if(q>minimum||!(minimum>0||q===0))continue;
+  const code=String(m.codigo);
+  ntReposSelected.add(code);
+  if(minimum>q)ntReposAmounts.set(code,String(rnd(minimum-q)));
+ }
+ ntReposRefresh();
+ if(!ntReposSelected.size)notice('Nenhum material encontrado no mínimo ou abaixo. Você pode selecionar materiais manualmente.');
+}
 function ntReposRefresh(){
  const terms=normMaterial($('ntReposSearch')?.value||'').split(/\s+/).filter(Boolean);
  document.querySelectorAll('[data-repos-row]').forEach(el=>{el.style.display=terms.every(t=>el.dataset.reposRow.includes(t))?'grid':'none';const cb=el.querySelector('[data-repos-check]'),q=el.querySelector('[data-repos-qty]');if(cb)cb.checked=ntReposSelected.has(cb.dataset.reposCheck);if(q)q.disabled=!ntReposSelected.has(q.dataset.reposQty)});
@@ -457,7 +471,7 @@ function ntReposBuild(){
  const picked=[...ntReposSelected].map(code=>{const m=material(code);if(!m)throw Error('Material não encontrado: '+code);
  const raw=String(ntReposAmounts.get(code)||'').trim();let quantidadeComprar=null;
  if(raw){if(!/^\d{1,8}([,.]\d{1,4})?$/.test(raw))throw Error('Quantidade inválida no material '+code+'. Use até quatro casas decimais.');quantidadeComprar=nval(raw);if(!(quantidadeComprar>0))throw Error('A quantidade de compra precisa ser maior que zero: '+code)}
- return {codigo:String(m.codigo),nome:String(m.nome||'').trim(),unidadeMedida:ntReportMeasure(code),quantidadeComprar};
+ return {codigo:String(m.codigo),nome:String(m.nome||'').trim(),unidadeMedida:ntReportMeasure(code),saldoAtual:Number(m.quantidade)||0,minimo:Number(m.minimo)||0,quantidadeComprar};
  });
  return picked.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
 }
@@ -471,7 +485,7 @@ function ntReposReportHtml(snapshot){
  if(group.length)chunks.push(group);
  const total=chunks.length;
  chunks.forEach((items,idx)=>{
- const body=ntTable(['CÓDIGO','DESCRIÇÃO DO MATERIAL','UN.','QTD. A COMPRAR'],[19,54,8,19],items.map(r=>[r.codigo,r.nome,r.unidadeMedida||'—',quantity(r.quantidadeComprar)]));
+ const body=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO','MÍN.','QTD. A COMPRAR'],[16,40,8,11,10,15],items.map(r=>[r.codigo,r.nome,r.unidadeMedida||'—',r.saldoAtual==null?'—':fmt(r.saldoAtual),r.minimo==null?'—':fmt(r.minimo),quantity(r.quantidadeComprar)]));
  const intro=idx===0?`<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO</span><span>${rows.length} ${rows.length===1?'ITEM':'ITENS'}</span></div>`:`<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO · CONTINUAÇÃO</span><span>${idx+1} / ${total}</span></div>`;
  const ending=idx===total-1?`<div style="margin-top:9mm"><div class="sectionline"><span>ENCAMINHAMENTO</span></div><p class="note">Solicita-se análise e providências para aquisição dos materiais relacionados. As quantidades em branco serão definidas pelo setor responsável pelas compras.</p></div>`:'';
  pages.push(`<section class="page portrait">${ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais para análise e aquisição pelo setor de compras.',date)}${intro}${body}${ending}${ntFooter(idx+1,total)}</section>`);
@@ -662,14 +676,25 @@ function ntClosing(movements,date,catalog=mats){
  const tests=movements.filter(testeIdentificado).length;
  const measures=[['MATERIAIS MOVIMENTADOS',String(grouped.length)],['MATERIAIS COM SAÍDA',String(types.SAIDA.size)],['MATERIAIS COM DEVOLUÇÃO',String(types.DEVOLUCAO.size)],['MATERIAIS COM ENTRADA',String(types.ENTRADA.size)],['MATERIAIS COM AJUSTE',String(types.AJUSTE.size)],['REGISTROS DE TESTE',String(tests)]];
  const recs=grouped.map(g=>{const balance=balances.get(String(g.codigo||''));return {codigo:String(g.codigo||''),nome:String(g.nome||''),unidade:ntReportMeasure(g.codigo,catalog),saida:fmt(g.saida),devolucao:fmt(g.devolucao),consumo:fmt(g.consumoLiquido),entrada:fmt(g.entrada),ajuste:fmt(g.ajuste),testes:String(g.testes),saldoInicial:balance?.inicio==null?'—':fmt(balance.inicio),saldoFinal:balance?.fim==null?'—':fmt(balance.fim)}});
- const chunks=ntChunk(recs,[7,9]);const total=1+chunks.length;
+ const chunks=ntChunk(recs,[7,9]);const orderedMovements=[...movements].sort((a,b)=>String(a.timeClient||'').localeCompare(String(b.timeClient||'')));const movementChunks=orderedMovements.length?ntChunk(orderedMovements,[10,12]):[];const total=1+chunks.length+movementChunks.length;
  const summary=`<section class="page portrait">${ntTop('FECHAMENTO DIÁRIO','Resumo executivo para a gerência | '+ntDate(date),date)}<div class="sectionline"><span>INDICADORES OPERACIONAIS</span><span>${ntPlain(ntDate(date))}</span></div><div class="metrics metrics6">${measures.map(([name,count])=>`<div class="metric"><small>${ntPlain(name)}</small><strong>${ntPlain(count)}</strong></div>`).join('')}</div><div class="sectionline"><span>LEITURA RÁPIDA PARA A GERÊNCIA</span></div><ul class="bullet"><li>Consumo operacional = saídas menos devoluções, sempre por material e unidade.</li><li>Entradas são reposição de estoque e não representam consumo.</li><li>Ajustes físicos são apresentados separadamente, sem inflar o consumo.</li><li>Simulações identificadas não entram na Comunicação Interna.</li></ul>${ntFooter(1,total)}</section>`;
  const details=[];
  for(let i=0;i<chunks.length;i++){
   const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','SAÍDAS','DEVOL.','CONSUMO','ENTRADAS','AJUSTES','TESTES','SALDO INICIAL','SALDO FINAL'],[11,21,5,7,7,8,9,10,6,8,8],chunks[i].map(x=>[x.codigo,x.nome,x.unidade,x.saida,x.devolucao,x.consumo,x.entrada,x.ajuste,x.testes,x.saldoInicial,x.saldoFinal]));
   details.push(`<section class="page landscape">${ntTop('RESUMO DETALHADO POR MATERIAL','Movimentações consolidadas por código. Unidades diferentes não são somadas.',date,true)}<div class="sectionline"><span>${i?'CONTINUAÇÃO DOS LANÇAMENTOS':'MOVIMENTAÇÕES DE ESTOQUE'}</span><span>${ntPlain(ntDate(date))}</span></div>${body}<p class="note">Consumo operacional = saídas − devoluções. Ajustes e simulações não entram no consumo.</p>${ntFooter(i+2,total)}</section>`)
  }
- return ntHtml(`Fechamento Diário · ${ntDate(date)}`,[summary,...details]);
+ const tracePages=movementChunks.map((part,i)=>{
+  const items=part.map(m=>[ntTime(m),String(m.codigo||''),String(m.nome||''),ntReportMeasure(m.codigo,catalog),
+    testeIdentificado(m)?String(m.tipo||'')+' (TESTE)':String(m.tipo||''),
+    fmt(ntQty(m)),m.antes==null?'—':fmt(m.antes),m.depois==null?'—':fmt(m.depois),String(m.solicitante||m.operador||'—')]);
+  const rows=ntTable(['HORA','CÓDIGO','MATERIAL','UN.','TIPO','QTDE.','ANTES','DEPOIS','RESPONSÁVEL'],
+    [8,13,23,6,12,8,8,9,13],items);
+  return '<section class="page landscape">'+ntTop('MOVIMENTAÇÕES DO DIA','Histórico de cada lançamento, com saldo anterior e saldo posterior.',date,true)+
+    '<div class="sectionline"><span>RASTREABILIDADE DE ENTRADAS E SAÍDAS</span><span>'+ntDate(date)+'</span></div>'+rows+
+    '<p class="note">Saldos antes/depois são os registrados na operação. Simulações identificadas são assinaladas como TESTE.</p>'+
+    ntFooter(2+chunks.length+i,total)+'</section>';
+ });
+ return ntHtml('Fechamento Diário · '+ntDate(date),[summary,...details,...tracePages]);
 }
 // RELATÓRIO GERAL DO INVENTÁRIO - somente leitura; não altera cadastro nem conferências.
 function ntInventoryReportEntry(){
