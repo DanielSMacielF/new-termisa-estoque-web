@@ -849,6 +849,168 @@ function ntOpenReport(mode){
  })();
 }
 
+
+/* Recebimentos e Produção: apenas registros documentais na auditoria.
+   NUNCA modificar nt_web_materiais nem nt_web_movimentos. */
+const NT_RECEIPT_ACTION='RELATORIO_RECEBIMENTO_REGISTRADO';
+const NT_PRODUCTION_ACTION='RELATORIO_PRODUCAO_REGISTRADO';
+let ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''},ntReceiptItems=[];
+let ntProductionDraft={dataProducao:day(),observacao:''},ntProductionItems=[];
+let ntReceiptCache=new Map(),ntProductionCache=new Map();
+const ntField=(label,id,value,type)=>'<div class="field"><label for="'+id+'">'+esc(label)+'</label><input id="'+id+'" type="'+(type||'text')+'" value="'+esc(value??'')+'"></div>';
+const ntManualButtons=(primary,secondary)=>'<div class="buttons"><button class="btn" type="button" data-action="'+primary+'">Salvar somente no histórico</button><button class="btn ghost" type="button" data-action="'+secondary+'">Cancelar</button></div>';
+function ntReceiptCapture(){
+ if(!$('nrSupplier'))return;
+ ntReceiptDraft={fornecedor:$('nrSupplier').value.trim(),pedidoCompra:$('nrPO').value.trim(),notaFiscal:$('nrInvoice').value.trim(),dataRecebimento:$('nrDate').value,observacao:$('nrNotes').value.trim()};
+}
+function ntReceiptNew(){
+ ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:dateFilter,observacao:''};ntReceiptItems=[];ntReceiptForm();
+}
+function ntReceiptForm(){
+ const d=ntReceiptDraft;
+ const listed=ntReceiptItems.map((x,i)=>'<div class="nt-repos-history"><div><strong>'+esc(x.nome)+'</strong><div class="small">'+esc(x.codigo)+' · '+esc(x.unidadeMedida)+' · NF: '+fmt(x.quantidadeNota)+' · Recebido: '+fmt(x.quantidadeRecebida)+'</div></div><button type="button" class="btn ghost" data-action="nt-receipt-remove" data-index="'+i+'">Remover</button></div>').join('');
+ const html='<h2>Registrar recebimento de materiais</h2><p class="small">Um fornecedor, pedido de compra e nota fiscal por registro. Não movimenta o estoque.</p>'+
+ ntField('Data do recebimento','nrDate',d.dataRecebimento,'date')+
+ ntField('Fornecedor','nrSupplier',d.fornecedor)+ntField('Número do pedido de compra','nrPO',d.pedidoCompra)+ntField('Número da nota fiscal','nrInvoice',d.notaFiscal)+
+ '<div class="nt-rc-lines"><h3>Materiais recebidos</h3><div class="field"><label>Pesquisar material por nome ou código</label>'+itemSelect('nrItem')+'</div>'+
+ ntField('Quantidade conforme nota fiscal','nrExpected','','number')+ntField('Quantidade realmente recebida','nrReceived','','number')+
+ '<button type="button" class="btn alt" data-action="nt-receipt-add">Adicionar material</button></div>'+
+ '<div class="nt-rc-lines">'+(listed||'<p class="small">Nenhum material adicionado.</p>')+'</div>'+
+ '<div class="field"><label for="nrNotes">Observações (opcional)</label><textarea id="nrNotes">'+esc(d.observacao)+'</textarea></div>'+
+ ntManualButtons('nt-receipt-save','close');
+ panel(html);
+ for(const id of ['nrExpected','nrReceived']){const el=$(id);if(el){el.step='any';el.min='0';el.inputMode='decimal';}}
+}
+function ntReceiptAdd(){
+ ntReceiptCapture();
+ const code=$('nrItem')?.value,m=material(code);
+ const expected=nval($('nrExpected')?.value),received=nval($('nrReceived')?.value);
+ if(!m)throw Error('Selecione um material cadastrado.');
+ if(!$('nrExpected').value.trim()||!$('nrReceived').value.trim()||!Number.isFinite(expected)||!Number.isFinite(received)||expected<=0||received<0)throw Error('Informe as quantidades da NF (maior que zero) e recebida (zero ou mais).');
+ if(ntReceiptItems.some(x=>x.codigo===String(code)))throw Error('Este material já está no recebimento. Para vários lançamentos, registre outra NF.');
+ if(ntReceiptItems.length>=50)throw Error('Limite de 50 materiais por recebimento.');
+ ntReceiptItems.push({codigo:String(m.codigo),nome:String(m.nome),unidadeMedida:ntReportMeasure(m.codigo),quantidadeNota:rnd(expected),quantidadeRecebida:rnd(received)});
+ ntReceiptForm();
+}
+async function ntReceiptSave(){
+ ntReceiptCapture();isReady();
+ const d=ntReceiptDraft;
+ if(!d.fornecedor||!d.pedidoCompra||!d.notaFiscal||!/^\d{4}-\d{2}-\d{2}$/.test(d.dataRecebimento)||!ntReceiptItems.length)throw Error('Preencha fornecedor, pedido de compra, NF, data e pelo menos um material.');
+ if(!confirm('Registrar recebimento com '+ntReceiptItems.length+' material(is)? Salvará apenas um documento no histórico. NENHUMA entrada será lançada no estoque.'))return;
+ const ref=doc(collection(db,'nt_web_auditoria'));
+ const data={acao:NT_RECEIPT_ACTION,formato:'NEW_TERMISA_RECEBIMENTO_V1',numero:ref.id,fornecedor:d.fornecedor,pedidoCompra:d.pedidoCompra,notaFiscal:d.notaFiscal,dataRecebimento:d.dataRecebimento,observacao:d.observacao,itens:ntReceiptItems.map(x=>({...x})),operador:user.email||'',uid:user.uid,criadoEmLocal:new Date().toISOString(),criadoEm:serverTimestamp()};
+ loader(true);try{
+  await setDoc(ref,data);
+  ntReceiptItems=[];close();notice('Recebimento registrado no histórico. Nenhuma quantidade do estoque foi alterada.');
+ }finally{loader(false)}
+}
+function ntProductionCapture(){
+ if(!$('npDate'))return;
+ ntProductionDraft={dataProducao:$('npDate').value,observacao:$('npNotes').value.trim()};
+}
+function ntProductionNew(){ntProductionDraft={dataProducao:dateFilter,observacao:''};ntProductionItems=[];ntProductionForm();}
+function ntProductionForm(){
+ const d=ntProductionDraft,listed=ntProductionItems.map((x,i)=>'<div class="nt-repos-history"><div><strong>'+esc(x.nomeMaquina)+' · '+esc(x.modelo)+'</strong><div class="small">OP '+esc(x.ordemProducao)+' · '+esc(x.opcao||'Sem opção')+' · Pedidas: '+fmt(x.quantidadePedida)+' · Concluídas: '+fmt(x.quantidadeConcluida)+'</div></div><button type="button" class="btn ghost" data-action="nt-production-remove" data-index="'+i+'">Remover</button></div>').join('');
+ panel('<h2>Produção de máquinas</h2><p class="small">Informe o que foi produzido no dia. Este registro não consome nem altera materiais automaticamente.</p>'+
+ ntField('Data da produção','npDate',d.dataProducao,'date')+
+ '<div class="nt-rc-lines"><h3>Máquina / ordem de produção</h3>'+
+ ntField('Nome da máquina','npName','')+ntField('Modelo','npModel','')+ntField('Opção ou configuração','npOption','')+ntField('Número da OP','npOrder','')+
+ ntField('Máquinas pedidas','npRequested','','number')+ntField('Máquinas concluídas','npFinished','','number')+
+ '<button type="button" class="btn alt" data-action="nt-production-add">Adicionar produção</button></div>'+
+ '<div class="nt-rc-lines">'+(listed||'<p class="small">Nenhuma máquina adicionada.</p>')+'</div>'+
+ '<div class="field"><label for="npNotes">Observações (opcional)</label><textarea id="npNotes">'+esc(d.observacao)+'</textarea></div>'+
+ ntManualButtons('nt-production-save','close'));
+ for(const id of ['npRequested','npFinished']){const el=$(id);if(el){el.step='1';el.min='0';el.inputMode='numeric';}}
+}
+function ntProductionAdd(){
+ ntProductionCapture();
+ const name=$('npName').value.trim(),model=$('npModel').value.trim(),option=$('npOption').value.trim(),op=$('npOrder').value.trim();
+ const requested=Number($('npRequested').value),finished=Number($('npFinished').value);
+ if(!name||!model||!op||!$('npRequested').value.trim()||!$('npFinished').value.trim()||!Number.isInteger(requested)||!Number.isInteger(finished)||requested<=0||finished<0||finished>requested)throw Error('Preencha máquina, modelo, OP e quantidades inteiras (concluídas não podem exceder as pedidas).');
+ if(ntProductionItems.length>=40)throw Error('Limite de 40 linhas por registro.');
+ ntProductionItems.push({nomeMaquina:name,modelo:model,opcao:option,ordemProducao:op,quantidadePedida:requested,quantidadeConcluida:finished});
+ ntProductionForm();
+}
+async function ntProductionSave(){
+ ntProductionCapture();isReady();
+ const d=ntProductionDraft;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(d.dataProducao)||!ntProductionItems.length)throw Error('Informe a data e pelo menos uma produção.');
+ if(!confirm('Salvar '+ntProductionItems.length+' linha(s) de produção no histórico? Não serão alterados materiais, máquinas em estoque ou ordens operacionais.'))return;
+ const ref=doc(collection(db,'nt_web_auditoria'));
+ const data={acao:NT_PRODUCTION_ACTION,formato:'NEW_TERMISA_PRODUCAO_V1',numero:ref.id,dataProducao:d.dataProducao,observacao:d.observacao,itens:ntProductionItems.map(x=>({...x})),operador:user.email||'',uid:user.uid,criadoEmLocal:new Date().toISOString(),criadoEm:serverTimestamp()};
+ loader(true);try{await setDoc(ref,data);ntProductionItems=[];close();notice('Produção registrada no histórico sem alterar estoque.')}finally{loader(false)}
+}
+async function ntManualLoad(action){
+ if(!user||!serverReady||!navigator.onLine)throw Error('Aguarde a sincronização com o Firebase.');
+ const snap=await getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',action)));
+ return snap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens))
+  .sort((a,b)=>String(b.criadoEmLocal||'').localeCompare(String(a.criadoEmLocal||'')));
+}
+function ntReceiptReport(records,date){
+ const pages=[];
+ for(const r of records){
+  const chunks=[];
+  for(let i=0;i<r.itens.length;i+=11)chunks.push(r.itens.slice(i,i+11));
+  if(!chunks.length)chunks.push([]);
+  for(const items of chunks){
+   const rows=items.map(x=>[x.codigo,x.nome,x.unidadeMedida||'—',fmt(x.quantidadeNota),fmt(x.quantidadeRecebida),fmt(rnd(Number(x.quantidadeRecebida)-Number(x.quantidadeNota)))]);
+   const info='<div class="sectionline"><span>FORNECEDOR: '+ntPlain(r.fornecedor)+'</span><span>RECEBIDO EM '+ntPlain(ntDate(r.dataRecebimento))+'</span></div>'+
+    '<p class="note" style="margin-top:2mm">PEDIDO DE COMPRA: <b>'+ntPlain(r.pedidoCompra)+'</b> &nbsp;&nbsp; NOTA FISCAL: <b>'+ntPlain(r.notaFiscal)+'</b></p>';
+   const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE. NF','RECEBIDA','DIFERENÇA'],[16,40,7,12,12,13],rows);
+   const issues=items.filter(x=>Number(x.quantidadeNota)!==Number(x.quantidadeRecebida)).length;
+   const foot='<p class="note">Diferenças neste bloco: <b>'+issues+'</b>. '+ntPlain(r.observacao||'Quantidades conforme conferência registrada.')+'</p>';
+   pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Conferência por fornecedor, pedido de compra e nota fiscal.',date)+info+body+foot+'__FOOT__</section>');
+  }
+ }
+ if(!pages.length)pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Nenhuma entrega manual registrada para a data.',date)+'<p class="note">Não foram encontrados registros de recebimento nesta data.</p>__FOOT__</section>');
+ return ntHtml('Recebimento de materiais · '+ntDate(date),pages.map((p,i)=>p.replace('__FOOT__',ntFooter(i+1,pages.length))));
+}
+function ntProductionReport(records,date){
+ const entries=records.flatMap(r=>r.itens.map(x=>({...x,observacao:r.observacao||''})));
+ const chunks=[];for(let i=0;i<entries.length;i+=13)chunks.push(entries.slice(i,i+13));if(!chunks.length)chunks.push([]);
+ const totalRequested=entries.reduce((t,x)=>t+Number(x.quantidadePedida||0),0),totalFinished=entries.reduce((t,x)=>t+Number(x.quantidadeConcluida||0),0);
+ const pages=chunks.map((items,i)=>{
+  const overview=i===0?'<div class="metrics"><div class="metric"><small>MÁQUINAS PEDIDAS</small><strong>'+fmt(totalRequested)+'</strong></div><div class="metric"><small>CONCLUÍDAS</small><strong>'+fmt(totalFinished)+'</strong></div><div class="metric"><small>PENDENTES</small><strong>'+fmt(totalRequested-totalFinished)+'</strong></div></div>':'';
+  const rows=items.map(x=>[x.ordemProducao,x.nomeMaquina,x.modelo,x.opcao||'—',fmt(x.quantidadePedida),fmt(x.quantidadeConcluida),fmt(x.quantidadePedida-x.quantidadeConcluida)]);
+  return '<section class="page landscape">'+ntTop('PRODUÇÃO DE MÁQUINAS','Modelos, opções e quantidades registradas pela produção.',date,true)+overview+
+    '<div class="sectionline"><span>ORDENS DE PRODUÇÃO</span><span>'+ntDate(date)+'</span></div>'+
+    ntTable(['OP','MÁQUINA','MODELO','OPÇÃO','PEDIDAS','CONCLUÍDAS','PENDENTES'],[14,21,18,18,10,10,9],rows)+
+    '<p class="note">Informações registradas manualmente; não representam baixa automática de materiais.</p>'+ntFooter(i+1,chunks.length)+'</section>';
+ });
+ return ntHtml('Produção de máquinas · '+ntDate(date),pages);
+}
+async function ntManualPDF(kind,single=null){
+ const type=kind==='receipt'?'receipt':'production',action=type==='receipt'?NT_RECEIPT_ACTION:NT_PRODUCTION_ACTION;
+ const selected=dateFilter,popup=window.open('','_blank');
+ if(!popup){notice('Permita pop-ups para visualizar o relatório.',true);return}
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:26px">Consultando registros no Firebase...</body></html>');popup.document.close();
+ try{
+  const found=single?[single]:await ntManualLoad(action);
+  const records=single?found:found.filter(r=>(type==='receipt'?r.dataRecebimento:r.dataProducao)===selected);
+  const date=single?(type==='receipt'?single.dataRecebimento:single.dataProducao):selected;
+  popup.document.open();popup.document.write(type==='receipt'?ntReceiptReport(records,date):ntProductionReport(records,date));popup.document.close();
+ }catch(e){
+  popup.document.open();popup.document.write('<!doctype html><html><meta charset="utf-8"><body><h2>Consulta indisponível</h2><p>Não foi possível carregar os registros do servidor. Não use dados desatualizados.</p></body></html>');popup.document.close();notice(e.message||'Erro de consulta',true);
+ }
+}
+async function ntManualHistory(kind){
+ const type=kind==='receipt'?'receipt':'production',action=type==='receipt'?NT_RECEIPT_ACTION:NT_PRODUCTION_ACTION;
+ panel('<h2>Histórico de '+(type==='receipt'?'recebimentos':'produção')+'</h2><p class="small">Consultando o Firebase...</p>');
+ try{
+  const records=await ntManualLoad(action),cache=new Map(records.map(r=>[r.numero,r]));
+  if(type==='receipt')ntReceiptCache=cache;else ntProductionCache=cache;
+  const rows=records.map(r=>'<div class="nt-repos-history"><div><b>'+ntPlain(ntDate(type==='receipt'?r.dataRecebimento:r.dataProducao))+'</b><p class="small">'+
+   ntPlain(type==='receipt'?(r.fornecedor+' · PC '+r.pedidoCompra+' · NF '+r.notaFiscal):(r.itens.length+' linha(s) de produção'))+
+   '</p></div><button class="btn alt" type="button" data-action="nt-manual-record" data-kind="'+type+'" data-code="'+ntPlain(r.numero)+'">Abrir PDF</button></div>').join('');
+  panel('<h2>Histórico de '+(type==='receipt'?'recebimentos':'produção')+'</h2><p class="small">Registros administrativos salvos no Firebase; não representam movimentações automáticas de estoque.</p><div class="card">'+(rows||'<p class="small">Nenhum registro salvo.</p>')+'</div><button class="btn ghost" type="button" data-action="close">Fechar</button>');
+ }catch(e){panel('<h2>Histórico indisponível</h2><p class="small">'+esc(e.message||'Erro')+'</p><button class="btn" data-action="close">Fechar</button>')}
+}
+function ntManualRecord(type,id){
+ const record=(type==='receipt'?ntReceiptCache:ntProductionCache).get(id);
+ if(!record){notice('Registro não encontrado. Reabra o histórico.',true);return}
+ ntManualPDF(type,record);
+}
+
 function securityView(){return `<h2>Segurança e backups</h2><div class="card"><div class="small">Conta Firebase</div><p style="margin:8px 0"><b>${esc(user?.email||'')}</b></p><p class="small">UID autorizado: <code style="word-break:break-all">${esc(user?.uid||'')}</code></p><div class="gap"></div><button class="btn alt" data-action="logout">Sair da conta</button></div><div class="card"><h2>Backup e exportação</h2><p class="small">Os dados oficiais ficam no Firestore. Faça também backup externo, especialmente antes de mudanças importantes.</p><div class="buttons" style="margin-top:10px"><button class="btn" data-action="backup">Baixar backup JSON completo</button><button class="btn alt" data-action="csv-stock">Exportar estoque CSV</button></div></div><div class="card"><h2>Importação inicial do catálogo</h2><p class="small">O arquivo privado inclui os 218 materiais do V32. Somente use a importação com uma base vazia. <b>Não substitui dados existentes.</b> A operação requer permissão de administrador pelas regras.</p><button class="btn alt" data-action="import">Selecionar JSON privado</button><div class="small" style="margin-top:12px">Materiais atualmente no banco: ${mats.length}</div></div><div class="notice"><b>Sem internet, sem lançamentos</b><p class="small">Esta versão exige confirmação online das gravações para evitar diferenças entre aparelhos. O navegador não guarda movimentações offline para sincronizar depois.</p></div>`}
 function draw(){if(!user)return;$('navigation').classList.remove('hide');for(const b of $('navigation').querySelectorAll('button'))b.classList.toggle('active',b.dataset.go===tab);$('app').innerHTML= !cloudOk?'<div class="alert">Não foi possível ler o estoque no Firebase. Confira as regras de segurança e o UID autorizado.</div>':({painel:panelHome,materiais:materialList,movimentar:moveView,pedidos:orderView,fechamento:closeView,seguranca:securityView})[tab]();}
 function formatDate(m){let d=m.criadoEm?.toDate?.()||new Date(m.timeClient||Date.now());return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
