@@ -1188,6 +1188,9 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
    const movementDelta=rnd(row.entrada+row.devolucao-row.saida);
    row.outras=rnd(row.fim-row.inicio-movementDelta);
    row.validar=Math.abs(row.outras)>0.0001;
+  }else{
+   // Dados antigos sem saldo antes/depois não podem parecer conciliados.
+   row.validar=true;
   }
   delete row.historico;
   return row;
@@ -1252,7 +1255,7 @@ function ntGeneralDayPDF(model){
  const readout='<div class="sectionline"><span>PANORAMA DO DIA</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
  '<p class="note"><b>Produção:</b> '+fmt(totals.machines)+' máquina(s) concluída(s) de '+fmt(totals.machinesRequested)+' informada(s) como pedida(s) nos registros do dia.</p>'+
  '<p class="note"><b>Comunicação Interna:</b> '+totals.requestsLines+' linha(s) de retirada para '+totals.requestsMaterials+' material(is) distinto(s); '+totals.orders+' pedido(s) com número preenchido.</p>'+
- '<p class="note"><b>Recebimentos:</b> '+totals.receipts+' registro(s) de entrega, '+totals.suppliers+' fornecedor(es) e '+totals.receiptDifferences+' linha(s) com divergência entre NF e recebido.</p>'+
+ '<p class="note"><b>Recebimentos:</b> '+totals.receipts+' documento(s) de entrega, '+totals.receiptLines+' linha(s) de material, '+totals.suppliers+' fornecedor(es) e '+totals.receiptDifferences+' divergência(s) entre NF e recebido.</p>'+
  '<p class="note"><b>Estoque:</b> '+totals.stockItems+' material(is) com registro de movimentação; '+totals.stockNotReconciled+' com variação que exige conferir o histórico completo.</p>'+
  '<div class="sectionline"><span>IMPORTANTE PARA A GERÊNCIA</span></div>'+
  '<p class="note">Os recebimentos e as produções são documentos informados manualmente. Eles <b>não</b> adicionam nem retiram estoque. As quantidades iniciais e finais vêm do histórico de movimentações do Firebase, não do formulário de recebimento.</p>'+
@@ -1295,6 +1298,7 @@ function ntGeneralDayPDF(model){
       part.map(x=>[String(x.codigo||''),String(x.nome||'—'),String(x.unidadeMedida||'—'),fmt(x.quantidadeNota),fmt(x.quantidadeRecebida),
         fmt(rnd(ntDayNumber(x.quantidadeRecebida)-ntDayNumber(x.quantidadeNota)))]));
     page('RECEBIMENTOS DE FORNECEDORES','Conferência documental das mercadorias recebidas.',info+table+
+     (String(doc.observacao||'').trim()?'<p class="note"><b>Observação:</b> '+ntPlain(doc.observacao)+'</p>':'')+
      '<p class="note">Registro administrativo. A entrada efetiva só é considerada no estoque quando há movimentação do tipo ENTRADA.</p>',false);
    }
   }
