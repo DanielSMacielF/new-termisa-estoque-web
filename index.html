@@ -454,7 +454,7 @@ function ntReposSuggest(){
 }
 function ntReposRefresh(){
  const terms=normMaterial($('ntReposSearch')?.value||'').split(/\s+/).filter(Boolean);
- document.querySelectorAll('[data-repos-row]').forEach(el=>{el.style.display=terms.every(t=>el.dataset.reposRow.includes(t))?'grid':'none';const cb=el.querySelector('[data-repos-check]'),q=el.querySelector('[data-repos-qty]');if(cb)cb.checked=ntReposSelected.has(cb.dataset.reposCheck);if(q)q.disabled=!ntReposSelected.has(q.dataset.reposQty)});
+ document.querySelectorAll('[data-repos-row]').forEach(el=>{el.style.display=terms.every(t=>el.dataset.reposRow.includes(t))?'grid':'none';const cb=el.querySelector('[data-repos-check]'),q=el.querySelector('[data-repos-qty]');if(cb)cb.checked=ntReposSelected.has(cb.dataset.reposCheck);if(q){q.disabled=!ntReposSelected.has(q.dataset.reposQty);q.value=ntReposAmounts.get(q.dataset.reposQty)||''}});
  const node=$('ntReposCount');if(node)node.textContent=`${ntReposSelected.size} material(is) selecionado(s)`;
 }
 function ntReposToggle(code,enable){if(enable)ntReposSelected.add(code);else ntReposSelected.delete(code);ntReposRefresh()}
