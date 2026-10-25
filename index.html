@@ -1521,13 +1521,14 @@ function ntDayExcelExport(model,XLSX){
   ['Linhas de saída de materiais',t.requestsLines,'Comunicação Interna: movimentos SAIDA reais'],
   ['Materiais distintos retirados',t.requestsMaterials,'Sem somar unidades diferentes'],
   ['Pedidos identificados',t.orders,'Somente pedidos com número informado'],
-  ['Documentos de recebimento',t.receipts,'Registros manuais, sem movimentação de estoque'],
+  ['Documentos de recebimento',t.receipts,'Recebimentos integrados podem registrar entradas oficiais'],
+  ['Produtos sem código',t.pendingCodes,'Documentados e pendentes, sem atualização de estoque'],
   ['Fornecedores',t.suppliers,'Fornecedores com recebimento documentado'],
   ['Linhas divergentes de NF',t.receiptDifferences,'Previsto na NF diferente do recebido'],
   ['Materiais movimentados',t.stockItems,'Inclui eventos de conferência no histórico'],
   ['Movimentações de entrada',t.stockEntries,'Entradas operacionais registradas no estoque'],
   ['Saldos a conferir',t.stockNotReconciled,'Variações fora de entradas, saídas e devoluções'],
-  ['Observação','Documentos manuais NÃO alteram estoque','Comparação com as entradas não garante vínculo com NF']
+  ['Observação','Somente entradas vinculadas a materiais cadastrados atualizam o saldo','Entradas integradas possuem identificador; documentos antigos podem não ter vínculo']
  ]);
  sheet('Produção',['DATA','OP','MÁQUINA','MODELO','OPÇÃO','QTD. PEDIDA','QTD. CONCLUÍDA','PENDENTE','OBSERVAÇÕES'],
   model.machineRows.map(x=>[date,x.ordemProducao,x.nome,x.modelo,x.opcao,x.pedida,x.concluida,x.pedida-x.concluida,x.observacao]));
@@ -1535,8 +1536,9 @@ function ntDayExcelExport(model,XLSX){
  sheet('Comunicação Interna',['DATA','HORÁRIO','PEDIDO','SOLICITANTE','CÓDIGO','MATERIAL','UNIDADE','QTD. SAÍDA','SALDO ANTES','SALDO DEPOIS'],
   model.requests.map(x=>{const stock=stockByCode.get(String(x.codigo));return [date,ntTime(x),String(x.pedido||''),String(x.solicitante||''),String(x.codigo||''),String(x.nome||''),
    stock?.unidade||'',ntQty(x),ntDayValidSaldo(x.antes)??'',ntDayValidSaldo(x.depois)??'']}));
- sheet('Recebimentos',['DATA','FORNECEDOR','PEDIDO DE COMPRA','NOTA FISCAL','CÓDIGO','MATERIAL','UNIDADE','QTD. NOTA','QTD. RECEBIDA','DIFERENÇA','OBSERVAÇÕES'],
-  model.receiptRows.map(x=>[date,x.fornecedor,x.pedidoCompra,x.notaFiscal,x.codigo,x.nome,x.unidade,x.prevista,x.recebida,rnd(x.recebida-x.prevista),x.observacao]));
+ sheet('Recebimentos',['DATA','FORNECEDOR','PEDIDO DE COMPRA','NOTA FISCAL','CÓDIGO','MATERIAL','UNIDADE','QTD. NOTA','QTD. RECEBIDA','DIFERENÇA','SITUAÇÃO ENTRADA','ID MOVIMENTAÇÃO','OBSERVAÇÕES'],
+  model.receiptRows.map(x=>[date,x.fornecedor,x.pedidoCompra,x.notaFiscal,x.codigo,x.nome,x.unidade,x.prevista,x.recebida,rnd(x.recebida-x.prevista),
+    x.semCadastro?'PENDENTE DE CADASTRO':x.statusEntrada==='ESTOQUE_ATUALIZADO'?'ESTOQUE ATUALIZADO':x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA':'DOCUMENTO ANTERIOR',x.movimentacaoId,x.observacao]));
  sheet('Estoque Movimentado',['DATA','CÓDIGO','MATERIAL','UNIDADE','SALDO INICIAL','SAÍDAS','DEVOLUÇÕES','ENTRADAS','OUTRAS VARIAÇÕES','SALDO FINAL','CONFERÊNCIA'],
   model.stockRows.map(x=>[date,x.codigo,x.nome,x.unidade,x.inicio??'',x.saida,x.devolucao,x.entrada,x.outras??'',x.fim??'',x.validar?'Conferir histórico':'']));
  sheet('Conferência de Entradas',['DATA','CÓDIGO','MATERIAL','UNIDADE','RECEBIDO NO DOCUMENTO','ENTRADAS NO ESTOQUE','DIFERENÇA','SITUAÇÃO'],
