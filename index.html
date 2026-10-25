@@ -686,7 +686,7 @@ function ntClosing(movements,date,catalog=mats){
  const tracePages=movementChunks.map((part,i)=>{
   const items=part.map(m=>[ntTime(m),String(m.codigo||''),String(m.nome||''),ntReportMeasure(m.codigo,catalog),
     testeIdentificado(m)?String(m.tipo||'')+' (TESTE)':String(m.tipo||''),
-    fmt(ntQty(m)),m.antes==null?'—':fmt(m.antes),m.depois==null?'—':fmt(m.depois),String(m.solicitante||m.operador||'—')]);
+    m.tipo==='AJUSTE'?fmt(Number(m.delta)||0):fmt(ntQty(m)),m.antes==null?'—':fmt(m.antes),m.depois==null?'—':fmt(m.depois),String(m.solicitante||m.operador||'—')]);
   const rows=ntTable(['HORA','CÓDIGO','MATERIAL','UN.','TIPO','QTDE.','ANTES','DEPOIS','RESPONSÁVEL'],
     [8,13,23,6,12,8,8,9,13],items);
   return '<section class="page landscape">'+ntTop('MOVIMENTAÇÕES DO DIA','Histórico de cada lançamento, com saldo anterior e saldo posterior.',date,true)+
@@ -717,7 +717,7 @@ function ntFullInventoryReport(items, generatedAt, operator) {
     ? String(m.rua).trim().toUpperCase() + '-' + String(m.posicao).trim().padStart(2,'0') : '—';
   const rows = [...items].map(m => ({
     code: String(m.codigo??''), name: String(m.nome??'').trim() || 'SEM DESCRIÇÃO',
-    loc: place(m), unit: String(m.unidadeMedida??'').trim() || '—',
+    loc: place(m), category: String(m.unidade??'').trim() || '—', unit: String(m.unidadeMedida??'').trim() || '—',
     qty: asNum(m.quantidade), price: asNum(m.preco),
     min: asNum(m.minimo), checked: !!m.conferido
   })).map(x=>({...x,value:x.qty*x.price})).sort((a,b) => a.name.localeCompare(b.name,'pt-BR') || a.code.localeCompare(b.code,'pt-BR'));
@@ -751,14 +751,14 @@ function ntFullInventoryReport(items, generatedAt, operator) {
     const last=first+chunk.length-1;
     const trs=chunk.map(x=>`<tr>
       <td class="nto-code">${ntPlain(x.code)}</td><td class="nto-name">${ntPlain(x.name)}</td>
-      <td>${ntPlain(x.loc)}</td><td>${ntPlain(x.unit)}</td>
+      <td>${ntPlain(x.loc)}</td><td>${ntPlain(x.category)}</td><td>${ntPlain(x.unit)}</td>
       <td class="nto-num nto-bold">${brNum(x.qty)}</td><td class="nto-num">${moneyCol(x.price)}</td>
       <td class="nto-num nto-bold">${moneyCol(x.value)}</td>
       <td class="nto-check ${x.checked?'nto-ok':'nto-pend'}">${x.checked?'SIM':'NÃO'}</td></tr>`).join('');
     return `<section class="nto-page">${ntHeadNew('RELAÇÃO COMPLETA DE MATERIAIS',`Listagem alfabética • ${total} materiais • Valores em reais (R$)`)}
     <div class="nto-tablehead"><b>REGISTROS ${first} A ${last} DE ${total}</b><span>Quantidades na unidade de cada material</span></div>
-    <table class="nto-table"><colgroup><col style="width:11%"><col style="width:34.5%"><col style="width:7.5%"><col style="width:5.2%"><col style="width:8.4%"><col style="width:10.4%"><col style="width:13%"><col style="width:10%"></colgroup>
-    <thead><tr><th>CÓDIGO</th><th>MATERIAL / DESCRIÇÃO</th><th>LOCAL</th><th>UN.</th><th class="nto-num">SALDO</th><th class="nto-num">PREÇO (R$)</th><th class="nto-num">VALOR (R$)</th><th class="nto-check">CONFER.</th></tr></thead><tbody>${trs}</tbody></table>${ntFooterNew(index+2)}</section>`;
+    <table class="nto-table"><colgroup><col style="width:11%"><col style="width:31%"><col style="width:8%"><col style="width:6%"><col style="width:6%"><col style="width:8%"><col style="width:10%"><col style="width:12%"><col style="width:8%"></colgroup>
+    <thead><tr><th>CÓDIGO</th><th>MATERIAL / DESCRIÇÃO</th><th>LOCAL</th><th>CAT.</th><th>UN.</th><th class="nto-num">SALDO</th><th class="nto-num">PREÇO (R$)</th><th class="nto-num">VALOR (R$)</th><th class="nto-check">CONFER.</th></tr></thead><tbody>${trs}</tbody></table>${ntFooterNew(index+2)}</section>`;
   }).join('');
   const style=`<style>
     @page{size:A4 landscape;margin:0}
