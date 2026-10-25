@@ -948,6 +948,9 @@ async function ntManualLoad(action){
 }
 function ntReceiptReport(records,date){
  const pages=[];
+ const suppliers=new Set(records.map(r=>r.fornecedor)),invoices=new Set(records.map(r=>r.notaFiscal));
+ const divergences=records.reduce((n,r)=>n+r.itens.filter(x=>Number(x.quantidadeRecebida)!==Number(x.quantidadeNota)).length,0);
+ const metrics='<div class="metrics">'+[['ENTREGAS',records.length],['FORNECEDORES',suppliers.size],['NOTAS FISCAIS',invoices.size],['DIVERGÊNCIAS',divergences]].map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+x[1]+'</strong></div>').join('')+'</div>';
  for(const r of records){
   const chunks=[];
   for(let i=0;i<r.itens.length;i+=11)chunks.push(r.itens.slice(i,i+11));
@@ -959,7 +962,7 @@ function ntReceiptReport(records,date){
    const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE. NF','RECEBIDA','DIFERENÇA'],[16,40,7,12,12,13],rows);
    const issues=items.filter(x=>Number(x.quantidadeNota)!==Number(x.quantidadeRecebida)).length;
    const foot='<p class="note">Diferenças neste bloco: <b>'+issues+'</b>. '+ntPlain(r.observacao||'Quantidades conforme conferência registrada.')+'</p>';
-   pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Conferência por fornecedor, pedido de compra e nota fiscal.',date)+info+body+foot+'__FOOT__</section>');
+   pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Conferência por fornecedor, pedido de compra e nota fiscal.',date)+(pages.length===0?metrics:'')+info+body+foot+'__FOOT__</section>');
   }
  }
  if(!pages.length)pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Nenhuma entrega manual registrada para a data.',date)+'<p class="note">Não foram encontrados registros de recebimento nesta data.</p>__FOOT__</section>');
@@ -969,12 +972,13 @@ function ntProductionReport(records,date){
  const entries=records.flatMap(r=>r.itens.map(x=>({...x,observacao:r.observacao||''})));
  const chunks=[];for(let i=0;i<entries.length;i+=13)chunks.push(entries.slice(i,i+13));if(!chunks.length)chunks.push([]);
  const totalRequested=entries.reduce((t,x)=>t+Number(x.quantidadePedida||0),0),totalFinished=entries.reduce((t,x)=>t+Number(x.quantidadeConcluida||0),0);
+ const openOrders=new Set(entries.filter(x=>Number(x.quantidadePedida)>Number(x.quantidadeConcluida)).map(x=>x.ordemProducao)).size;
  const pages=chunks.map((items,i)=>{
-  const overview=i===0?'<div class="metrics"><div class="metric"><small>MÁQUINAS PEDIDAS</small><strong>'+fmt(totalRequested)+'</strong></div><div class="metric"><small>CONCLUÍDAS</small><strong>'+fmt(totalFinished)+'</strong></div><div class="metric"><small>PENDENTES</small><strong>'+fmt(totalRequested-totalFinished)+'</strong></div></div>':'';
-  const rows=items.map(x=>[x.ordemProducao,x.nomeMaquina,x.modelo,x.opcao||'—',fmt(x.quantidadePedida),fmt(x.quantidadeConcluida),fmt(x.quantidadePedida-x.quantidadeConcluida)]);
+  const overview=i===0?'<div class="metrics"><div class="metric"><small>OPs COM PENDÊNCIA</small><strong>'+openOrders+'</strong></div><div class="metric"><small>MÁQUINAS PEDIDAS</small><strong>'+fmt(totalRequested)+'</strong></div><div class="metric"><small>CONCLUÍDAS</small><strong>'+fmt(totalFinished)+'</strong></div><div class="metric"><small>PENDENTES</small><strong>'+fmt(totalRequested-totalFinished)+'</strong></div></div>':'';
+  const rows=items.map(x=>[x.ordemProducao,x.nomeMaquina,x.modelo,x.opcao||'—',fmt(x.quantidadePedida),fmt(x.quantidadeConcluida),fmt(x.quantidadePedida-x.quantidadeConcluida),x.quantidadeConcluida===0?'PENDENTE':x.quantidadeConcluida===x.quantidadePedida?'CONCLUÍDA':'EM PRODUÇÃO']);
   return '<section class="page landscape">'+ntTop('PRODUÇÃO DE MÁQUINAS','Modelos, opções e quantidades registradas pela produção.',date)+overview+
     '<div class="sectionline"><span>ORDENS DE PRODUÇÃO</span><span>'+ntDate(date)+'</span></div>'+
-    ntTable(['OP','MÁQUINA','MODELO','OPÇÃO','PEDIDAS','CONCLUÍDAS','PENDENTES'],[14,21,18,18,10,10,9],rows)+
+    ntTable(['OP','MÁQUINA','MODELO','OPÇÃO','PEDIDAS','CONCLUÍDAS','PENDENTES','STATUS'],[12,18,15,17,9,10,9,10],rows)+
     '<p class="note">Informações registradas manualmente; não representam baixa automática de materiais.</p>'+ntFooter(i+1,chunks.length)+'</section>';
  });
  return ntHtml('Produção de máquinas · '+ntDate(date),pages);
