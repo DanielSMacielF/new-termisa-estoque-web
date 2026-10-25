@@ -1011,6 +1011,71 @@ function ntManualRecord(type,id){
  ntManualPDF(type,record);
 }
 
+
+/* Resumo Gerencial: leitura de dados CONFIRMADOS do servidor no momento da emissão. */
+function ntManagerReport(materials,movements,from,to,periodLabel){
+ const byCode=new Map(materials.map(m=>[String(m.codigo),m]));
+ const used=new Map(),kinds={SAIDA:0,ENTRADA:0,DEVOLUCAO:0,AJUSTE:0},people=new Set();
+ let ignored=0,valueOfOutbound=0;
+ for(const mv of movements){
+  if(testeIdentificado(mv)){ignored++;continue}
+  const kind=String(mv.tipo||'');
+  if(kinds[kind]===undefined)continue;
+  kinds[kind]++;
+  if(mv.solicitante)people.add(String(mv.solicitante));
+  const code=String(mv.codigo??''),item=byCode.get(code),qty=ntQty(mv);
+  const row=used.get(code)||{codigo:code,nome:String(item?.nome||mv.nome||'—'),unidadeMedida:String(item?.unidadeMedida||'—'),saidas:0,quantidadeSaida:0,devolucoes:0,entradas:0};
+  if(kind==='SAIDA'){
+   row.saidas++;row.quantidadeSaida=rnd(row.quantidadeSaida+qty);
+   valueOfOutbound+=qty*(Number(item?.preco)||0);
+  }else if(kind==='DEVOLUCAO')row.devolucoes=rnd(row.devolucoes+qty);
+  else if(kind==='ENTRADA')row.entradas=rnd(row.entradas+qty);
+  used.set(code,row);
+ }
+ const lows=materials.filter(m=>Number(m.quantidade)<=Number(m.minimo)).sort((a,b)=>Number(a.quantidade)-Number(a.minimo)-(Number(b.quantidade)-Number(b.minimo)));
+ const valueStock=materials.reduce((sum,m)=>sum+(Number(m.quantidade)||0)*(Number(m.preco)||0),0);
+ const usage=materials.map(m=>used.get(String(m.codigo))||{codigo:String(m.codigo),nome:String(m.nome),unidadeMedida:String(m.unidadeMedida||'—'),saidas:0,quantidadeSaida:0,devolucoes:0});
+ const most=[...usage].sort((a,b)=>b.saidas-a.saidas||b.quantidadeSaida-a.quantidadeSaida||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5);
+ const least=[...usage].sort((a,b)=>a.saidas-b.saidas||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5);
+ const noExit=usage.filter(x=>!x.saidas).length;
+ const mRows=arr=>arr.map(x=>[x.codigo,x.nome,x.unidadeMedida,String(x.saidas),fmt(x.quantidadeSaida)]);
+ const metrics=[['MATERIAIS CADASTRADOS',String(materials.length)],['SAÍDAS NO PERÍODO',String(kinds.SAIDA)],['ESTOQUE NO MÍNIMO',String(lows.length)],['VALOR DO ESTOQUE',money(valueStock)]];
+ const parts='<div class="metrics">'+metrics.map(r=>'<div class="metric"><small>'+ntPlain(r[0])+'</small><strong style="font-size:'+(r[0]==='VALOR DO ESTOQUE'?'12pt':'18pt')+'">'+ntPlain(r[1])+'</strong></div>').join('')+'</div>'+
+ '<div class="sectionline"><span>RESUMO DAS MOVIMENTAÇÕES</span><span>'+ntPlain(periodLabel)+'</span></div>'+
+ '<p class="note" style="margin-top:1mm">Entradas: <b>'+kinds.ENTRADA+'</b> &nbsp;·&nbsp; Devoluções: <b>'+kinds.DEVOLUCAO+'</b> &nbsp;·&nbsp; Ajustes: <b>'+kinds.AJUSTE+'</b> &nbsp;·&nbsp; Solicitantes: <b>'+people.size+'</b> &nbsp;·&nbsp; Testes identificados: <b>'+ignored+'</b></p>'+
+ '<div class="sectionline"><span>MAIOR FREQUÊNCIA DE SAÍDA</span><span>Por número de retiradas</span></div>'+
+ ntTable(['CÓDIGO','MATERIAL','UN.','RETIRADAS','QTDE. SAÍDA'],[18,46,8,12,16],mRows(most))+
+ '<div class="sectionline"><span>MENOR FREQUÊNCIA DE SAÍDA</span><span>Inclui materiais sem saída</span></div>'+
+ ntTable(['CÓDIGO','MATERIAL','UN.','RETIRADAS','QTDE. SAÍDA'],[18,46,8,12,16],mRows(least))+
+ '<p class="note"><b>'+noExit+'</b> material(is) sem saída no período; <b>'+lows.length+'</b> no mínimo ou abaixo. Valor bruto estimado das saídas, calculado com o preço atual: <b>'+money(valueOfOutbound)+'</b>. Não soma quantidades de unidades diferentes.</p>'+
+ '<p class="note">O valor do estoque e a situação de reposição refletem a posição ATUAL na emissão; não representam necessariamente a posição histórica de '+ntPlain(periodLabel)+'.</p>';
+ return ntHtml('Resumo gerencial · '+periodLabel,['<section class="page landscape">'+ntTop('RESUMO GERENCIAL','Indicadores de '+periodLabel+' e posição atual do estoque.',to,true)+parts+ntFooter(1,1)+'</section>']);
+}
+async function ntManagerOpen(mode){
+ if(!user||!serverReady||!navigator.onLine){notice('Aguarde a sincronização com o Firebase.',true);return}
+ const month=ntManagerMonth,date=dateFilter;
+ const y=Number(month.slice(0,4)),m=Number(month.slice(5,7));
+ if(mode==='month'&&(!/^\d{4}-\d{2}$/.test(month)||m<1||m>12))throw Error('Selecione um mês válido.');
+ const from=mode==='month'?month+'-01':date;
+ const to=mode==='month'?month+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0'):date;
+ const periodLabel=mode==='month'?month.slice(5,7)+'/'+month.slice(0,4):ntDate(date);
+ const popup=window.open('','_blank');
+ if(!popup){notice('Permita pop-ups para abrir o PDF.',true);return}
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:24px">Consultando movimentos e materiais no Firebase...</body></html>');popup.document.close();
+ try{
+  const movementQuery=mode==='month'
+    ?query(collection(db,'nt_web_movimentos'),where('dia','>=',from),where('dia','<=',to))
+    :query(collection(db,'nt_web_movimentos'),where('dia','==',date));
+  const [materialSnap,moveSnap]=await Promise.all([getDocsFromServer(collection(db,'nt_web_materiais')),getDocsFromServer(movementQuery)]);
+  const materials=materialSnap.docs.map(d=>d.data()),moves=moveSnap.docs.map(d=>d.data());
+  const html=ntManagerReport(materials,moves,from,to,periodLabel);
+  popup.document.open();popup.document.write(html);popup.document.close();
+ }catch(e){
+  popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:17px Arial;padding:26px"><h2>Resumo indisponível</h2><p>A consulta ao Firebase falhou. Não utilize dados antigos.</p></body></html>');popup.document.close();
+  notice('Não foi possível gerar o resumo: '+(e.message||'Erro de leitura'),true);
+ }
+}
+
 function securityView(){return `<h2>Segurança e backups</h2><div class="card"><div class="small">Conta Firebase</div><p style="margin:8px 0"><b>${esc(user?.email||'')}</b></p><p class="small">UID autorizado: <code style="word-break:break-all">${esc(user?.uid||'')}</code></p><div class="gap"></div><button class="btn alt" data-action="logout">Sair da conta</button></div><div class="card"><h2>Backup e exportação</h2><p class="small">Os dados oficiais ficam no Firestore. Faça também backup externo, especialmente antes de mudanças importantes.</p><div class="buttons" style="margin-top:10px"><button class="btn" data-action="backup">Baixar backup JSON completo</button><button class="btn alt" data-action="csv-stock">Exportar estoque CSV</button></div></div><div class="card"><h2>Importação inicial do catálogo</h2><p class="small">O arquivo privado inclui os 218 materiais do V32. Somente use a importação com uma base vazia. <b>Não substitui dados existentes.</b> A operação requer permissão de administrador pelas regras.</p><button class="btn alt" data-action="import">Selecionar JSON privado</button><div class="small" style="margin-top:12px">Materiais atualmente no banco: ${mats.length}</div></div><div class="notice"><b>Sem internet, sem lançamentos</b><p class="small">Esta versão exige confirmação online das gravações para evitar diferenças entre aparelhos. O navegador não guarda movimentações offline para sincronizar depois.</p></div>`}
 function draw(){if(!user)return;$('navigation').classList.remove('hide');for(const b of $('navigation').querySelectorAll('button'))b.classList.toggle('active',b.dataset.go===tab);$('app').innerHTML= !cloudOk?'<div class="alert">Não foi possível ler o estoque no Firebase. Confira as regras de segurança e o UID autorizado.</div>':({painel:panelHome,materiais:materialList,movimentar:moveView,pedidos:orderView,fechamento:closeView,seguranca:securityView})[tab]();}
 function formatDate(m){let d=m.criadoEm?.toDate?.()||new Date(m.timeClient||Date.now());return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
