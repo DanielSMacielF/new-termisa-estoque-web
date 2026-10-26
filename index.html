@@ -706,6 +706,15 @@ function ntReportCSS(){return `<style>
  .nt-general-receipt .nt-rx-table td{padding:1.8mm 1.5mm;line-height:1.2}
  .nt-general-receipt .nt-rx-table th{padding:2.1mm 1.5mm}
  .nt-general-receipt .nt-rx-note{margin-top:3mm}
+
+/* Padronização aprovada: todos os campos das tabelas dos PDFs centralizados.
+   Especificidade intencional: sobrescreve alinhamentos antigos de números,
+   descrições e unidades, mas não altera tabelas do aplicativo web. */
+ .page table th,
+ .page table td{
+  text-align:center!important;
+  vertical-align:middle!important;
+ }
  @media print{html,body{background:white} .toolbar{display:none!important} .page{box-shadow:none!important;margin:0!important;height:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact} }
  </style>`}
 function ntTop(title,subtitle,date,compact=false){return `<div class="rhead"><img src="${NT_LOGO}" alt="New Termisa"><div class="company"><b>${compact?'FECHAMENTO DIÁRIO':'ALMOXARIFADO / NEW TERMISA'}</b>${ntPlain(ntDate(date))}</div></div><div class="line"></div><h1 class="heading">${ntPlain(title)}</h1><p class="desc">${ntPlain(subtitle)}</p>`}
