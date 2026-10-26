@@ -1359,8 +1359,67 @@ function ntManualRecord(type,id){
 
 
 /* Resumo Gerencial: leitura de dados CONFIRMADOS do servidor no momento da emissão. */
-function ntManagerReport(materials,movements,from,to,periodLabel){
+// Recebimentos apenas em leitura: auditados e vinculados a movimentações já contabilizadas.
+function ntManagerReceiptRows(receiptDocs,movements,from,to){
+ const receipts=(Array.isArray(receiptDocs)?receiptDocs:[])
+  .filter(r=>Array.isArray(r.itens)&&String(r.dataRecebimento||'')>=from&&String(r.dataRecebimento||'')<=to)
+  .sort((a,b)=>String(a.dataRecebimento||'').localeCompare(String(b.dataRecebimento||''))||
+   String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||'')));
+ const movementMap=new Map(movements.filter(m=>m.tipo==='ENTRADA'&&m.id&&!testeIdentificado(m)).map(m=>[String(m.id),m]));
+ const rows=[];
+ for(const r of receipts){
+  for(const x of r.itens){
+   const code=String(x.codigo||''),id=String(x.movimentacaoId||'');
+   const mv=movementMap.get(id);
+   const qty=Number(x.quantidadeRecebida||0);
+   const linked=!!(id&&mv&&String(mv.codigo)===code&&String(mv.reciboId||'')===String(r.numero||'')&&
+    Number.isFinite(qty)&&Math.abs(ntQty(mv)-qty)<0.0001);
+   const status=x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO'?'PENDENTE CADASTRO':
+    x.statusEntrada==='NAO_ENTROU'||qty===0?'SEM ENTRADA':
+    linked?'VINCULADO AO ESTOQUE':'VÍNCULO NÃO CONFIRMADO';
+   rows.push({data:String(r.dataRecebimento||''),fornecedor:String(r.fornecedor||'—'),
+    pc:String(r.pedidoCompra||'—'),nf:String(r.notaFiscal||'—'),codigo:code||'SEM CÓD.',
+    nome:String(x.nome||'—'),unidade:String(x.unidadeMedida||'—'),
+    prevista:Number(x.quantidadeNota||0),recebida:qty,status});
+  }
+ }
+ return {receipts,rows};
+}
+function ntManagerReceiptPages(data,periodLabel,date){
+ if(!data.receipts.length)return [];
+ const chunks=[];let chunk=[],size=0;
+ for(const row of data.rows){
+  const wraps=Math.max(1,Math.ceil(row.nome.length/28),Math.ceil(row.fornecedor.length/23));
+  const weight=1+0.6*(wraps-1);
+  if(chunk.length&&(chunk.length>=10||size+weight>11)){
+   chunks.push(chunk);chunk=[];size=0;
+  }
+  chunk.push(row);size+=weight;
+ }
+ if(chunk.length||!chunks.length)chunks.push(chunk);
+ const metrics='<div class="metrics">'+[
+  ['ENTREGAS',String(data.receipts.length)],
+  ['LINHAS DE MATERIAL',String(data.rows.length)],
+  ['FORNECEDORES',String(new Set(data.receipts.map(x=>String(x.fornecedor||'').trim())).size)],
+  ['PENDÊNCIAS / SEM VÍNCULO',String(data.rows.filter(x=>x.status!=='VINCULADO AO ESTOQUE').length)]
+ ].map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
+ return chunks.map((rows,i)=>{
+  const head=ntTop('RECEBIMENTOS DE MATERIAIS','Compras recebidas e documentação vinculada às movimentações do período.',date);
+  const table=ntTable(['DATA','FORNECEDOR','PC','NF','CÓDIGO','MATERIAL','UN.','RECEBIDA','STATUS'],
+   [8,16,8,9,12,22,5,8,12],
+   rows.map(r=>[ntDate(r.data),r.fornecedor,r.pc,r.nf,r.codigo,r.nome,r.unidade,fmt(r.recebida),
+    r.status==='VINCULADO AO ESTOQUE'?'CONFIRMADO':r.status==='PENDENTE CADASTRO'?'PENDENTE':
+    r.status==='SEM ENTRADA'?'SEM ENTRADA':'A CONFERIR']));
+  const note='<p class="note">CONFIRMADO: entrada localizada em movimentações oficiais, com vínculo ao documento. A CONFERIR: não foi possível comprovar o vínculo. PENDENTE: item sem cadastro. O relatório não lança entradas nem altera saldos.</p>';
+  return '<section class="page landscape nt-manager-receipts">'+head+(i===0?metrics:'')+
+    '<div class="sectionline"><span>RELAÇÃO DE RECEBIMENTOS'+(i?' · CONTINUAÇÃO':'')+
+    '</span><span>'+ntPlain(periodLabel)+'</span></div>'+table+note+'__NT_MANAGER_FOOT__</section>';
+ });
+}
+
+function ntManagerReport(materials,movements,from,to,periodLabel,receiptDocs=[]){
  const byCode=new Map(materials.map(m=>[String(m.codigo),m]));
+ const receiptData=ntManagerReceiptRows(receiptDocs,movements,from,to);
  const used=new Map(),kinds={SAIDA:0,ENTRADA:0,DEVOLUCAO:0,AJUSTE:0},people=new Set();
  let ignored=0,valueOfOutbound=0;
  for(const mv of movements){
@@ -1385,6 +1444,9 @@ function ntManagerReport(materials,movements,from,to,periodLabel){
  const most=[...moving].sort((a,b)=>b.saidas-a.saidas||b.quantidadeSaida-a.quantidadeSaida||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5);
  const least=moving.length>1?[...moving].sort((a,b)=>a.saidas-b.saidas||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5):[];
  const noExit=usage.filter(x=>!x.saidas).length;
+ const inlineReceipt=receiptData.rows.length>0&&receiptData.rows.length<=3&&most.length+least.length<=4&&
+  receiptData.rows.every(r=>r.nome.length<=65&&r.fornecedor.length<=45);
+
  const mRows=arr=>arr.map(x=>[x.codigo,x.nome,x.unidadeMedida,String(x.saidas),fmt(x.quantidadeSaida)]);
  const metrics=[['MATERIAIS CADASTRADOS',String(materials.length)],['SAÍDAS NO PERÍODO',String(kinds.SAIDA)],['ESTOQUE NO MÍNIMO',String(lows.length)],['VALOR DO ESTOQUE',money(valueStock)]];
  const parts='<div class="metrics">'+metrics.map(r=>'<div class="metric"><small>'+ntPlain(r[0])+'</small><strong style="font-size:'+(r[0]==='VALOR DO ESTOQUE'?'12pt':'18pt')+'">'+ntPlain(r[1])+'</strong></div>').join('')+'</div>'+
@@ -1396,8 +1458,21 @@ function ntManagerReport(materials,movements,from,to,periodLabel){
  (least.length?'<div class="sectionline"><span>MENOR FREQUÊNCIA DE SAÍDA</span><span>Entre materiais com saídas registradas</span></div>'+
  ntTable(['CÓDIGO','MATERIAL','UN.','RETIRADAS','QTDE. SAÍDA'],[18,46,8,12,16],mRows(least)):'')+
  '<p class="note"><b>'+noExit+'</b> material(is) sem saída no período; <b>'+lows.length+'</b> no mínimo ou abaixo. Valor bruto estimado das saídas, calculado com o preço atual: <b>'+money(valueOfOutbound)+'</b>. Não soma quantidades de unidades diferentes.</p>'+
- '<p class="note">O valor do estoque e a situação de reposição refletem a posição ATUAL na emissão; não representam necessariamente a posição histórica de '+ntPlain(periodLabel)+'.</p>';
- return ntHtml('Resumo gerencial · '+periodLabel,['<section class="page landscape">'+ntTop('RESUMO GERENCIAL','Indicadores de '+periodLabel+' e posição atual do estoque.',to)+parts+ntFooter(1,1)+'</section>']);
+ '<p class="note">O valor do estoque e a situação de reposição refletem a posição ATUAL na emissão; não representam necessariamente a posição histórica de '+ntPlain(periodLabel)+'.</p>'+ 
+
+ (inlineReceipt?'<div class="sectionline"><span>RECEBIMENTOS DE MATERIAIS</span><span>Compras e entregas registradas</span></div>'+
+ ntTable(['DATA','FORNECEDOR','PC','NF','CÓDIGO','MATERIAL','UN.','RECEBIDA','SITUAÇÃO'],
+  [8,16,8,9,12,22,5,8,12],
+  receiptData.rows.map(r=>[ntDate(r.data),r.fornecedor,r.pc,r.nf,r.codigo,r.nome,r.unidade,fmt(r.recebida),
+   r.status==='VINCULADO AO ESTOQUE'?'CONFIRMADO':r.status==='PENDENTE CADASTRO'?'PENDENTE':
+   r.status==='SEM ENTRADA'?'SEM ENTRADA':'A CONFERIR']))+
+ '<p class="note" style="margin-top:2mm">CONFIRMADO: recebimento vinculado à entrada já contabilizada. A CONFERIR: documento sem vínculo confirmado. Nenhuma entrada adicional foi lançada pelo relatório.</p>':'')+
+  '<p class="note"><b>Recebimentos de materiais:</b> '+receiptData.receipts.length+' entrega(s) documentada(s) e '+receiptData.rows.length+' linha(s) de material'+(receiptData.rows.length?(inlineReceipt?'. Detalhamento apresentado nesta página.':'. Detalhes a partir da página 2.'):'. Nenhum documento de recebimento localizado no período.')+' As entradas confirmadas já fazem parte da contagem de movimentações acima, sem duplicidade.</p>';
+ const nextPages=inlineReceipt?[]:ntManagerReceiptPages(receiptData,periodLabel,to);
+ const total=nextPages.length+1;
+ const pages=['<section class="page landscape">'+ntTop('RESUMO GERENCIAL','Indicadores de '+periodLabel+' e posição atual do estoque.',to)+parts+ntFooter(1,total)+'</section>'];
+ for(let i=0;i<nextPages.length;i++)pages.push(nextPages[i].replace('__NT_MANAGER_FOOT__',ntFooter(i+2,total)));
+ return ntHtml('Resumo gerencial · '+periodLabel,pages);
 }
 async function ntManagerOpen(mode){
  if(!user||!serverReady||!navigator.onLine){notice('Aguarde a sincronização com o Firebase.',true);return}
@@ -1414,9 +1489,14 @@ async function ntManagerOpen(mode){
   const movementQuery=mode==='month'
     ?query(collection(db,'nt_web_movimentos'),where('dia','>=',from),where('dia','<=',to))
     :query(collection(db,'nt_web_movimentos'),where('dia','==',date));
-  const [materialSnap,moveSnap]=await Promise.all([getDocsFromServer(collection(db,'nt_web_materiais')),getDocsFromServer(movementQuery)]);
+  const [materialSnap,moveSnap,receiptSnap]=await Promise.all([
+   getDocsFromServer(collection(db,'nt_web_materiais')),
+   getDocsFromServer(movementQuery),
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION)))
+  ]);
   const materials=materialSnap.docs.map(d=>d.data()),moves=moveSnap.docs.map(d=>d.data());
-  const html=ntManagerReport(materials,moves,from,to,periodLabel);
+  const receipts=receiptSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens));
+  const html=ntManagerReport(materials,moves,from,to,periodLabel,receipts);
   popup.document.open();popup.document.write(html);popup.document.close();
  }catch(e){
   popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:17px Arial;padding:26px"><h2>Resumo indisponível</h2><p>A consulta ao Firebase falhou. Não utilize dados antigos.</p></body></html>');popup.document.close();
