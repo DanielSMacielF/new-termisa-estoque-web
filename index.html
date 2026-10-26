@@ -625,6 +625,32 @@ function ntReportCSS(){return `<style>
  .empty{text-align:center;color:#405b66;font-style:italic;padding:10mm 4mm;font-size:9.5pt}
  .landscape .heading{font-size:17pt}.landscape .desc{font-size:9.2pt}.landscape .sectionline{margin:4mm 0 3mm}
  .landscape table{font-size:9pt}.landscape th{font-size:8.3pt;padding:3mm 1.5mm}.landscape td{padding:3mm 1.5mm}
+
+ /* Recebimento de materiais: identidade visual de entregas (isolada dos demais PDFs). */
+ .nt-rx-banner{display:grid;grid-template-columns:34mm minmax(0,1fr);gap:0;margin:5mm 0 4mm;break-inside:avoid;page-break-inside:avoid}
+ .nt-rx-badge{background:#194957;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;border-radius:2.6mm 0 0 2.6mm;text-align:center;font-size:13pt;font-weight:700;line-height:1.35;padding:4mm 2mm}
+ .nt-rx-badge small{font-size:7pt;font-weight:500;letter-spacing:.2px;margin-top:1.5mm}
+ .nt-rx-body{background:#e6f1f2;border-radius:0 2.6mm 2.6mm 0;padding:3.5mm 4mm}
+ .nt-rx-vendor{display:flex;justify-content:space-between;align-items:flex-start;gap:4mm}
+ .nt-rx-vendor small,.nt-rx-ref small{display:block;color:#365b68;font-size:7.8pt;font-weight:600;margin-bottom:1.1mm}
+ .nt-rx-vendor strong{display:block;color:#123d4c;font-size:12.3pt;line-height:1.24;overflow-wrap:anywhere}
+ .nt-rx-when{color:#285666;font-size:8.5pt;font-weight:600;text-align:right;flex-shrink:0;max-width:35mm}
+ .nt-rx-refs{display:flex;flex-wrap:wrap;gap:4mm 8mm;margin-top:3mm;border-top:.3mm solid #c2d8dc;padding-top:2.7mm}
+ .nt-rx-ref{min-width:30%;flex:1}
+ .nt-rx-ref b{font-size:11pt;color:#123d4c;line-height:1.2;overflow-wrap:anywhere;display:block}
+ .nt-rx-section{display:flex;justify-content:space-between;gap:4mm;align-items:center;color:#174554;font-size:9.1pt;font-weight:700;margin:4mm 0 2mm}
+ .nt-rx-section span:last-child{font-size:8pt;color:#365b68;font-weight:500}
+ .nt-rx-table{font-size:8.9pt}
+ .nt-rx-table th{font-size:8.1pt;padding:2.8mm 1.5mm}
+ .nt-rx-table td{padding:2.5mm 1.4mm}
+ .nt-rx-table td.nt-rx-code{width:16%;white-space:nowrap;font-size:8.4pt}
+ .nt-rx-table td.nt-rx-name{width:39%;font-weight:500}
+ .nt-rx-table td.nt-rx-numeric{text-align:right;font-variant-numeric:tabular-nums}
+ .nt-rx-table td.nt-rx-diff{color:#9c4132;font-weight:700}
+ .nt-rx-warn{display:block;margin-top:.9mm;color:#98502c;font-size:7.6pt;font-weight:600}
+ .nt-rx-summary{display:flex;flex-wrap:wrap;gap:2.5mm 8mm;background:#eff6f7;border-left:1mm solid #159da2;border-radius:0 2mm 2mm 0;margin-top:4mm;padding:3mm 4mm;font-size:8.5pt;color:#244e5b}
+ .nt-rx-summary b{color:#123d4c}
+ .nt-rx-footnote{margin-top:3mm;font-size:8.4pt;color:#365b68;line-height:1.35}
  @media print{html,body{background:white} .toolbar{display:none!important} .page{box-shadow:none!important;margin:0!important;height:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact} }
  </style>`}
 function ntTop(title,subtitle,date,compact=false){return `<div class="rhead"><img src="${NT_LOGO}" alt="New Termisa"><div class="company"><b>${compact?'FECHAMENTO DIÁRIO':'ALMOXARIFADO / NEW TERMISA'}</b>${ntPlain(ntDate(date))}</div></div><div class="line"></div><h1 class="heading">${ntPlain(title)}</h1><p class="desc">${ntPlain(subtitle)}</p>`}
@@ -1093,11 +1119,32 @@ async function ntReceiptSave(){
    tx.set(receiptRef,auditData);
    return 'SALVO';
   });
+  // Após a transação, reler do SERVIDOR as quantidades e atualizar a tela sem F5.
+  // Falha nessa leitura nunca autoriza repetição da entrada já gravada.
+  let syncProblem='';
+  if(result==='SALVO'&&registered.length){
+   try{
+    const confirmed=[];
+    for(const item of registered){
+     const live=await getDocFromServer(itemRef(item.codigo));
+     if(!live.exists())throw Error('Material '+item.codigo+' não encontrado na consulta');
+     const real=live.data();
+     if(!Number.isFinite(Number(real.quantidade)))throw Error('Saldo inválido na confirmação: '+item.codigo);
+     confirmed.push(real);
+    }
+    for(const real of confirmed){
+     const at=mats.findIndex(m=>String(m.codigo)===String(real.codigo));
+     if(at<0)mats.push(real);else mats[at]=real;
+    }
+    mats.sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+   }catch(e){syncProblem=String(e.message||e)}
+  }
   ntReceiptCommitRef=null;ntReceiptCommitSignature=null;ntReceiptItems=[];ntReceiptManualMode=false;
   ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''};
   if(tab==='movimentar'&&kind==='ENTRADA')draw();
   if(result==='EXISTENTE')notice('Fornecedor, pedido e NF já constam como recebimento do dia. Nenhuma entrada foi duplicada.');
-  else notice('Recebimento confirmado. '+registered.length+' item(ns) com entrada no estoque e '+pending.length+' sem código pendente(s).');
+  else if(syncProblem)notice('Recebimento GRAVADO, mas a releitura do saldo falhou. NÃO repita a entrada. Verifique em Materiais / Histórico: '+syncProblem,true);
+  else notice('Recebimento confirmado no Firebase; estoque relido do servidor. '+registered.length+' material(is) atualizado(s).');
  }catch(err){
   notice('Recebimento NÃO confirmado nesta tela. Antes de repetir, consulte o Histórico de Recebimentos para evitar duplicações: '+String(err.message||err),true);
  }finally{loader(false)}
@@ -1146,30 +1193,51 @@ async function ntManualLoad(action){
 }
 function ntReceiptReport(records,date){
  const pages=[];
- const suppliers=new Set(records.map(r=>r.fornecedor)),invoices=new Set(records.map(r=>r.notaFiscal));
- const divergences=records.reduce((n,r)=>n+r.itens.filter(x=>Number(x.quantidadeRecebida)!==Number(x.quantidadeNota)).length,0);
+ const suppliers=new Set(records.map(r=>String(r.fornecedor||'').trim()).filter(Boolean));
+ const invoices=new Set(records.map(r=>String(r.notaFiscal||'').trim()).filter(Boolean));
+ const divergences=records.reduce((n,r)=>n+(r.itens||[]).filter(x=>rnd(Number(x.quantidadeRecebida||0)-Number(x.quantidadeNota||0))!==0).length,0);
  const metrics='<div class="metrics">'+[['ENTREGAS',records.length],['FORNECEDORES',suppliers.size],['NOTAS FISCAIS',invoices.size],['DIVERGÊNCIAS',divergences]].map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+x[1]+'</strong></div>').join('')+'</div>';
- for(const r of records){
-  const chunks=[];
-  for(let i=0;i<r.itens.length;i+=11)chunks.push(r.itens.slice(i,i+11));
-  if(!chunks.length)chunks.push([]);
-  for(const items of chunks){
-   const status=x=>x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO'?'PENDENTE DE CADASTRO':
-    x.statusEntrada==='ESTOQUE_ATUALIZADO'?'ENTRADA NO ESTOQUE':
-    x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA':'DOCUMENTO ANTIGO (SEM VÍNCULO)';
-   const rows=items.map(x=>[x.codigo||'SEM CÓD.',String(x.nome||'—')+' · '+status(x),x.unidadeMedida||'—',
-    fmt(x.quantidadeNota),fmt(x.quantidadeRecebida),fmt(rnd(Number(x.quantidadeRecebida)-Number(x.quantidadeNota)))]);
-   const info='<div class="sectionline"><span>FORNECEDOR: '+ntPlain(r.fornecedor)+'</span><span>RECEBIDO EM '+ntPlain(ntDate(r.dataRecebimento))+'</span></div>'+
-    '<p class="note" style="margin-top:2mm">PEDIDO DE COMPRA: <b>'+ntPlain(r.pedidoCompra)+'</b> &nbsp;&nbsp; NOTA FISCAL: <b>'+ntPlain(r.notaFiscal)+'</b></p>';
-   const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE. NF','RECEBIDA','DIFERENÇA'],[16,40,7,12,12,13],rows);
-   const issues=items.filter(x=>Number(x.quantidadeNota)!==Number(x.quantidadeRecebida)).length;
-   const linked=items.filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO').length,unknown=items.filter(x=>x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO').length;
-   const foot='<p class="note">Divergências NF x recebido: <b>'+issues+'</b> · Entradas vinculadas ao estoque: <b>'+linked+'</b> · Pendentes de cadastro: <b>'+unknown+'</b>.</p>'+
-   '<p class="note">'+ntPlain(r.observacao||'Confira as quantidades e a situação de cada material. Registros antigos podem não possuir vínculo.')+'</p>';
-   pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Conferência por fornecedor, pedido de compra e nota fiscal.',date)+(pages.length===0?metrics:'')+info+body+foot+'__FOOT__</section>');
+ for(let ri=0;ri<records.length;ri++){
+  const r=records[ri],all=Array.isArray(r.itens)?r.itens:[];
+  const totalPages=Math.max(1,Math.ceil(all.length/12));
+  const chunkSize=Math.max(1,Math.ceil(all.length/totalPages));
+  const receiptIssues=all.filter(x=>rnd(Number(x.quantidadeRecebida||0)-Number(x.quantidadeNota||0))!==0).length;
+  const linked=all.filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO').length;
+  const pending=all.filter(x=>x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO').length;
+  for(let part=0;part<totalPages;part++){
+   const items=all.slice(part*chunkSize,(part+1)*chunkSize);
+   const banner='<div class="nt-rx-banner"><div class="nt-rx-badge">ENTREGA '+ntPlain(String(ri+1).padStart(2,'0'))+
+    (part?'<small>CONTINUAÇÃO</small>':'')+'</div><div class="nt-rx-body"><div class="nt-rx-vendor"><div><small>FORNECEDOR</small><strong>'+
+    ntPlain(r.fornecedor||'Não informado')+'</strong></div><div class="nt-rx-when">RECEBIDO EM '+ntPlain(ntDate(r.dataRecebimento))+
+    '</div></div><div class="nt-rx-refs"><div class="nt-rx-ref"><small>PEDIDO DE COMPRA</small><b>'+ntPlain(r.pedidoCompra||'Não informado')+
+    '</b></div><div class="nt-rx-ref"><small>NOTA FISCAL</small><b>'+ntPlain(r.notaFiscal||'Não informado')+'</b></div></div></div></div>';
+   const tableRows=items.map(x=>{
+    const difference=rnd(Number(x.quantidadeRecebida||0)-Number(x.quantidadeNota||0));
+    const warning=x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO'?'PENDENTE DE CADASTRO':
+     x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA NO ESTOQUE':
+     x.statusEntrada!=='ESTOQUE_ATUALIZADO'?'DOCUMENTO ANTIGO · VÍNCULO NÃO CONFIRMADO':'';
+    return '<tr><td class="nt-rx-code">'+ntPlain(x.codigo||'SEM CÓD.')+'</td>'+
+     '<td class="nt-rx-name">'+ntPlain(x.nome||'—')+(warning?'<small class="nt-rx-warn">'+warning+'</small>':'')+'</td>'+
+     '<td>'+ntPlain(x.unidadeMedida||'—')+'</td>'+
+     '<td class="nt-rx-numeric">'+ntPlain(fmt(x.quantidadeNota))+'</td>'+
+     '<td class="nt-rx-numeric">'+ntPlain(fmt(x.quantidadeRecebida))+'</td>'+
+     '<td class="nt-rx-numeric'+(difference?' nt-rx-diff':'')+'">'+ntPlain(fmt(difference))+'</td></tr>';
+   }).join('');
+   const body='<table class="nt-rx-table"><colgroup><col style="width:16%"><col style="width:39%"><col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:12%"></colgroup>'+
+    '<thead><tr><th>CÓDIGO</th><th>MATERIAL / DESCRIÇÃO</th><th>UN.</th><th>QTDE. NF</th><th>RECEBIDA</th><th>DIFERENÇA</th></tr></thead>'+
+    '<tbody>'+(tableRows||'<tr><td colspan="6">Nenhum material informado.</td></tr>')+'</tbody></table>';
+   const last=part===totalPages-1;
+   const footer=last?'<div class="nt-rx-summary"><span>DIVERGÊNCIAS: <b>'+receiptIssues+'</b></span><span>ENTRADAS VINCULADAS AO ESTOQUE: <b>'+
+    linked+'</b></span><span>PENDENTES DE CADASTRO: <b>'+pending+'</b></span></div>'+
+    (r.observacao?'<p class="nt-rx-footnote"><b>Observações:</b> '+ntPlain(r.observacao)+'</p>':''):
+    '<p class="nt-rx-footnote">Continua na próxima página: mesma entrega, pedido de compra e nota fiscal.</p>';
+   const heading=ntTop('RECEBIMENTO DE MATERIAIS','Conferência por fornecedor, pedido de compra e nota fiscal.',date);
+   pages.push('<section class="page portrait">'+heading+(pages.length===0?metrics:'')+banner+
+    '<div class="nt-rx-section"><span>MATERIAIS RECEBIDOS'+(part?' · CONTINUAÇÃO':'')+'</span><span>'+items.length+' MATERIAL(IS) NESTA PÁGINA</span></div>'+
+    body+footer+'__FOOT__</section>');
   }
  }
- if(!pages.length)pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Nenhuma entrega manual registrada para a data.',date)+'<p class="note">Não foram encontrados registros de recebimento nesta data.</p>__FOOT__</section>');
+ if(!pages.length)pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Nenhuma entrega registrada para a data.',date)+'<p class="note">Não foram encontrados registros de recebimento nesta data.</p>__FOOT__</section>');
  return ntHtml('Recebimento de materiais · '+ntDate(date),pages.map((p,i)=>p.replace('__FOOT__',ntFooter(i+1,pages.length))));
 }
 function ntProductionReport(records,date){
