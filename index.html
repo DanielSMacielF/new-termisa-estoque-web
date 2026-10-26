@@ -667,7 +667,7 @@ function ntReportCSS(){return `<style>
 .nt-ci-report .sectionline span:last-child{font-weight:400;font-size:8.5pt;color:#4d697e}
 .nt-ci-report table{font-size:8.35pt}
 .nt-ci-report th{font-size:7.8pt;font-weight:600;padding:2.2mm 1.1mm}
-.nt-ci-report td{font-size:8.25pt;line-height:1.23;padding:1.15mm 1.1mm;vertical-align:middle;border-bottom:.2mm solid #dce7e9}
+.nt-ci-report td{font-size:8.25pt;line-height:1.23;padding:.75mm 1.1mm;vertical-align:middle;border-bottom:.2mm solid #dce7e9}
 .nt-ci-report tbody tr:nth-child(even){background:#eaf3f5}
 .nt-ci-report .nt-ci-note{display:flex;align-items:center;gap:3.5mm;margin-top:5mm;background:#e8f3f5;border-radius:2.5mm;padding:3.2mm 4mm;break-inside:avoid}
 .nt-ci-note-icon{height:9mm;width:9mm;flex:0 0 9mm;border:.85mm solid #087b88;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17pt;font-weight:700;color:#087b88;line-height:1}
@@ -737,7 +737,7 @@ function ntCIChunks(rows){
   const lines=Math.max(1,Math.ceil(String(row.nome||'').length/32),
     Math.ceil(String(row.solicitante||'').length/21),Math.ceil(String(row.pedido||'').length/18));
   const w=1+Math.max(0,lines-1)*.82;
-  if(page.length&&(page.length>=20||weight+w>20)){pages.push(page);page=[];weight=0}
+  if(page.length&&(page.length>=29||weight+w>29)){pages.push(page);page=[];weight=0}
   page.push(row);weight+=w;
  }
  if(page.length||!pages.length)pages.push(page);
@@ -756,9 +756,6 @@ function ntCI(movements,date,catalog=mats){
  const chunks=ntCIChunks(rows),pages=[];
  const labels=[['box','ITENS ENTREGUES',rows.length],['order','PEDIDOS',requests.size],
   ['people','SOLICITANTES',people.size],['layers','MATERIAIS DISTINTOS',kinds.size]];
- const note='<div class="nt-ci-note"><div class="nt-ci-note-icon">i</div><div class="nt-ci-note-rule"></div>'+
-  '<div class="nt-ci-note-copy"><strong>Comunicação Interna</strong>'+
-  '<p>Documento referente à solicitação e à entrega de itens requisitados pela Produção para atendimento das atividades de montagem e fabricação das máquinas de produção.</p></div></div>';
  for(let i=0;i<chunks.length;i++){
   const head=ntTop('COMUNICAÇÃO INTERNA','Saídas de materiais por solicitante, com rastreabilidade e referência de pedido.',date);
   const metrics=i===0?'<div class="metrics">'+labels.map(item=>'<div class="metric">'+ntCIIcon(item[0])+
@@ -769,7 +766,7 @@ function ntCI(movements,date,catalog=mats){
   const sign=i===chunks.length-1?'<div class="sign"><span>Conferido por: <i></i></span><span>Recebido por: <i></i></span></div>':'';
   pages.push('<section class="page portrait nt-ci-report">'+head+metrics+
    '<div class="sectionline"><span>'+(i?'MATERIAIS ENTREGUES · CONTINUAÇÃO':'RELAÇÃO DE MATERIAIS ENTREGUES')+
-   '</span><span>'+ntPlain(ntDate(date))+'</span></div>'+part+note+sign+
+   '</span><span>'+ntPlain(ntDate(date))+'</span></div>'+part+sign+
    (!entries.length?'<p class="note">Não houve saídas operacionais registradas para a data selecionada.</p>':'')+
    ntFooter(i+1,chunks.length)+'</section>');
  }
