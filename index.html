@@ -625,7 +625,34 @@ function ntReportCSS(){return `<style>
  .empty{text-align:center;color:#405b66;font-style:italic;padding:10mm 4mm;font-size:9.5pt}
  .landscape .heading{font-size:17pt}.landscape .desc{font-size:9.2pt}.landscape .sectionline{margin:4mm 0 3mm}
  .landscape table{font-size:9pt}.landscape th{font-size:8.3pt;padding:3mm 1.5mm}.landscape td{padding:3mm 1.5mm}
- @media print{html,body{background:white} .toolbar{display:none!important} .page{box-shadow:none!important;margin:0!important;height:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact} }
+/* Recebimento: modelo aprovado, compacto, com PC e NF em destaque proporcional. */
+ .nt-rx-metrics .metric{border-left:1mm solid #139ea2;min-height:23mm;border-radius:2.2mm;padding:3mm 4mm}
+ .nt-rx-metrics .metric small{color:#365c6e;font-size:8pt;font-weight:600}
+ .nt-rx-metrics .metric strong{color:#123d50;font-size:18pt;font-weight:700}
+ .nt-rx-metrics .metric:first-child strong{font-size:14pt;margin-top:3mm}
+ .nt-rx-banner{display:grid;grid-template-columns:35mm minmax(0,1fr);gap:0;margin:4.2mm 0 2.2mm;min-height:22mm;break-inside:avoid;page-break-inside:avoid}
+ .nt-rx-badge{background:#194957;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;border-radius:2.4mm;text-align:center;font-size:12pt;font-weight:700;line-height:1.35;padding:3mm 1.5mm}
+ .nt-rx-badge small{font-size:7pt;font-weight:500;margin-top:1mm}
+ .nt-rx-body{background:#e6f1f2;border-radius:0 2.4mm 2.4mm 0;padding:3mm 4mm 3mm 5mm;display:flex;align-items:center;justify-content:space-between;gap:4mm;min-width:0}
+ .nt-rx-vendor{min-width:0;flex:1}
+ .nt-rx-vendor small{display:block;color:#365b68;font-size:7.7pt;font-weight:600;line-height:1.2}
+ .nt-rx-vendor strong{display:block;color:#123d4c;font-size:10.2pt;line-height:1.25;overflow-wrap:anywhere;margin:1mm 0 .4mm}
+ .nt-rx-vendor em{display:block;font-size:7.7pt;color:#436979;font-style:normal}
+ .nt-rx-side{flex:0 0 auto;text-align:right;min-width:0;max-width:62mm}
+ .nt-rx-refs{display:flex;align-items:center;justify-content:flex-end;gap:3mm;font-size:9.6pt;font-weight:700;color:#163e50;white-space:nowrap}
+ .nt-rx-refs b{font-weight:700}
+ .nt-rx-refs i{height:4mm;border-left:.35mm solid #477883}
+ .nt-rx-when{display:block;margin-top:2mm;color:#5c7786;font-size:8.1pt;font-weight:400;white-space:nowrap}
+ .nt-rx-table{font-size:8.6pt;line-height:1.25;margin-bottom:1mm}
+ .nt-rx-table th{font-size:8pt;padding:2.7mm 1.5mm;font-weight:600}
+ .nt-rx-table td{padding:2.5mm 1.5mm}
+ .nt-rx-table td.nt-rx-code{white-space:nowrap;font-size:8.3pt}
+ .nt-rx-table td.nt-rx-name{font-weight:400}
+ .nt-rx-table td.nt-rx-numeric{text-align:right;font-variant-numeric:tabular-nums}
+ .nt-rx-table td.nt-rx-diff{color:#b7352e;font-weight:700}
+ .nt-rx-warn{display:block;margin-top:1mm;color:#98502c;font-size:7.5pt;font-weight:600}
+ .nt-rx-note{margin-top:6mm;background:#f0f6f7;border-left:.9mm solid #159da2;border-radius:0 2mm 2mm 0;padding:3mm 4mm;font-size:8.5pt;color:#365d70;line-height:1.45}
+  @media print{html,body{background:white} .toolbar{display:none!important} .page{box-shadow:none!important;margin:0!important;height:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact} }
  </style>`}
 function ntTop(title,subtitle,date,compact=false){return `<div class="rhead"><img src="${NT_LOGO}" alt="New Termisa"><div class="company"><b>${compact?'FECHAMENTO DIÁRIO':'ALMOXARIFADO / NEW TERMISA'}</b>${ntPlain(ntDate(date))}</div></div><div class="line"></div><h1 class="heading">${ntPlain(title)}</h1><p class="desc">${ntPlain(subtitle)}</p>`}
 function ntFooter(num,total){return `<div class="footer"><span>NEW TERMISA &nbsp;|&nbsp; ALMOXARIFADO</span><span>PÁGINA ${num} DE ${total}</span></div>`}
@@ -1145,32 +1172,77 @@ async function ntManualLoad(action){
   .sort((a,b)=>String(b.criadoEmLocal||'').localeCompare(String(a.criadoEmLocal||'')));
 }
 function ntReceiptReport(records,date){
- const pages=[];
- const suppliers=new Set(records.map(r=>r.fornecedor)),invoices=new Set(records.map(r=>r.notaFiscal));
- const divergences=records.reduce((n,r)=>n+r.itens.filter(x=>Number(x.quantidadeRecebida)!==Number(x.quantidadeNota)).length,0);
- const metrics='<div class="metrics">'+[['ENTREGAS',records.length],['FORNECEDORES',suppliers.size],['NOTAS FISCAIS',invoices.size],['DIVERGÊNCIAS',divergences]].map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+x[1]+'</strong></div>').join('')+'</div>';
- for(const r of records){
-  const chunks=[];
-  for(let i=0;i<r.itens.length;i+=11)chunks.push(r.itens.slice(i,i+11));
-  if(!chunks.length)chunks.push([]);
-  for(const items of chunks){
-   const status=x=>x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO'?'PENDENTE DE CADASTRO':
-    x.statusEntrada==='ESTOQUE_ATUALIZADO'?'ENTRADA NO ESTOQUE':
-    x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA':'DOCUMENTO ANTIGO (SEM VÍNCULO)';
-   const rows=items.map(x=>[x.codigo||'SEM CÓD.',String(x.nome||'—')+' · '+status(x),x.unidadeMedida||'—',
-    fmt(x.quantidadeNota),fmt(x.quantidadeRecebida),fmt(rnd(Number(x.quantidadeRecebida)-Number(x.quantidadeNota)))]);
-   const info='<div class="sectionline"><span>FORNECEDOR: '+ntPlain(r.fornecedor)+'</span><span>RECEBIDO EM '+ntPlain(ntDate(r.dataRecebimento))+'</span></div>'+
-    '<p class="note" style="margin-top:2mm">PEDIDO DE COMPRA: <b>'+ntPlain(r.pedidoCompra)+'</b> &nbsp;&nbsp; NOTA FISCAL: <b>'+ntPlain(r.notaFiscal)+'</b></p>';
-   const body=ntTable(['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE. NF','RECEBIDA','DIFERENÇA'],[16,40,7,12,12,13],rows);
-   const issues=items.filter(x=>Number(x.quantidadeNota)!==Number(x.quantidadeRecebida)).length;
-   const linked=items.filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO').length,unknown=items.filter(x=>x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO').length;
-   const foot='<p class="note">Divergências NF x recebido: <b>'+issues+'</b> · Entradas vinculadas ao estoque: <b>'+linked+'</b> · Pendentes de cadastro: <b>'+unknown+'</b>.</p>'+
-   '<p class="note">'+ntPlain(r.observacao||'Confira as quantidades e a situação de cada material. Registros antigos podem não possuir vínculo.')+'</p>';
-   pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Conferência por fornecedor, pedido de compra e nota fiscal.',date)+(pages.length===0?metrics:'')+info+body+foot+'__FOOT__</section>');
-  }
+ // Layout aprovado: várias entregas no mesmo A4 quando couber; nunca omite itens.
+ const pages=[],sheets=[],allRecords=Array.isArray(records)?records:[];
+ const divergences=allRecords.reduce((n,r)=>n+(r.itens||[]).filter(x=>Math.abs(rnd(Number(x.quantidadeRecebida||0)-Number(x.quantidadeNota||0)))>0.00001).length,0);
+ const totalLines=allRecords.reduce((n,r)=>n+(r.itens||[]).length,0);
+ const metrics='<div class="metrics nt-rx-metrics">'+[['DATA DE REFERÊNCIA',ntDate(date)],['ENTREGAS',allRecords.length],['LINHAS DE MATERIAL',totalLines],['DIVERGÊNCIAS',divergences]].map(x=>
+  '<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
+ // Orçamento conservador de altura: reserva área para cabeçalho, métricas, rodapé e nota final.
+ const budget=index=>index===0?162:198;
+ const rowHeight=x=>{
+  const size=Math.max(String(x.nome||'').length/39,String(x.codigo||'').length/13);
+  const warning=x.semCadastro||!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada||''));
+  return 7.7+Math.max(0,Math.ceil(size)-1)*3.5+(warning?4:0);
+ };
+ const cost=items=>34+items.reduce((n,x)=>n+rowHeight(x),0);
+ let current={parts:[],used:0};
+ const nextPage=()=>{if(current.parts.length)sheets.push(current);current={parts:[],used:0}};
+ for(let ri=0;ri<allRecords.length;ri++){
+  const r=allRecords[ri],all=Array.isArray(r.itens)?r.itens:[];
+  let offset=0;
+  do{
+   let chunk=all.length?all.slice(offset,offset+14):[];
+   // Mantém a entrega inteira na mesma página quando possível.
+   if(current.parts.length&&current.used+cost(chunk)>budget(sheets.length))nextPage();
+   // Nomes longos e avisos de pendência podem exigir mais espaço por linha.
+   while(chunk.length>1&&cost(chunk)>budget(sheets.length))chunk.pop();
+   if(current.parts.length&&current.used+cost(chunk)>budget(sheets.length))nextPage();
+   current.parts.push({r,ri,chunk,continuation:offset>0});
+   current.used+=cost(chunk);
+   offset+=chunk.length;
+  }while(offset<all.length);
  }
- if(!pages.length)pages.push('<section class="page portrait">'+ntTop('RECEBIMENTO DE MATERIAIS','Nenhuma entrega manual registrada para a data.',date)+'<p class="note">Não foram encontrados registros de recebimento nesta data.</p>__FOOT__</section>');
- return ntHtml('Recebimento de materiais · '+ntDate(date),pages.map((p,i)=>p.replace('__FOOT__',ntFooter(i+1,pages.length))));
+ nextPage();
+ if(!sheets.length)sheets.push({parts:[],used:0});
+ for(let pageIndex=0;pageIndex<sheets.length;pageIndex++){
+  const parts=sheets[pageIndex].parts;
+  const heading=ntTop('RECEBIMENTO DE MATERIAIS','Consolidado diário · entregas identificadas por fornecedor, nota e pedido.',date);
+  let content='';
+  for(const part of parts){
+   const r=part.r,items=part.chunk,ri=part.ri;
+   const banner='<div class="nt-rx-banner"><div class="nt-rx-badge">ENTREGA '+ntPlain(String(ri+1).padStart(2,'0'))+
+    (part.continuation?'<small>CONTINUAÇÃO</small>':'')+'</div><div class="nt-rx-body">'+
+    '<div class="nt-rx-vendor"><small>FORNECEDOR</small><strong>'+ntPlain(r.fornecedor||'Não informado')+'</strong>'+
+    '<em>RESP.: Almoxarifado</em></div><div class="nt-rx-side"><div class="nt-rx-refs">'+
+    '<span>PC: <b>'+ntPlain(r.pedidoCompra||'—')+'</b></span><i></i>'+
+    '<span>NF: <b>'+ntPlain(r.notaFiscal||'—')+'</b></span></div>'+
+    '<span class="nt-rx-when">'+ntPlain(ntDate(r.dataRecebimento))+'</span></div></div></div>';
+   const rows=items.map(x=>{
+    const diff=rnd(Number(x.quantidadeRecebida||0)-Number(x.quantidadeNota||0));
+    const warning=x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO'?'PENDENTE DE CADASTRO':
+     x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA NO ESTOQUE':
+     x.statusEntrada&&x.statusEntrada!=='ESTOQUE_ATUALIZADO'?'VÍNCULO DE ENTRADA NÃO CONFIRMADO':'';
+    return '<tr><td class="nt-rx-code">'+ntPlain(x.codigo||'SEM CÓD.')+'</td>'+
+     '<td class="nt-rx-name">'+ntPlain(x.nome||'—')+(warning?'<small class="nt-rx-warn">'+warning+'</small>':'')+'</td>'+
+     '<td>'+ntPlain(x.unidadeMedida||'—')+'</td>'+
+     '<td class="nt-rx-numeric">'+ntPlain(fmt(x.quantidadeNota))+'</td>'+
+     '<td class="nt-rx-numeric">'+ntPlain(fmt(x.quantidadeRecebida))+'</td>'+
+     '<td class="nt-rx-numeric'+(diff?' nt-rx-diff':'')+'">'+ntPlain(fmt(diff))+'</td></tr>';
+   }).join('');
+   content+=banner+'<table class="nt-rx-table"><colgroup><col style="width:16%"><col style="width:38%">'+
+    '<col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:13%"></colgroup>'+
+    '<thead><tr><th>CÓDIGO</th><th>MATERIAL</th><th>UN.</th><th>QTD. NF</th><th>RECEBIDO</th><th>DIF.</th></tr></thead>'+
+    '<tbody>'+(rows||'<tr><td colspan="6" class="empty">Nenhum material informado.</td></tr>')+'</tbody></table>';
+  }
+  if(!parts.length)content='<p class="note">Não foram registrados recebimentos nesta data.</p>';
+  if(pageIndex===sheets.length-1&&parts.length){
+   content+='<div class="nt-rx-note">'+(divergences?'Divergências encontradas: <b>'+divergences+'</b> linha(s). ':'Sem divergências entre quantidades de nota fiscal e recebidas. ')+
+    'A diferença corresponde à quantidade recebida menos a quantidade da NF. Entradas integradas de materiais cadastrados atualizam o estoque; itens sem cadastro ficam pendentes.</div>';
+  }
+  pages.push('<section class="page portrait">'+heading+(pageIndex===0?metrics:'')+content+ntFooter(pageIndex+1,sheets.length)+'</section>');
+ }
+ return ntHtml('Recebimento de materiais · '+ntDate(date),pages);
 }
 function ntProductionReport(records,date){
  const entries=records.flatMap(r=>r.itens.map(x=>({...x,observacao:r.observacao||''})));
