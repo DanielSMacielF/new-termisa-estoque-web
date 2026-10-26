@@ -1444,6 +1444,9 @@ function ntManagerReport(materials,movements,from,to,periodLabel,receiptDocs=[])
  const most=[...moving].sort((a,b)=>b.saidas-a.saidas||b.quantidadeSaida-a.quantidadeSaida||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5);
  const least=moving.length>1?[...moving].sort((a,b)=>a.saidas-b.saidas||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5):[];
  const noExit=usage.filter(x=>!x.saidas).length;
+ const inlineReceipt=receiptData.rows.length>0&&receiptData.rows.length<=3&&most.length+least.length<=4&&
+  receiptData.rows.every(r=>r.nome.length<=65&&r.fornecedor.length<=45);
+
  const mRows=arr=>arr.map(x=>[x.codigo,x.nome,x.unidadeMedida,String(x.saidas),fmt(x.quantidadeSaida)]);
  const metrics=[['MATERIAIS CADASTRADOS',String(materials.length)],['SAÍDAS NO PERÍODO',String(kinds.SAIDA)],['ESTOQUE NO MÍNIMO',String(lows.length)],['VALOR DO ESTOQUE',money(valueStock)]];
  const parts='<div class="metrics">'+metrics.map(r=>'<div class="metric"><small>'+ntPlain(r[0])+'</small><strong style="font-size:'+(r[0]==='VALOR DO ESTOQUE'?'12pt':'18pt')+'">'+ntPlain(r[1])+'</strong></div>').join('')+'</div>'+
@@ -1456,8 +1459,16 @@ function ntManagerReport(materials,movements,from,to,periodLabel,receiptDocs=[])
  ntTable(['CÓDIGO','MATERIAL','UN.','RETIRADAS','QTDE. SAÍDA'],[18,46,8,12,16],mRows(least)):'')+
  '<p class="note"><b>'+noExit+'</b> material(is) sem saída no período; <b>'+lows.length+'</b> no mínimo ou abaixo. Valor bruto estimado das saídas, calculado com o preço atual: <b>'+money(valueOfOutbound)+'</b>. Não soma quantidades de unidades diferentes.</p>'+
  '<p class="note">O valor do estoque e a situação de reposição refletem a posição ATUAL na emissão; não representam necessariamente a posição histórica de '+ntPlain(periodLabel)+'.</p>'+ 
- '<p class="note"><b>Recebimentos de materiais:</b> '+receiptData.receipts.length+' entrega(s) documentada(s) e '+receiptData.rows.length+' linha(s) de material'+(receiptData.rows.length?'. Detalhes a partir da página 2.':'. Nenhum documento de recebimento localizado no período.')+' As entradas confirmadas já fazem parte da contagem de movimentações acima, sem duplicidade.</p>';
- const nextPages=ntManagerReceiptPages(receiptData,periodLabel,to);
+
+ (inlineReceipt?'<div class="sectionline"><span>RECEBIMENTOS DE MATERIAIS</span><span>Compras e entregas registradas</span></div>'+
+ ntTable(['DATA','FORNECEDOR','PC','NF','CÓDIGO','MATERIAL','UN.','RECEBIDA','SITUAÇÃO'],
+  [8,16,8,9,12,22,5,8,12],
+  receiptData.rows.map(r=>[ntDate(r.data),r.fornecedor,r.pc,r.nf,r.codigo,r.nome,r.unidade,fmt(r.recebida),
+   r.status==='VINCULADO AO ESTOQUE'?'CONFIRMADO':r.status==='PENDENTE CADASTRO'?'PENDENTE':
+   r.status==='SEM ENTRADA'?'SEM ENTRADA':'A CONFERIR']))+
+ '<p class="note" style="margin-top:2mm">CONFIRMADO: recebimento vinculado à entrada já contabilizada. A CONFERIR: documento sem vínculo confirmado. Nenhuma entrada adicional foi lançada pelo relatório.</p>':'')+
+  '<p class="note"><b>Recebimentos de materiais:</b> '+receiptData.receipts.length+' entrega(s) documentada(s) e '+receiptData.rows.length+' linha(s) de material'+(receiptData.rows.length?(inlineReceipt?'. Detalhamento abaixo.':'. Detalhes a partir da página 2.'):'. Nenhum documento de recebimento localizado no período.')+' As entradas confirmadas já fazem parte da contagem de movimentações acima, sem duplicidade.</p>';
+ const nextPages=inlineReceipt?[]:ntManagerReceiptPages(receiptData,periodLabel,to);
  const total=nextPages.length+1;
  const pages=['<section class="page landscape">'+ntTop('RESUMO GERENCIAL','Indicadores de '+periodLabel+' e posição atual do estoque.',to)+parts+ntFooter(1,total)+'</section>'];
  for(let i=0;i<nextPages.length;i++)pages.push(nextPages[i].replace('__NT_MANAGER_FOOT__',ntFooter(i+2,total)));
