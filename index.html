@@ -587,11 +587,11 @@ function ntReportCSS(){return `<style>
  .page:last-child{break-after:auto;page-break-after:auto}
  .portrait{page:ntportrait;width:210mm;min-height:297mm;padding:10mm 14mm 19mm}
  .landscape{page:ntlandscape;width:297mm;min-height:210mm;padding:9mm 15mm 17mm}
- .rhead{display:flex;justify-content:space-between;align-items:center;gap:6mm;min-height:14mm}
- .rhead img{width:69mm;max-height:19mm;object-fit:contain;object-position:left center}
+ .rhead{display:flex;justify-content:space-between;align-items:flex-start;gap:6mm;min-height:0}
+ .rhead img{display:block;width:69mm;height:auto;max-height:19mm;align-self:flex-start;object-fit:contain;object-position:left top}
  .landscape .rhead img{width:59mm;max-height:15mm}
- .company{text-align:right;color:#405b66;font-size:9.2pt;letter-spacing:0;line-height:1.55}
- .company b{color:#153b4a;font-size:9.5pt;display:block}
+ .company{align-self:stretch;display:flex;flex-direction:column;justify-content:space-between;text-align:right;color:#405b66;font-size:9.2pt;letter-spacing:0;line-height:1}
+ .company b{color:#153b4a;font-size:9.5pt;line-height:1;display:block}
  .line{height:2px;background:#209fa3;margin:4mm 0 7mm}
  .landscape .line{margin:3mm 0 5mm}
  .heading{font-size:21pt;color:#153b4a;line-height:1.18;letter-spacing:0;margin:0 0 2mm;font-weight:600}
