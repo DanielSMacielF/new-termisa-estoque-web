@@ -546,7 +546,18 @@ async function ntReposIssue(){
     const atual=ntReposActualByCode(item.codigo,live.materiais);
     return {...item,unidadeMedida:atual.unidade,saldoAtual:atual.saldo};
    });
-   data.itens=updatedItems;
+   // Uma nova sugestão acrescenta materiais à lista vigente do dia,
+   // sem descartar os itens já solicitados. A edição continua permitindo remover itens.
+   if(!ntReposEditingId){
+    const reports=await ntManualLoad(NT_REPOS_ACTION);
+    const latest=ntReposDailyVersions(reports).get(ntRepoLocalDay(data));
+    if(latest&&!latest.excluidoDoGeral){
+     const merged=new Map(latest.itens.map(it=>[String(it.codigo),it]));
+     for(const it of updatedItems)merged.set(String(it.codigo),it);
+     data.itens=[...merged.values()].sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
+     data.totalItens=data.itens.length;
+    }else data.itens=updatedItems;
+   }else data.itens=updatedItems;
    if(ntReposEditingId){
     const previous=ntReposHistoryCache.get(ntReposEditingId);
     if(!previous)throw Error('Documento original não encontrado; reabra o histórico.');
