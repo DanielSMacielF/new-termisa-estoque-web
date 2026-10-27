@@ -1019,12 +1019,34 @@ function ntHtml(title,pages){
  const portrait=pages.some(p=>p.includes('class="page portrait'));
  const orientation=landscape?'landscape':'portrait';
  const orientationLabel=landscape?'Paisagem (horizontal)':'Retrato (vertical)';
- const mixedFix=landscape&&portrait?'.page.portrait{page:ntlandscape;width:297mm;min-height:210mm;padding:9mm 15mm 17mm}':'';
+ const mixedFix=landscape&&portrait?'.page.portrait{page:ntlandscape;width:297mm;padding:7mm 15mm 13mm}':'';
+ // Chrome/Android pode dividir uma folha virtual de 210mm em duas folhas
+ // fisicas: reservar folga real para notas e rodapes, sem ocultar conteudo.
  const printCss=`<style>@page{size:A4 ${orientation};margin:0}
  @media print{
    html,body{margin:0!important;padding:0!important;background:#fff!important}
-   .page{margin:0!important;box-shadow:none!important;break-inside:avoid-page;page-break-inside:avoid}
+   .toolbar{display:none!important}
+   .page{margin:0!important;box-shadow:none!important;break-inside:avoid-page!important;page-break-inside:avoid!important}
+   .page.landscape{width:297mm!important;height:196mm!important;min-height:196mm!important;padding-top:7mm!important;padding-bottom:13mm!important}
+   .page.portrait{height:283mm!important;min-height:283mm!important;padding-bottom:17mm!important}
    ${mixedFix}
+   ${landscape&&portrait?'.page.portrait{height:196mm!important;min-height:196mm!important}':''}
+   .page.landscape .footer{bottom:6mm!important}
+   .page.portrait .footer{bottom:9mm!important}
+   .nt-general-requests td{padding:.75mm 1.4mm!important;line-height:1.17!important}
+   .nt-general-requests th{padding:1.6mm 1.4mm!important}
+   .nt-general-stock td{padding:1.25mm 1.5mm!important;line-height:1.25!important}
+   .nt-general-requests .note,.nt-general-stock .note{margin-top:2mm!important}
+   .nt-general-stock-deep .nt-deep-panel{min-height:0!important;padding:2mm 3mm!important}
+   .nt-general-stock-deep .nt-deep-unitrow{padding:.55mm 0!important}
+   .nt-general-stock-deep .nt-di-barrow{min-height:4.9mm!important}
+   .nt-general-stock-deep .nt-di-bars{gap:.7mm!important}
+   .nt-general-stock-deep .nt-deep-subhead{margin:1.5mm 0 1mm!important}
+   .nt-general-stock-deep .nt-deep-alertline{padding:1.1mm 1.7mm!important;margin:.8mm 0!important}
+   .nt-general-stock-deep .nt-deep-rx{margin-top:1.3mm!important;padding:1.4mm 2.3mm!important}
+   .nt-general-stock-deep .nt-deep-rx-row{padding:.65mm 0!important}
+   .nt-general-stock-deep .nt-deep-rx-help{margin-top:.6mm!important}
+   .nt-general-stock-deep .nt-di-footnote{margin-top:1mm!important;padding-top:.8mm!important}
  }</style>`;
  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${ntPlain(title)}</title>${ntReportCSS()}${printCss}</head><body><div class="toolbar"><button onclick="window.print()">Imprimir / Salvar em PDF</button>Para impressão: <strong>A4 · ${orientationLabel}</strong>. Confirme a orientação e escolha <strong>Salvar como PDF</strong>.</div>${pages.join('')}</body></html>`;
 }
