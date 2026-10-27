@@ -2567,4 +2567,4 @@ document.addEventListener('change',async e=>{if(e.target.id==='importMeasuresFil
 $('arquivoCatalogo').addEventListener('change',async e=>{try{isReady();await importCatalog(e.target.files?.[0])}catch(err){notice(err.message,true)}finally{e.target.value=''}});
 window.addEventListener('online',()=>{serverReady=false;status('● Revalidando Firebase');if(user){for(const f of unsubs)f();bindListeners()}});window.addEventListener('offline',()=>{serverReady=false;status('● Sem internet',false,true)});
 load();
-</script></body></html>
+</script><script defer src="./calculadora.js?v=20261027a"></script></body></html>
