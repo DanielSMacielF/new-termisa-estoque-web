@@ -727,13 +727,13 @@ function ntReportCSS(){return `<style>
 .nt-general-stock-intel .nt-di-metric strong{color:#106f7b;display:block;margin-top:1mm;font-size:17pt;font-weight:700}
 .nt-general-stock-intel .nt-di-chartgrid{display:grid;grid-template-columns:minmax(0,1.17fr) minmax(0,.83fr);gap:3.3mm;align-items:stretch}
 .nt-general-stock-intel .nt-di-panel{background:#f3f8f9;border:1px solid #cbdee2;border-radius:3mm;padding:3.3mm 3.8mm 2.6mm;min-height:74mm}
-.nt-general-stock-intel .nt-di-panel h2{margin:0;color:#194957;font-size:10.1pt;letter-spacing:.15px;font-weight:700}
+.nt-general-stock-intel .nt-di-panel h2{margin:0;color:#194957;font-size:10.7pt;letter-spacing:.15px;font-weight:700}
 .nt-general-stock-intel .nt-di-panel>p{margin:1mm 0 2.7mm;color:#496c77;font-size:7.2pt}
 .nt-general-stock-intel .nt-di-bars{display:grid;gap:1.3mm}
-.nt-general-stock-intel .nt-di-barrow{display:grid;grid-template-columns:minmax(0,45%) minmax(0,1fr) 9mm;gap:2.4mm;align-items:center;min-height:8.5mm}
+.nt-general-stock-intel .nt-di-barrow{display:grid;grid-template-columns:minmax(0,49%) minmax(0,1fr) 9mm;gap:2.4mm;align-items:center;min-height:9.5mm}
 .nt-general-stock-intel .nt-di-barlabel{min-width:0}
-.nt-general-stock-intel .nt-di-barlabel b{color:#214956;font-size:7.2pt;line-height:1.18;display:block;overflow-wrap:anywhere;max-height:7.5mm;overflow:hidden;font-weight:600}
-.nt-general-stock-intel .nt-di-barlabel small{display:block;color:#607781;font-size:6.7pt;margin-top:.5mm;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.nt-general-stock-intel .nt-di-barlabel b{color:#214956;font-size:8.3pt;line-height:1.2;display:block;overflow-wrap:anywhere;max-height:none;overflow:visible;font-weight:600}
+.nt-general-stock-intel .nt-di-barlabel small{display:block;color:#607781;font-size:7.4pt;margin-top:.5mm;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
 .nt-general-stock-intel .nt-di-track{display:block;width:100%;height:3.6mm;border-radius:2mm;background:#dbe7eb;overflow:hidden}
 .nt-general-stock-intel .nt-di-track span{display:block;height:100%;background:linear-gradient(90deg,#178f97,#51bcc3);border-radius:2mm}
 .nt-general-stock-intel .nt-di-barrow>strong{font-size:9.6pt;color:#144c5d;text-align:right}
@@ -747,10 +747,10 @@ function ntReportCSS(){return `<style>
 .nt-general-stock-intel .nt-di-usage b{color:#194957;font-size:8.2pt}
 .nt-general-stock-intel .nt-di-insighthead{font-size:9.5pt;letter-spacing:.15px;color:#194957;margin:5mm 0 2mm;font-weight:700}
 .nt-general-stock-intel .nt-di-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3mm}
-.nt-general-stock-intel .nt-di-insight{border-left:.9mm solid #36a8ab;background:#eaf4f4;border-radius:2.5mm;padding:2.5mm 3.2mm;min-height:22mm}
-.nt-general-stock-intel .nt-di-insight small{display:block;font-size:7pt;font-weight:700;letter-spacing:.2px;color:#156977}
-.nt-general-stock-intel .nt-di-insight p{font-size:8.1pt;line-height:1.35;color:#244957;margin:1.5mm 0 0;overflow-wrap:anywhere}
-.nt-general-stock-intel .nt-di-footnote{font-size:7pt;line-height:1.3;color:#56747d;border-top:.25mm solid #dbe8ea;padding-top:2.3mm;margin-top:3.1mm}
+.nt-general-stock-intel .nt-di-insight{border-left:.9mm solid #36a8ab;background:#eaf4f4;border-radius:2.5mm;padding:2.7mm 3.3mm;min-height:25mm}
+.nt-general-stock-intel .nt-di-insight small{display:block;font-size:7.7pt;font-weight:700;letter-spacing:.2px;color:#156977}
+.nt-general-stock-intel .nt-di-insight p{font-size:9.2pt;line-height:1.4;color:#244957;margin:1.5mm 0 0;overflow-wrap:anywhere}
+.nt-general-stock-intel .nt-di-footnote{font-size:7.5pt;line-height:1.3;color:#56747d;border-top:.25mm solid #dbe8ea;padding-top:2.3mm;margin-top:3.1mm}
 .nt-general-stock-intel .nt-di-empty{color:#56717c;font-size:8.2pt;padding:9mm 2mm;text-align:center}
 @media print{.nt-general-stock-intel .nt-di-track span,.nt-general-stock-intel .nt-di-metric,.nt-general-stock-intel .nt-di-insight{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 </style>`}
@@ -1927,8 +1927,11 @@ function ntGeneralProductionPages(machineRows,date,marker){
 }
 function ntGeneralStockPages(stock,date,marker){
  const pages=[],empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
- for(let i=0,n=Math.max(1,Math.ceil(stock.length/12));i<n;i++){
-  const part=stock.slice(i*12,(i+1)*12);
+ // Balancear ate 15 registros por folha, sem diminuir fontes nem omitir saldos.
+ const sheets=Math.max(1,Math.ceil(stock.length/15));
+ const perPage=Math.max(1,Math.ceil(stock.length/sheets));
+ for(let i=0;i<sheets;i++){
+  const part=stock.slice(i*perPage,(i+1)*perPage);
   const table=part.length?ntTable(
    ['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','INICIAL','SAÍDAS','DEVOL.','ENTRADAS','FINAL'],
    [13,31,7,10,10,10,10,9],
