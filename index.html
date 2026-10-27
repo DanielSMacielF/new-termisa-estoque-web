@@ -2281,8 +2281,9 @@ function ntGeneralDailyIntelligencePage(model,date,marker){
 
  // Comparar quantitativos apenas dentro da mesma unidade. Nunca somar UN, KG, M e L.
  const groupsMap=new Map();
+ const unknownUnit=[...used.values()].filter(item=>!item.unidade||item.unidade==='—'||item.unidade==='-').length;
  for(const item of used.values()){
-  if(!Number.isFinite(item.quantidade)||item.quantidade<=0)continue;
+  if(!Number.isFinite(item.quantidade)||item.quantidade<=0||!item.unidade||item.unidade==='—'||item.unidade==='-')continue;
   if(!groupsMap.has(item.unidade))groupsMap.set(item.unidade,[]);
   groupsMap.get(item.unidade).push(item);
  }
@@ -2303,6 +2304,7 @@ function ntGeneralDailyIntelligencePage(model,date,marker){
   }
  }
  const groupMax=new Map(groups.map(g=>[g.unidade,g.items[0].quantidade]));
+ const zeroBalance=(model.stockRows||[]).filter(x=>x.saida>0&&x.fim!==null&&Number(x.fim)===0).length;
  const leader=main?.items[0];
  const unitTotal=main?main.items.reduce((sum,x)=>sum+x.quantidade,0):0;
  const topShare=leader&&unitTotal?leader.quantidade*100/unitTotal:0;
@@ -2332,7 +2334,8 @@ function ntGeneralDailyIntelligencePage(model,date,marker){
    '<div class="nt-di-track"><span style="width:'+pct.toFixed(1)+'%"></span></div>'+
    '<strong>'+ntPlain(fmt(x.quantidade))+' '+ntPlain(x.unidade)+'</strong></div>';
  }).join('');
- const barChart=ranked.length?bars:'<div class="nt-di-empty">Nenhuma retirada operacional registrada neste dia.</div>';
+ const barChart=ranked.length?bars:'<div class="nt-di-empty">'+
+  (unknownUnit?'Retiradas sem unidade cadastrada não podem ser comparadas em quantidade.':'Nenhuma retirada operacional registrada neste dia.')+'</div>';
  const legends=donuts.map(x=>'<div class="nt-di-legendrow"><i style="background:'+x.color+'"></i><span>'+ntPlain(x.label)+'</span><b>'+x.value+'</b></div>').join('');
  const metricRows=[
   ['RETIRADAS DO DIA',String(count)],
@@ -2349,9 +2352,9 @@ function ntGeneralDailyIntelligencePage(model,date,marker){
   {tag:'FREQUÊNCIA DE SAÍDA',value:count
    ?single+' material(is) tiveram 1 operação de retirada; '+multiple+' tiveram 2 ou mais.'
    :'Não há saídas para comparar nesta data.'},
-  {tag:'LEITURA OPERACIONAL',value:all
-   ?count+' retirada(s), '+entries+' entrada(s) e '+returns+' devolução(ões). Barras de quantidades são comparáveis apenas dentro da mesma unidade.'
-   :'Nenhuma entrada, saída ou devolução operacional registrada nesta data.'}
+  {tag:'SALDOS DO DIA',value:zeroBalance
+   ?zeroBalance+' material(is) com retirada terminaram este dia com saldo histórico zerado.'
+   :'Nenhum material retirado terminou este dia com saldo histórico zerado nos registros disponíveis.'}
  ];
  const insights='<div class="nt-di-insights">'+diagnostics.map(x=>
   '<div class="nt-di-insight"><small>'+x.tag+'</small><p>'+x.value+'</p></div>').join('')+'</div>';
@@ -2364,7 +2367,8 @@ function ntGeneralDailyIntelligencePage(model,date,marker){
   '</div>'+
   '<div class="nt-di-insighthead">DIAGNÓSTICOS AUTOMÁTICOS DO DIA</div>'+insights+
   '<div class="nt-di-footnote">Fonte: movimentações operacionais da data selecionada, consultadas no Firebase. '+
-  'Barras representam quantidades retiradas (não o número de pedidos). Cada barra é proporcional ao maior volume da SUA unidade; não comparar UN com KG, M ou L. '+
+  'Barras representam quantidades retiradas, não número de pedidos. Cada barra é proporcional ao maior volume da mesma unidade; não comparar UN com KG, M ou L. '+
+  (unknownUnit?unknownUnit+' material(is) sem unidade definida não entraram no gráfico. ':'')+
   'Análises de 7, 30 e 90 dias são exclusivas da Central de Inteligência do Estoque.</div>';
  return '<section class="page landscape nt-general-stock-intel">'+
   ntTop('INTELIGÊNCIA DO ESTOQUE','Gráficos, indicadores e análises automáticas exclusivamente do dia.',date)+
