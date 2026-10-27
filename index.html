@@ -813,7 +813,14 @@ function ntReportCSS(){return `<style>
 .nt-general-production td:nth-child(3),.nt-general-production td:nth-child(4),.nt-general-production td:nth-child(5),
 .nt-general-production th:nth-child(3),.nt-general-production th:nth-child(4),.nt-general-production th:nth-child(5){text-align:center}
 .nt-general-requests td,.nt-general-requests th{vertical-align:middle;line-height:1.35}
-.nt-general-requests td{padding:2.1mm 1.5mm}
+/* 15-16 linhas devem caber com a observação e o rodapé na MESMA folha A4. */
+.nt-general-requests .rhead{min-height:12mm}
+.nt-general-requests .line{margin:2mm 0 3mm}
+.nt-general-requests .desc{margin-bottom:2mm}
+.nt-general-requests .sectionline{margin:2mm 0 2mm}
+.nt-general-requests th{padding:2mm 1.4mm}
+.nt-general-requests td{padding:1.3mm 1.4mm;line-height:1.22}
+.nt-general-requests .note{margin-top:3mm;font-size:8.5pt;line-height:1.3}
 .nt-general-requests td:nth-child(1),.nt-general-requests th:nth-child(1),
 .nt-general-requests td:nth-child(4),.nt-general-requests th:nth-child(4){text-align:center}
 .nt-general-requests td:nth-child(5),.nt-general-requests th:nth-child(5){text-align:right;font-variant-numeric:tabular-nums}
@@ -903,7 +910,22 @@ function ntReportCSS(){return `<style>
 function ntTop(title,subtitle,date,compact=false){return `<div class="rhead"><img src="${NT_LOGO}" alt="New Termisa"><div class="company"><b>${compact?'FECHAMENTO DIÁRIO':'ALMOXARIFADO / NEW TERMISA'}</b>${ntPlain(ntDate(date))}</div></div><div class="line"></div><h1 class="heading">${ntPlain(title)}</h1><p class="desc">${ntPlain(subtitle)}</p>`}
 function ntFooter(num,total){return `<div class="footer"><span>NEW TERMISA &nbsp;|&nbsp; ALMOXARIFADO</span><span>PÁGINA ${num} DE ${total}</span></div>`}
 function ntTable(heads,widths,rows){return `<table><colgroup>${widths.map(w=>`<col style="width:${w}%">`).join('')}</colgroup><thead><tr>${heads.map((x,i)=>`<th class="${i===4&&heads.length===7?'right':''}">${ntPlain(x)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(row=>`<tr>${row.map((v,i)=>`<td class="${i===1?'code':i===2?'name':i===4&&heads.length===7?'qty':''}">${ntPlain(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${heads.length}" class="empty">Nenhum registro encontrado para esta data.</td></tr>`}</tbody></table>`}
-function ntHtml(title,pages){return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${ntPlain(title)}</title>${ntReportCSS()}</head><body><div class="toolbar"><button onclick="window.print()">Imprimir / Salvar em PDF</button>Confira o documento; na impressão, escolha <strong>Salvar como PDF</strong>.</div>${pages.join('')}</body></html>`}
+function ntHtml(title,pages){
+ // Na impressão do Android, a regra @page nomeada pode ser ignorada.
+ // Estabelecemos a orientação A4 também na página global de cada documento.
+ const landscape=pages.some(p=>p.includes('class="page landscape'));
+ const portrait=pages.some(p=>p.includes('class="page portrait'));
+ const orientation=landscape?'landscape':'portrait';
+ const orientationLabel=landscape?'Paisagem (horizontal)':'Retrato (vertical)';
+ const mixedFix=landscape&&portrait?'.page.portrait{page:ntlandscape;width:297mm;min-height:210mm;padding:9mm 15mm 17mm}':'';
+ const printCss=`<style>@page{size:A4 ${orientation};margin:0}
+ @media print{
+   html,body{margin:0!important;padding:0!important;background:#fff!important}
+   .page{margin:0!important;box-shadow:none!important;break-inside:avoid-page;page-break-inside:avoid}
+   ${mixedFix}
+ }</style>`;
+ return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${ntPlain(title)}</title>${ntReportCSS()}${printCss}</head><body><div class="toolbar"><button onclick="window.print()">Imprimir / Salvar em PDF</button>Para impressão: <strong>A4 · ${orientationLabel}</strong>. Confirme a orientação e escolha <strong>Salvar como PDF</strong>.</div>${pages.join('')}</body></html>`;
+}
 
 function ntCIIcon(kind){
  const shapes={
