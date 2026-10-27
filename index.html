@@ -546,11 +546,11 @@ function closeView(){
  '<div class="nt-rc-date card"><div class="field"><label for="dateInput">Data dos relatórios diários</label><input type="date" id="dateInput" value="'+esc(dateFilter)+'"></div><div class="field"><label for="ntManagerMonth">Mês do resumo gerencial</label><input type="month" id="ntManagerMonth" value="'+esc(ntManagerMonth)+'"></div></div>'+
  '<div class="nt-rc-group">Operação diária</div><div class="nt-rc-grid">'+
  ntCenterCard('Relatório Geral do Dia','Todos os setores em um documento: produção, pedidos, fornecedores, saldos e conferência.','Automático + dados manuais',button('nt-geral-pdf','PDF completo')+button('nt-geral-excel','Baixar Excel (.xlsx)','alt'))+
- ntCenterCard('Comunicação Interna','Pedidos e entregas de materiais do dia '+date+'.','Automático',button('print-ci','Gerar PDF'))+
- ntCenterCard('Fechamento Diário','Entradas, saídas, devoluções e saldos antes e depois de cada movimentação.','Automático',button('print-closing','Gerar PDF')+button('csv-day','Baixar CSV','alt'))+
+ ntCenterCard('Comunicação Interna','Pedidos e entregas de materiais do dia '+date+'.','Automático',button('print-ci','C.I. compacta · PDF')+button('nt-requests-pdf','Versão gerencial · PDF','alt'))+
+ ntCenterCard('Fechamento Diário','Entradas, saídas, devoluções e saldos antes e depois de cada movimentação.','Automático',button('print-closing','Gerar PDF')+button('nt-saldos-pdf','Saldos individuais · PDF','alt')+button('csv-day','Baixar CSV','ghost'))+
  ntCenterCard('Reposição de Materiais','Sugestões pelo estoque mínimo, com quantidades de compra ajustáveis.','Automático + revisão',button('nt-repos-new','Ver itens para compra')+button('nt-repos-history','Histórico','alt'))+
  ntCenterCard('Recebimento de Materiais','Consulta das entradas registradas em Movimentar, por fornecedor, PC e nota fiscal.','Automático · leitura',button('nt-receipt-pdf','PDF do dia')+button('nt-receipt-history','Histórico / Editar','alt'))+
- ntCenterCard('Produção de Máquinas','Nome, modelo, opção, OP e quantidades produzidas ou pendentes.','Preenchimento manual',button('nt-production-new','Registrar produção')+button('nt-production-pdf','PDF do dia','alt')+button('nt-production-history','Histórico / Editar','ghost'))+
+ ntCenterCard('Produção de Máquinas','Código, produto, unidade, quantidade produzida e lote/OP.','Preenchimento manual',button('nt-production-new','Registrar produção')+button('nt-production-pdf','PDF do dia','alt')+button('nt-production-history','Histórico / Editar','ghost'))+
  '</div><div class="nt-rc-group">Gestão e inventário</div><div class="nt-rc-grid">'+
  ntCenterCard('Resumo Gerencial','Indicadores, custos estimados e materiais com maior e menor frequência de saída.','Automático',button('nt-manager-day','Resumo diário · PDF')+button('nt-manager-month','Resumo mensal · PDF','alt'))+
  ntCenterCard('Inventário Geral','Materiais, código, rua, posição, categoria, medida, saldos e valores.','Automático',button('print-full-inventory','Estoque completo · PDF')+button('csv-stock','Exportar CSV','alt'))+
@@ -1929,6 +1929,38 @@ async function ntSaldosIndividualOpen(){
   notice(e.message||'Falha ao consultar saldos',true);
  }
 }
+function ntGeneralRequestsPages(model,date,marker){
+ const pages=[],requests=model.requests,
+  empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
+ for(let i=0,n=Math.max(1,Math.ceil(requests.length/13));i<n;i++){
+  const part=requests.slice(i*13,(i+1)*13);
+  const body='<div class="sectionline"><span>COMUNICAÇÃO INTERNA · MATERIAIS ENTREGUES</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
+   (part.length?ntTable(['HORA','CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE.','SOLICITANTE','PEDIDO'],[8,14,33,7,9,17,12],
+     part.map(m=>[ntTime(m),String(m.codigo||''),String(m.nome||'—'),ntReportMeasure(m.codigo,new Map(model.stockRows.map(x=>[x.codigo,{unidadeMedida:x.unidade}]))),
+      fmt(ntQty(m)),String(m.solicitante||'—'),String(m.pedido||'—')])):
+     empty('Nenhuma saída operacional registrada para esta data.'))+
+   '<p class="note">Cada linha representa uma saída real confirmada. Simulações e conferências físicas não são contadas como pedido atendido.</p>';
+  pages.push('<section class="page landscape nt-general-requests">'+ntTop('MATERIAIS SOLICITADOS','Pedidos atendidos e materiais retirados do almoxarifado.',date)+body+marker+'</section>');
+ }
+ return pages;
+}
+function ntRequestsIndividualPDF(model){
+ const marker='__NT_MATERIAIS_INDIVIDUAL_RODAPE__',pages=ntGeneralRequestsPages(model,model.date,marker);
+ return ntHtml('Materiais solicitados · '+ntDate(model.date),
+  pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
+}
+async function ntRequestsIndividualOpen(){
+ const selected=dateFilter,popup=window.open('','_blank');
+ if(!popup){notice('Permita pop-ups para visualizar o relatório.',true);return}
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:26px">Consultando pedidos do Firebase...</body></html>');popup.document.close();
+ try{
+  const model=await ntGeneralDayFetch(selected);
+  popup.document.open();popup.document.write(ntRequestsIndividualPDF(model));popup.document.close();
+ }catch(e){
+  popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body><h2>Consulta indisponível</h2><p>Não foi possível consultar os pedidos.</p></body></html>');popup.document.close();
+  notice(e.message||'Falha ao consultar pedidos',true);
+ }
+}
 function ntGeneralDayPDF(model){
  const date=model.date,pages=[],marker='__NT_GERAL_RODAPE__';
  const empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
@@ -1953,17 +1985,7 @@ function ntGeneralDayPDF(model){
  '<p class="note">Documento gerado com consultas novas ao servidor; registros incluídos depois desta emissão não aparecem neste arquivo.</p>';
  page('RELATÓRIO GERAL DO DIA','Resumo executivo · Produção, pedidos, entregas e estoque.',blocks+readout,true,'nt-general-summary');
  pages.push(...ntGeneralProductionPages(model.machineRows,date,marker));
- const requests=model.requests;
- for(let i=0,n=Math.max(1,Math.ceil(requests.length/13));i<n;i++){
-  const part=requests.slice(i*13,(i+1)*13);
-  const body='<div class="sectionline"><span>COMUNICAÇÃO INTERNA · MATERIAIS ENTREGUES</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
-   (part.length?ntTable(['HORA','CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE.','SOLICITANTE','PEDIDO'],[8,14,33,7,9,17,12],
-     part.map(m=>[ntTime(m),String(m.codigo||''),String(m.nome||'—'),ntReportMeasure(m.codigo,new Map(model.stockRows.map(x=>[x.codigo,{unidadeMedida:x.unidade}]))),
-      fmt(ntQty(m)),String(m.solicitante||'—'),String(m.pedido||'—')])):
-     empty('Nenhuma saída operacional registrada para esta data.'))+
-   '<p class="note">Cada linha representa uma saída real confirmada. Simulações e conferências físicas não são contadas como pedido atendido.</p>';
-  page('MATERIAIS SOLICITADOS','Pedidos atendidos e materiais retirados do almoxarifado.',body,true,'nt-general-requests');
- }
+ pages.push(...ntGeneralRequestsPages(model,date,marker));
  // Uma única seção com o MESMO design do relatório próprio de Recebimento.
  // Dados documentais aparecem aqui; os saldos permanecem na seção de Estoque.
  // A conferência por código segue disponível no Excel, sem duplicar no PDF.
@@ -2216,7 +2238,8 @@ async function openQr(target){
   }
 }
 
-async function handleActions(e){const act=e.target.closest('[data-action]');if(!act)return;const a=act.dataset.action;try{if(a==='nt-geral-pdf'){ntGeneralDayOpenPDF();return}if(a==='nt-geral-excel'){await ntGeneralDayOpenExcel();return}
+async function handleActions(e){const act=e.target.closest('[data-action]');if(!act)return;const a=act.dataset.action;try{if(a==='nt-requests-pdf'){await ntRequestsIndividualOpen();return}if(a==='nt-saldos-pdf'){await ntSaldosIndividualOpen();return}
+if(a==='nt-geral-pdf'){ntGeneralDayOpenPDF();return}if(a==='nt-geral-excel'){await ntGeneralDayOpenExcel();return}
 if(a==='nt-repos-suggest'){ntReposSuggest();return}
 if(a==='nt-receipt-new'){await ntReceiptNew();return}if(a==='nt-receipt-mode'){ntReceiptCapture();ntReceiptManualMode=act.dataset.mode==='unknown';draw();return}
 if(a==='nt-receipt-add'){ntReceiptAdd();return}
