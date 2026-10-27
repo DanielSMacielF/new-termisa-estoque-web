@@ -2026,10 +2026,12 @@ function ntGeneralStockPages(stock,date,marker){
  for(let i=0;i<sheets;i++){
   const part=stock.slice(i*perPage,(i+1)*perPage);
   const table=part.length?ntTable(
-   ['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','INICIAL','SAÍDAS','DEVOL.','ENTRADAS','FINAL'],
-   [13,31,7,10,10,10,10,9],
+   ['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','INICIAL','SAÍDAS','DEVOL.','ENTRADAS','AJUSTES','FINAL'],
+   [12,29,7,9,9,8,9,9,8],
    part.map(x=>[x.codigo,x.nome,x.unidade,x.inicio===null?'—':fmt(x.inicio),
-    fmt(x.saida),fmt(x.devolucao),fmt(x.entrada),x.fim===null?'—':fmt(x.fim)])):
+    fmt(x.saida),fmt(x.devolucao),fmt(x.entrada),
+    x.ajusteInvalido?'Verificar':(x.ajustes>0?'+':'')+fmt(x.ajustes),
+    x.fim===null?'—':fmt(x.fim)])):
    empty('Nenhum material teve movimentação registrada nesta data.');
   const outliers=part.filter(x=>x.validar&&x.residual!==null);
   const unconfirmed=part.filter(x=>x.outras===null);
@@ -2039,7 +2041,7 @@ function ntGeneralStockPages(stock,date,marker){
    (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
   const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    table+audit+
-   '<p class="note">O saldo final considera as movimentações e os ajustes de inventário confirmados, preservados integralmente no histórico. Somente diferenças ainda não conciliadas são destacadas acima.</p>';
+   '<p class="note">Ajustes: valores positivos acrescentam e negativos reduzem o estoque. A coluna mostra ajustes confirmados do histórico; diferenças não conciliadas são identificadas acima. Saldo final = inicial + entradas + devoluções − saídas + ajustes, quando todos os lançamentos estão conciliados.</p>';
   pages.push('<section class="page landscape nt-general-stock">'+ntTop('SALDOS DO ALMOXARIFADO','Saldos históricos antes e depois dos lançamentos do dia.',date)+body+marker+'</section>');
  }
  return pages;
@@ -2065,8 +2067,14 @@ async function ntSaldosIndividualOpen(){
 function ntGeneralRequestsPages(model,date,marker){
  const pages=[],requests=model.requests,
   empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
- for(let i=0,n=Math.max(1,Math.ceil(requests.length/13));i<n;i++){
-  const part=requests.slice(i*13,(i+1)*13);
+ // Equilibre as páginas: 29 retiradas viram 15 + 14, sem reduzir a fonte.
+ // Descrições excepcionalmente longas mantêm um limite mais conservador.
+ const hasLongNames=requests.some(m=>String(m.nome||'').length>95);
+ const capacity=hasLongNames?13:16;
+ const sheets=Math.max(1,Math.ceil(requests.length/capacity));
+ const perPage=Math.max(1,Math.ceil(requests.length/sheets));
+ for(let i=0;i<sheets;i++){
+  const part=requests.slice(i*perPage,(i+1)*perPage);
   const body='<div class="sectionline"><span>COMUNICAÇÃO INTERNA · MATERIAIS ENTREGUES</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    (part.length?ntTable(['HORA','CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE.','SOLICITANTE','PEDIDO'],[8,14,33,7,9,17,12],
      part.map(m=>[ntTime(m),String(m.codigo||''),String(m.nome||'—'),ntReportMeasure(m.codigo,new Map(model.stockRows.map(x=>[x.codigo,{unidadeMedida:x.unidade}]))),
