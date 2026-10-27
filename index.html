@@ -946,7 +946,23 @@ function ntReportCSS(){return `<style>
 .nt-general-stock-deep .nt-deep-alertline span{display:block;font-size:7.5pt;line-height:1.2;margin-top:.8mm}
 .nt-general-stock-deep .nt-deep-muted{font-size:7.6pt;line-height:1.35;color:#5a7480;margin:2mm 0}
 .nt-general-stock-deep .nt-di-empty{font-size:8pt;padding:4mm 0}
-.nt-general-stock-deep .nt-di-footnote{font-size:7.5pt;line-height:1.25;margin-top:3mm;padding-top:2mm;border-top:.25mm solid #dbe8ea;color:#56747d}
+.nt-general-stock-deep .nt-di-footnote{font-size:7.5pt;line-height:1.25;margin-top:2mm;padding-top:1.5mm;border-top:.25mm solid #dbe8ea;color:#56747d}
+
+/* Controle de recebimentos: resumo compacto, somente leitura, na segunda folha. */
+.nt-general-stock-deep .nt-deep-panel{min-height:79mm}
+.nt-general-stock-deep .nt-deep-rx{display:grid;grid-template-columns:43% minmax(0,1fr);gap:3mm;margin-top:2.5mm;padding:2.5mm 3.3mm;border:1px solid #c5dade;border-left:1mm solid #16949e;border-radius:2.5mm;background:#f4fafb;break-inside:avoid-page}
+.nt-general-stock-deep .nt-deep-rx h2{margin:0 0 1mm;color:#164e5d;font-size:9.5pt}
+.nt-general-stock-deep .nt-deep-rx-desc{font-size:7pt;line-height:1.2;color:#5a7682;margin-bottom:1.6mm}
+.nt-general-stock-deep .nt-deep-rx-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.4mm}
+.nt-general-stock-deep .nt-deep-rx-metric{background:#e4f0f2;border-radius:1.5mm;padding:1.1mm 1.8mm;min-width:0}
+.nt-general-stock-deep .nt-deep-rx-metric small{display:block;font-size:6.5pt;line-height:1.1;color:#456775;font-weight:700}
+.nt-general-stock-deep .nt-deep-rx-metric strong{display:block;font-size:12pt;line-height:1.2;color:#116c78}
+.nt-general-stock-deep .nt-deep-rx-subhead{font-size:7.3pt;color:#1b5765;font-weight:700;padding-bottom:1.1mm;border-bottom:.3mm solid #cbdfe2}
+.nt-general-stock-deep .nt-deep-rx-row{display:grid;grid-template-columns:minmax(0,1fr) 22mm 42mm;align-items:center;gap:1.8mm;padding:1.6mm 0;border-bottom:.25mm solid #d7e7e9;font-size:7.1pt;line-height:1.16;color:#365b68}
+.nt-general-stock-deep .nt-deep-rx-row b{overflow-wrap:anywhere;font-weight:700}
+.nt-general-stock-deep .nt-deep-rx-row span{color:#466977}
+.nt-general-stock-deep .nt-deep-rx-row em{font-style:normal;font-weight:700;color:#156b78}
+.nt-general-stock-deep .nt-deep-rx-help{font-size:6.8pt;line-height:1.16;color:#557581;margin-top:1.5mm}
 @media print{
  .page.landscape.nt-general-stock-deep{height:208mm;min-height:208mm;padding-top:7mm;padding-bottom:18mm;break-inside:avoid-page;page-break-inside:avoid}
  .nt-general-stock-deep .line{margin:2mm 0 3mm}
@@ -2434,7 +2450,7 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
   ntTop('INTELIGÊNCIA DO ESTOQUE','Visão executiva diária · volumes, operações e sinais de atenção.',date)+
   pageOne+marker+'</section>'];
  // Quando ha movimento expressivo ou risco, a segunda pagina amplia a precisão sem compactar letras.
- const detail=used.size>6||groups.length>1||zero.length>0||pressure.length>0||notReconciled>0||counted>0;
+ const detail=used.size>6||groups.length>1||zero.length>0||pressure.length>0||notReconciled>0||counted>0||(Array.isArray(model.receipts)&&model.receipts.length>0);
  if(detail){
   const groupRows=groups.slice(0,6).map(g=>
    '<div class="nt-deep-unitrow"><b>'+plain(g.unit)+'</b><span>'+g.items.length+' item(ns)</span>'+
@@ -2451,6 +2467,41 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
   const pressureRows=pressure.slice(0,3).map(x=>'<div class="nt-deep-alertline"><b>'+plain(x.nome)+'</b>'+
    '<span>'+plain(x.codigo)+' · '+plain(x.percent.toFixed(1).replace('.',','))+
    '% do saldo inicial retirado · final '+num(x.fim)+' '+plain(x.unidade)+'</span></div>').join('');
+
+  // Documentos de fornecedores nao equivalem a movimentacoes de entrada.
+  // Resumo derivado dos registros do dia, sem modificar estoques ou historicos.
+  const receiptDocs=Array.isArray(model.receipts)?model.receipts:[];
+  const receiptRows=Array.isArray(model.receiptRows)?model.receiptRows:[];
+  const pending=x=>!!x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO'||!String(x.codigo||'').trim();
+  const pendingCount=receiptRows.filter(pending).length;
+  const linkedCount=receiptRows.filter(x=>x.entradaConfirmada).length;
+  const rxMetric=(label,value)=>'<div class="nt-deep-rx-metric"><small>'+plain(label)+
+   '</small><strong>'+num(value)+'</strong></div>';
+  const receiptSummaries=receiptDocs.slice(0,3).map(r=>{
+   const rows=receiptRows.filter(x=>String(x.numero||'')===String(r.numero||''));
+   const awaiting=rows.filter(pending).length;
+   const linked=rows.filter(x=>x.entradaConfirmada).length;
+   const review=Math.max(0,rows.length-awaiting-linked);
+   const state=[linked?linked+' vinculada(s)':'',awaiting?awaiting+' aguard. cadastro':'',
+    review?review+' a conferir':''].filter(Boolean).join(' · ')||'Sem itens';
+   return '<div class="nt-deep-rx-row"><b>'+plain(r.fornecedor||'Fornecedor não informado')+
+    '</b><span>'+num(rows.length)+' linha(s)</span><em>'+plain(state)+'</em></div>';
+  }).join('');
+  const receiptBox='<div class="nt-deep-rx">'+
+   '<div><h2>CONTROLE DE RECEBIMENTOS</h2>'+
+   '<p class="nt-deep-rx-desc">Documentação e entradas efetivas são indicadores diferentes.</p>'+
+   '<div class="nt-deep-rx-metrics">'+
+    rxMetric('RECEBIMENTOS DOCUMENTADOS',receiptDocs.length)+
+    rxMetric('ENTRADAS NO ESTOQUE',stockIn)+
+    rxMetric('LINHAS DE MATERIAIS',receiptRows.length)+
+    rxMetric('AGUARDANDO CADASTRO',pendingCount)+
+   '</div></div><div><div class="nt-deep-rx-subhead">SITUAÇÃO DOS DOCUMENTOS NO DIA</div>'+
+   (receiptSummaries||'<p class="nt-deep-rx-help">Nenhum recebimento documentado nesta data.</p>')+
+   (receiptDocs.length>3?'<p class="nt-deep-rx-help">Outros '+num(receiptDocs.length-3)+
+    ' recebimento(s) constam no relatório de recebimentos.</p>':'')+
+   '<p class="nt-deep-rx-help">'+num(linkedCount)+
+   ' linha(s) com vínculo confirmado. Materiais sem cadastro não entram automaticamente no estoque.'+
+   '</p></div></div>';
   const pageTwo='<div class="nt-di-eyebrow">ANÁLISE DETALHADA · '+plain(ntDate(date))+'</div>'+
    metrics([
     ['SALDOS ZERADOS APÓS SAÍDA',zero.length],
@@ -2485,11 +2536,12 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
      (pressure.length>3?'<p class="nt-deep-muted">Mais '+(pressure.length-3)+' item(ns) com retirada elevada; consulte a tabela de saldos.</p>':'')+
     '</div>'+
    '</div>'+
+   receiptBox+
    '<div class="nt-di-footnote">Percentual = quantidade retirada / saldo inicial do dia, apenas em itens sem '+
    'entradas, devoluções, ajustes ou divergência no período. As demais linhas não têm percentual calculado. '+
    'Saldos históricos são do dia consultado; este resumo não altera o estoque.</div>';
   pages.push('<section class="page landscape nt-general-stock-deep">'+
-   ntTop('INTELIGÊNCIA DO ESTOQUE','Análise detalhada do consumo e dos saldos históricos do dia.',date)+
+   ntTop('INTELIGÊNCIA DO ESTOQUE','Consumo, saldos históricos e controle de recebimentos do dia.',date)+
    pageTwo+marker+'</section>');
  }
  return pages;
@@ -2722,138 +2774,7 @@ function ntArmEffectiveMovements(movements){
  const omit=new Set([pieces[1],pieces[2]]);
  return rows.filter(m=>!omit.has(String(m.id||'')));
 }
-let ntArmCandidate=null;
-function ntArmQty(m){return Number(m.quantidade);}
-function ntArmValid(m,a,code){return !!m&&String(m.tipo)===a&&String(m.codigo)===code&&
- String(m.dia)===NT_ARM_FIX.dia&&!m.anulado&&!testeIdentificado(m);}
-function ntArmPattern(original,adjust,wrong,right){
- if(!ntArmValid(original,'SAIDA',NT_ARM_FIX.errado)||
-  ntArmQty(original)!==NT_ARM_FIX.quantidade)throw Error('A retirada original não corresponde a 30 UN do aramado informado.');
- if(!ntArmValid(adjust,'AJUSTE',NT_ARM_FIX.errado)||
-  Number(adjust.antes)!==20||Number(adjust.depois)!==50||Number(adjust.delta)!==30)
-   throw Error('Não encontrei a conferência esperada de 20 para 50 UN. Não é seguro corrigir automaticamente.');
- if(!Number.isFinite(Date.parse(original.timeClient))||!Number.isFinite(Date.parse(adjust.timeClient))||
-  Date.parse(adjust.timeClient)<=Date.parse(original.timeClient))
-   throw Error('A conferência não é posterior à retirada equivocada. Confira o histórico.');
- if(!wrong||String(wrong.codigo)!==NT_ARM_FIX.errado||
-  !String(wrong.nome||'').toUpperCase().includes('ARAMADO')||Number(wrong.quantidade)!==50)
-   throw Error('O aramado retirado por engano precisa estar com saldo atual exatamente 50 UN.');
- if(!right||String(right.codigo)!==NT_ARM_FIX.certo||
-  !String(right.nome||'').toUpperCase().includes('ARAMADO')||
-  !Number.isFinite(Number(right.quantidade))||Number(right.quantidade)<30||!right.conferido)
-   throw Error('O aramado correto está sem conferência ou com saldo insuficiente para 30 UN. Não foi alterado.');
-}
-async function ntArmRead(){
- const f=NT_ARM_FIX;
- const [movesSnap,wrongSnap,rightSnap,markerSnap]=await Promise.all([
-  getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',f.dia))),
-  getDocFromServer(itemRef(f.errado)),getDocFromServer(itemRef(f.certo)),
-  getDocFromServer(doc(db,'nt_web_movimentos',f.auditoria))
- ]);
- if(markerSnap.exists())throw Error('Esta correção já foi registrada. Não é permitido repetir o desconto.');
- if(!wrongSnap.exists()||!rightSnap.exists())throw Error('Um dos materiais não existe no Firebase.');
- const movements=movesSnap.docs.map(d=>({...d.data(),id:d.id}));
- const wrongEvents=movements.filter(x=>String(x.codigo)===f.errado&&!x.anulado&&!testeIdentificado(x));
- const originals=wrongEvents.filter(x=>x.tipo==='SAIDA'&&ntArmQty(x)===30);
- if(originals.length!==1)throw Error('Encontrei '+originals.length+' retiradas candidatas. A seleção exige conferência manual.');
- const original=originals[0];
- const adj=wrongEvents.filter(x=>x.tipo==='AJUSTE'&&Number(x.antes)===20&&Number(x.depois)===50&&Number(x.delta)===30);
- if(adj.length!==1||wrongEvents.length!==2)
-  throw Error('O código errado tem outros registros ou uma conferência diferente. Nenhum saldo foi modificado.');
- const rightDup=movements.some(x=>String(x.codigo)===f.certo&&x.tipo==='SAIDA'&&!x.anulado&&
-  ntArmQty(x)===30&&String(x.pedido||'')===String(original.pedido||'')&&!testeIdentificado(x));
- if(rightDup)throw Error('Já existe retirada de 30 UN do material certo para esse pedido. Para evitar desconto duplo, operação bloqueada.');
- const wrong=wrongSnap.data(),right=rightSnap.data();
- ntArmPattern(original,adj[0],wrong,right);
- return {original,adjust:adj[0],wrong,right,checkedAt:Date.now()};
-}
-async function ntArmPreview(){
- isReady();loader(true);ntArmCandidate=null;
- try{
-  const v=await ntArmRead();ntArmCandidate=v;
-  panel('<h2>Conferir correção do aramado</h2>'+
-   '<p class="small">27/10/2026 · referência '+esc(v.original.pedido||'sem número')+
-   ' · solicitante '+esc(v.original.solicitante||'não informado')+'</p>'+
-   '<div class="inventory-history-row"><b>Material escolhido por engano</b><p>'+
-   esc(v.wrong.nome)+' · '+NT_ARM_FIX.errado+'</p><p>Saldo atual: <b>50 UN</b> (será preservado)</p>'+
-   '<p class="small">A retirada de 30 UN e a conferência corretiva continuarão no histórico original e serão desconsideradas apenas nos relatórios após a retificação.</p></div>'+
-   '<div class="inventory-history-row"><b>Material que deveria ter saído</b><p>'+
-   esc(v.right.nome)+' · '+NT_ARM_FIX.certo+'</p><p>Saldo atual: <b>'+
-   fmt(v.right.quantidade)+' UN</b> · após corrigir: <b>'+fmt(Number(v.right.quantidade)-30)+' UN</b></p>'+
-   '<p class="small">Será gravada uma única saída de 30 UN vinculada ao pedido original; os IDs dos registros retificados ficam na observação.</p></div>'+
-   '<div class="alert"><b>Confira antes de confirmar</b><p>Esta correção altera o estoque REAL do código '+NT_ARM_FIX.certo+
-   ' em 30 UN. O outro aramado permanecerá em 50 UN. Se a quantidade certa já foi descontada manualmente, cancele.</p></div>'+
-   '<div class="buttons"><button class="btn" type="button" data-action="nt-arm-fix-confirm">Confirmar correção no Firebase</button>'+
-   '<button class="btn alt" type="button" data-action="nt-arm-fix-cancel">Cancelar</button></div>');
- }catch(err){panel('<h2>Correção interrompida por segurança</h2><p>'+
-  esc(err.message||'Falha ao consultar registros no Firebase')+
-  '</p><p class="small">Nada foi alterado. Envie esta mensagem para conferirmos a movimentação.</p>'+
-  '<button type="button" class="btn alt" data-action="nt-arm-fix-cancel">Fechar</button>');}
- finally{loader(false)}
-}
-async function ntArmCommit(){
- isReady();const v=ntArmCandidate;ntArmCandidate=null;
- if(!v||Date.now()-v.checkedAt>120000)throw Error('A conferência expirou. Faça a verificação novamente.');
- if(!window.confirm('Confirmar a retificação? O código 080100326 permanecerá em 50 UN e 080100190 perderá 30 UN.'))return;
- const f=NT_ARM_FIX;
- const refWrong=itemRef(f.errado),refRight=itemRef(f.certo);
- const refOriginal=doc(db,'nt_web_movimentos',v.original.id);
- const refAdjust=doc(db,'nt_web_movimentos',v.adjust.id);
- // A saída de correção usa o formato normal de movimento e ID fixo:
- // não edita documentos antigos nem cria documentos na coleção de auditoria.
- const evt=doc(db,'nt_web_movimentos',f.auditoria);
- const stamp=new Date().toISOString();
- let committed=false;
- loader(true);
- try{
-  await runTransaction(db,async tx=>{
-   const snaps=[];
-   for(const ref of [evt,refOriginal,refAdjust,refWrong,refRight])snaps.push(await tx.get(ref));
-   const [mark,originalSnap,adjustSnap,wrongSnap,rightSnap]=snaps;
-   if(mark.exists())throw Error('Retificação já registrada; não pode descontar duas vezes.');
-   if(!originalSnap.exists()||!adjustSnap.exists()||!wrongSnap.exists()||!rightSnap.exists())
-    throw Error('Um registro não está mais disponível. Nenhuma alteração aplicada.');
-   const original=originalSnap.data(),adjust=adjustSnap.data();
-   const wrong=wrongSnap.data(),right=rightSnap.data();
-   ntArmPattern(original,adjust,wrong,right);
-   if(String(original.pedido||'')!==String(v.original.pedido||'')||
-      String(original.solicitante||'')!==String(v.original.solicitante||'')||
-      Number(right.quantidade)!==Number(v.right.quantidade))
-     throw Error('Pedido ou saldo mudou desde a última conferência. Verifique novamente.');
-   const after=rnd(Number(right.quantidade)-f.quantidade);
-   if(!Number.isFinite(after)||after<0)throw Error('Saldo insuficiente no aramado correto.');
-   // Exatamente as mesmas operações admitidas nas retiradas normais:
-   // update apenas no saldo atual e create apenas em nt_web_movimentos.
-   tx.update(refRight,{quantidade:after,ultimoMovimentoId:evt.id,atualizadoEm:serverTimestamp()});
-   tx.set(evt,{id:evt.id,codigo:f.certo,nome:right.nome,unidade:right.unidadeMedida||right.unidade||'UN',
-    tipo:'SAIDA',quantidade:f.quantidade,delta:-f.quantidade,
-    antes:Number(right.quantidade),depois:after,
-    solicitante:String(original.solicitante||'Almoxarifado'),
-    pedido:String(original.pedido||''),
-    observacao:f.auditoria+'|'+v.original.id+'|'+v.adjust.id+
-      '|Retificação do pedido: aramado corrigido sem estornar fisicamente o código '+f.errado,
-    operador:user.email||'',uid:user.uid,dia:f.dia,timeClient:stamp,criadoEm:serverTimestamp()});
-  });
-  committed=true;
-  const saved=await getDocFromServer(evt);
-  if(!saved.exists())throw Error('Retificação enviada, mas não foi possível consultar a movimentação. NÃO repita.');
-  panel('<h2>Correção registrada!</h2>'+
-   '<p>O aramado <b>'+f.errado+'</b> permanece em <b>50 UN</b>.</p>'+
-   '<p>O aramado <b>'+f.certo+'</b> teve <b>30 UN</b> descontadas com a referência original.</p>'+
-   '<p class="small">A saída errada e sua conferência compensatória foram preservadas no histórico, mas deixam de contar nos relatórios do dia. Emita novamente os PDFs.</p>'+
-   '<button type="button" class="btn" data-action="nt-arm-fix-cancel">Concluir</button>');
-  notice('Retificação confirmada no Firebase!');
- }catch(err){
-  panel('<h2>'+(committed?'Gravação enviada — confira os saldos':'Correção não realizada')+'</h2>'+
-   '<p>'+esc(err.message||'Não foi possível concluir a retificação')+'</p>'+
-   '<p class="small">'+(committed?
-    'Não repita a operação. Atualize e confira os materiais 080100326 e 080100190 no Firebase.':
-    'Nenhuma movimentação adicional foi confirmada por esta tentativa. Se aparecer permissão insuficiente, as regras do Firebase precisam ser revistas sem permitir acesso público.')+
-   '</p><button type="button" class="btn alt" data-action="nt-arm-fix-cancel">Fechar</button>');
- }finally{loader(false)}
-}
-
-function securityView(){return `<h2>Segurança e backups</h2><div class="card"><div class="small">Conta Firebase</div><p style="margin:8px 0"><b>${esc(user?.email||'')}</b></p><p class="small">UID autorizado: <code style="word-break:break-all">${esc(user?.uid||'')}</code></p><div class="gap"></div><button class="btn alt" data-action="logout">Sair da conta</button></div><div class="card"><h2>Backup e exportação</h2><p class="small">Os dados oficiais ficam no Firestore. Faça também backup externo, especialmente antes de mudanças importantes.</p><div class="buttons" style="margin-top:10px"><button class="btn" data-action="backup">Baixar backup JSON completo</button><button class="btn alt" data-action="csv-stock">Exportar estoque CSV</button></div></div><div class="card"><h2>Correção assistida · Aramado (27/10)</h2><p class="small">Confere a retirada equivocada de 30 UN do código 080100326 e a conferência que restaurou seu saldo a 50 UN. Verifica o material correto 080100190 e bloqueia descontos duplicados. Nenhum dado é alterado ao verificar.</p><button class="btn alt" type="button" data-action="nt-arm-fix-preview">Verificar registros para correção</button></div><div class="card"><h2>Importação inicial do catálogo</h2><p class="small">O arquivo privado inclui os 218 materiais do V32. Somente use a importação com uma base vazia. <b>Não substitui dados existentes.</b> A operação requer permissão de administrador pelas regras.</p><button class="btn alt" data-action="import">Selecionar JSON privado</button><div class="small" style="margin-top:12px">Materiais atualmente no banco: ${mats.length}</div></div><div class="notice"><b>Sem internet, sem lançamentos</b><p class="small">Esta versão exige confirmação online das gravações para evitar diferenças entre aparelhos. O navegador não guarda movimentações offline para sincronizar depois.</p></div>`}
+function securityView(){return `<h2>Segurança e backups</h2><div class="card"><div class="small">Conta Firebase</div><p style="margin:8px 0"><b>${esc(user?.email||'')}</b></p><p class="small">UID autorizado: <code style="word-break:break-all">${esc(user?.uid||'')}</code></p><div class="gap"></div><button class="btn alt" data-action="logout">Sair da conta</button></div><div class="card"><h2>Backup e exportação</h2><p class="small">Os dados oficiais ficam no Firestore. Faça também backup externo, especialmente antes de mudanças importantes.</p><div class="buttons" style="margin-top:10px"><button class="btn" data-action="backup">Baixar backup JSON completo</button><button class="btn alt" data-action="csv-stock">Exportar estoque CSV</button></div></div><div class="card"><h2>Importação inicial do catálogo</h2><p class="small">O arquivo privado inclui os 218 materiais do V32. Somente use a importação com uma base vazia. <b>Não substitui dados existentes.</b> A operação requer permissão de administrador pelas regras.</p><button class="btn alt" data-action="import">Selecionar JSON privado</button><div class="small" style="margin-top:12px">Materiais atualmente no banco: ${mats.length}</div></div><div class="notice"><b>Sem internet, sem lançamentos</b><p class="small">Esta versão exige confirmação online das gravações para evitar diferenças entre aparelhos. O navegador não guarda movimentações offline para sincronizar depois.</p></div>`}
 function draw(){if(!user)return;$('navigation').classList.remove('hide');for(const b of $('navigation').querySelectorAll('button'))b.classList.toggle('active',b.dataset.go===tab);$('app').innerHTML= !cloudOk?'<div class="alert">Não foi possível ler o estoque no Firebase. Confira as regras de segurança e o UID autorizado.</div>':({painel:panelHome,materiais:materialList,movimentar:moveView,pedidos:orderView,fechamento:closeView,seguranca:securityView})[tab]();}
 function formatDate(m){let d=m.criadoEm?.toDate?.()||new Date(m.timeClient||Date.now());return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
 function bindListeners(){for(const f of unsubs)f();unsubs=[];serverReady=false;cloudOk=false;unsubs.push(onSnapshot(query(collection(db,'nt_web_materiais'),orderBy('nome')),{includeMetadataChanges:true},snap=>{const entryBeingEdited=tab==='movimentar'&&kind==='ENTRADA'&&!!$('nrSupplier');
@@ -3030,9 +2951,7 @@ if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return
 if(a==='nt-manager-month'){await ntManagerOpen('month');return}
 if(a==='nt-repos-new'){await ntReposNew();return}if(a==='nt-repos-all'){ntReposBatch('all');return}if(a==='nt-repos-visible'){ntReposBatch('visible');return}if(a==='nt-repos-clear'){ntReposBatch('clear');return}if(a==='nt-repos-preview'){ntReposPreview();return}if(a==='nt-repos-issue'){await ntReposIssue();return}if(a==='nt-repos-history'){await ntReposHistory();return}if(a==='nt-repos-open-history'){ntReposOpenHistory(act.dataset.code);return}
 if(a==='nt-repos-edit'){ntReposEdit(act.dataset.code);return}
-if(a==='nt-repos-visibility'){await ntReposVisibility(act.dataset.code);return}if(a==='nt-label-open'){ntLabelSelectPanel();return}if(a==='nt-label-all'){ntBatchLabelSelect('all');return}if(a==='nt-label-visible'){ntBatchLabelSelect('visible');return}if(a==='nt-label-clear'){ntBatchLabelSelect('clear');return}if(a==='nt-label-single'){const m=material(act.dataset.code);if(m)ntPrintLabels([m]);return}if(a==='nt-label-print'){ntPrintLabels(mats.filter(m=>ntLabelCodes.has(String(m.codigo))));return}if(a==='modal-details'){detail(act.dataset.code);return}if(a==='modal-history'){await countHistory(act.dataset.code);return}if(a==='more-mats'){visibleMaterials+=100;draw();return}if(a==='scan-qr'){await openQr(act.dataset.scanTarget||'materiais');return}if(a==='qr-close'){await stopQr();close();return}if(a==='close'){close();return}if(a==='modal-count'){itemCount(act.dataset.code);return}if(a==='modal-edit'){itemEdit(act.dataset.code);return}if(a==='novo'){itemEdit();return}if(a==='logout'){await signOut(appAuth);return}if(a==='resetconfig'){if(confirm('Desconectar a configuração deste navegador?')){localStorage.removeItem('nt-firebase-web-config');location.reload()}return}if(a==='import-measures'){$('importMeasuresFile')?.click();return}if(a==='csv-stock'){stockCsv();return}if(a==='csv-day'){dayCsv();return}if(a==='csv-history'){eventsCsv();return}if(a==='print-ci'){ntOpenReport('ci');return}if(a==='print-closing'){ntOpenReport('closing');return}if(a==='print-full-inventory'){ntOpenFullInventory();return}if(a==='nt-arm-fix-preview'){await ntArmPreview();return}
-if(a==='nt-arm-fix-confirm'){await ntArmCommit();return}
-if(a==='nt-arm-fix-cancel'){ntArmCandidate=null;close();return}
+if(a==='nt-repos-visibility'){await ntReposVisibility(act.dataset.code);return}if(a==='nt-label-open'){ntLabelSelectPanel();return}if(a==='nt-label-all'){ntBatchLabelSelect('all');return}if(a==='nt-label-visible'){ntBatchLabelSelect('visible');return}if(a==='nt-label-clear'){ntBatchLabelSelect('clear');return}if(a==='nt-label-single'){const m=material(act.dataset.code);if(m)ntPrintLabels([m]);return}if(a==='nt-label-print'){ntPrintLabels(mats.filter(m=>ntLabelCodes.has(String(m.codigo))));return}if(a==='modal-details'){detail(act.dataset.code);return}if(a==='modal-history'){await countHistory(act.dataset.code);return}if(a==='more-mats'){visibleMaterials+=100;draw();return}if(a==='scan-qr'){await openQr(act.dataset.scanTarget||'materiais');return}if(a==='qr-close'){await stopQr();close();return}if(a==='close'){close();return}if(a==='modal-count'){itemCount(act.dataset.code);return}if(a==='modal-edit'){itemEdit(act.dataset.code);return}if(a==='novo'){itemEdit();return}if(a==='logout'){await signOut(appAuth);return}if(a==='resetconfig'){if(confirm('Desconectar a configuração deste navegador?')){localStorage.removeItem('nt-firebase-web-config');location.reload()}return}if(a==='import-measures'){$('importMeasuresFile')?.click();return}if(a==='csv-stock'){stockCsv();return}if(a==='csv-day'){dayCsv();return}if(a==='csv-history'){eventsCsv();return}if(a==='print-ci'){ntOpenReport('ci');return}if(a==='print-closing'){ntOpenReport('closing');return}if(a==='print-full-inventory'){ntOpenFullInventory();return}
 if(a==='backup'){await execute(fullBackup);return}if(a==='import'){$('arquivoCatalogo').click();return}if(a==='add-cart'){rememberOrder();const code=$('cartCode').value,q=rnd(nval($('cartQty').value)),m=material(code);if(!m||!(q>0)||!Number.isFinite(q))throw Error('Selecione material e quantidade válida.');if(!m.conferido)throw Error('Confira primeiro este material.');const ex=cart.find(x=>x.codigo===code),t=rnd((ex?.qtd||0)+q);if(t>m.quantidade)throw Error('Quantidade maior que saldo.');if(ex)ex.qtd=t;else cart.push({codigo:code,qtd:t});draw();return}if(a==='finish-cart'){rememberOrder();const person=window.orderPerson?.trim(),order=window.orderNumber?.trim();if(!person)throw Error('Informe o solicitante.');if(!cart.length)throw Error('Pedido vazio.');if(!confirm(`Finalizar ${cart.length} materiais para ${person}? Todos serão descontados juntos.`))return;const saved=await execute(async()=>{await doMoves(cart.map(r=>({...r,quantidade:r.qtd,tipo:'SAIDA'})),person,order,'Pedido separado');},cart.map(r=>r.codigo));if(saved){cart=[];window.orderPerson='';window.orderNumber='';draw()}return}}catch(err){notice(err.message,true)}}
 function load(){if(location.protocol!=='https:' && location.hostname!=='localhost'){status('● Precisa publicar em HTTPS',false,true);$('app').innerHTML='<div class="alert"><b>Não use este arquivo diretamente de Downloads.</b><p class="small">Para sincronizar e proteger o estoque, acesse o sistema somente pelo endereço HTTPS oficial da empresa. Não registre movimentos neste arquivo local.</p></div>';return;}const raw=localStorage.getItem('nt-firebase-web-config') || JSON.stringify(EMBEDDED_FIREBASE_CONFIG);if(!raw){status('● Falta conectar',false,true);$('app').innerHTML=homeConfig();return}let cfg;try{cfg=JSON.parse(raw);if(cfg.projectId!=='new-termisa-estoque')throw Error('Projeto não autorizado. Utilize New Termisa Estoque, não o Firebase oficial.');const fb=initializeApp(cfg);appAuth=getAuth(fb);db=getFirestore(fb);}catch(e){status('● Configuração inválida',false,true);$('app').innerHTML=homeConfig();notice('Configuração não foi aceita: '+e.message,true);return}onAuthStateChanged(appAuth,u=>{user=u;if(!u){for(const f of unsubs)f();unsubs=[];if(bindDay.unsub)bindDay.unsub();mats=[];recent=[];todayMoves=[];cloudOk=false;serverReady=false;$('navigation').classList.add('hide');status('● Entre para acessar');$('app').innerHTML=loginView()}else{status('● Verificando nuvem');bindListeners()}})}
 document.addEventListener('submit',async e=>{e.preventDefault();try{if(e.target.id==='configForm'){const data=parseConfig($('configText').value);localStorage.setItem('nt-firebase-web-config',JSON.stringify(data));location.reload();return}if(e.target.id==='loginForm'){loader(true);await signInWithEmailAndPassword(appAuth,$('email').value.trim(),$('senha').value);loader(false);return}if(e.target.id==='moveForm'){if(kind==='ENTRADA')throw Error('Registre entradas pelo Recebimento integrado, incluindo fornecedor, PC e NF.');const code=$('moveCode').value,q=rnd(nval($('moveQty').value)),p=$('movePerson').value.trim(),ref=$('moveOrder').value.trim(),obs=$('moveObs').value.trim();if(!material(code)||!Number.isFinite(q)||q<=0||!p)throw Error('Preencha todos os campos corretamente.');if(!confirm(`${kind}: ${fmt(q)} de ${material(code).nome}\nSolicitante: ${p}\nSalvar no Firebase?`))return;const saved=await execute(()=>doMoves([{codigo:code,quantidade:q,tipo:kind}],p,ref,obs),[code]);if(saved)e.target.reset();return}if(e.target.id==='countForm'){const code=$('countCode').value,qty=rnd(nval($('countQty').value)),p=$('countPerson').value.trim();if(!Number.isFinite(qty)||qty<0||!p)throw Error('Informe contagem e responsável.');if(!confirm(`Confirmar saldo físico de ${fmt(qty)} para ${material(code)?.nome}?`))return;const saved=await execute(()=>adjustMaterial(code,qty,p),[code],{[code]:{quantidade:qty,conferido:true}});if(saved)close();return}if(e.target.id==='editForm'){await saveItem(e);return}}catch(err){loader(false);notice(err.message||'Operação falhou.',true)}});
