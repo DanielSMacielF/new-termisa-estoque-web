@@ -549,8 +549,8 @@ function closeView(){
  ntCenterCard('Comunicação Interna','Pedidos e entregas de materiais do dia '+date+'.','Automático',button('print-ci','Gerar PDF'))+
  ntCenterCard('Fechamento Diário','Entradas, saídas, devoluções e saldos antes e depois de cada movimentação.','Automático',button('print-closing','Gerar PDF')+button('csv-day','Baixar CSV','alt'))+
  ntCenterCard('Reposição de Materiais','Sugestões pelo estoque mínimo, com quantidades de compra ajustáveis.','Automático + revisão',button('nt-repos-new','Ver itens para compra')+button('nt-repos-history','Histórico','alt'))+
- ntCenterCard('Recebimento de Materiais','Consulta das entradas registradas em Movimentar, por fornecedor, PC e nota fiscal.','Automático · leitura',button('nt-receipt-pdf','PDF do dia')+button('nt-receipt-history','Histórico','alt'))+
- ntCenterCard('Produção de Máquinas','Nome, modelo, opção, OP e quantidades produzidas ou pendentes.','Preenchimento manual',button('nt-production-new','Registrar produção')+button('nt-production-pdf','PDF do dia','alt')+button('nt-production-history','Histórico','ghost'))+
+ ntCenterCard('Recebimento de Materiais','Consulta das entradas registradas em Movimentar, por fornecedor, PC e nota fiscal.','Automático · leitura',button('nt-receipt-pdf','PDF do dia')+button('nt-receipt-history','Histórico / Editar','alt'))+
+ ntCenterCard('Produção de Máquinas','Nome, modelo, opção, OP e quantidades produzidas ou pendentes.','Preenchimento manual',button('nt-production-new','Registrar produção')+button('nt-production-pdf','PDF do dia','alt')+button('nt-production-history','Histórico / Editar','ghost'))+
  '</div><div class="nt-rc-group">Gestão e inventário</div><div class="nt-rc-grid">'+
  ntCenterCard('Resumo Gerencial','Indicadores, custos estimados e materiais com maior e menor frequência de saída.','Automático',button('nt-manager-day','Resumo diário · PDF')+button('nt-manager-month','Resumo mensal · PDF','alt'))+
  ntCenterCard('Inventário Geral','Materiais, código, rua, posição, categoria, medida, saldos e valores.','Automático',button('print-full-inventory','Estoque completo · PDF')+button('csv-stock','Exportar CSV','alt'))+
@@ -1017,6 +1017,7 @@ function ntOpenReport(mode){
    NUNCA modificar nt_web_materiais nem nt_web_movimentos. */
 const NT_RECEIPT_ACTION='RELATORIO_RECEBIMENTO_REGISTRADO';
 const NT_PRODUCTION_ACTION='RELATORIO_PRODUCAO_REGISTRADO';
+const NT_MANUAL_EDIT_ACTION='RETIFICACAO_DOCUMENTAL_NEW_TERMISA';
 let ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''},ntReceiptItems=[];
 let ntProductionDraft={dataProducao:day(),observacao:''},ntProductionItems=[];
 let ntReceiptCache=new Map(),ntProductionCache=new Map();
@@ -1278,10 +1279,39 @@ async function ntProductionSave(){
  const data={acao:NT_PRODUCTION_ACTION,formato:'NEW_TERMISA_PRODUCAO_V1',numero:ref.id,dataProducao:d.dataProducao,observacao:d.observacao,itens:ntProductionItems.map(x=>({...x})),operador:user.email||'',uid:user.uid,criadoEmLocal:new Date().toISOString(),criadoEm:serverTimestamp()};
  loader(true);try{await setDoc(ref,data);ntProductionItems=[];close();notice('Produção registrada no histórico sem alterar estoque.')}finally{loader(false)}
 }
+function ntManualApplyEdits(records,corrections){
+ const byId=new Map((records||[]).map(x=>[String(x.numero||''),{...x}]));
+ const changes=(corrections||[]).filter(x=>x.acao===NT_MANUAL_EDIT_ACTION&&x.documentoId&&x.depois)
+  .sort((a,b)=>String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||''))||
+    String(a.numero||'').localeCompare(String(b.numero||'')));
+ for(const edit of changes){
+  const id=String(edit.documentoId),record=byId.get(id);
+  if(!record)continue;
+  const type=record.acao===NT_RECEIPT_ACTION?'receipt':record.acao===NT_PRODUCTION_ACTION?'production':'';
+  if(type!==edit.documentoTipo)continue;
+  const next={...record};
+  if(type==='receipt'){
+   for(const k of ['fornecedor','pedidoCompra','notaFiscal']){
+    if(typeof edit.depois[k]!=='string')continue;
+    next[k]=edit.depois[k];
+   }
+  }else if(Array.isArray(edit.depois.itens)&&edit.depois.itens.length===record.itens.length){
+   next.itens=record.itens.map((x,i)=>({...x,...edit.depois.itens[i],
+    modelo:edit.depois.itens[i].nomeMaquina,ordemProducao:edit.depois.itens[i].lote}));
+  }else continue;
+  next.ultimaRetificacao=edit.criadoEmLocal;
+  byId.set(id,next);
+ }
+ return [...byId.values()];
+}
 async function ntManualLoad(action){
  if(!user||!serverReady||!navigator.onLine)throw Error('Aguarde a sincronização com o Firebase.');
- const snap=await getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',action)));
- return snap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens))
+ const [snap,corrections]=await Promise.all([
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',action))),
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
+ ]);
+ const original=snap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens));
+ return ntManualApplyEdits(original,corrections.docs.map(d=>({...d.data(),numero:d.id})))
   .sort((a,b)=>String(b.criadoEmLocal||'').localeCompare(String(a.criadoEmLocal||'')));
 }
 function ntReceiptReport(records,date){
@@ -1394,7 +1424,8 @@ async function ntManualHistory(kind){
   if(type==='receipt')ntReceiptCache=cache;else ntProductionCache=cache;
   const rows=records.map(r=>'<div class="nt-repos-history"><div><b>'+ntPlain(ntDate(type==='receipt'?r.dataRecebimento:r.dataProducao))+'</b><p class="small">'+
    ntPlain(type==='receipt'?(r.fornecedor+' · PC '+r.pedidoCompra+' · NF '+r.notaFiscal):(r.itens.length+' linha(s) de produção'))+
-   '</p></div><button class="btn alt" type="button" data-action="nt-manual-record" data-kind="'+type+'" data-code="'+ntPlain(r.numero)+'">Abrir PDF</button></div>').join('');
+   '</p></div><div class="buttons"><button class="btn alt" type="button" data-action="nt-manual-record" data-kind="'+type+'" data-code="'+ntPlain(r.numero)+'">Abrir PDF</button>'+
+   '<button class="btn ghost" type="button" data-action="nt-manual-edit" data-kind="'+type+'" data-code="'+ntPlain(r.numero)+'">Editar dados</button></div></div>').join('');
   panel('<h2>Histórico de '+(type==='receipt'?'recebimentos':'produção')+'</h2><p class="small">'+
    (type==='receipt'?'Entradas integradas podem atualizar o estoque; documentos anteriores podem ser apenas administrativos.':'Registros de produção são informativos e não dão baixa automática nos componentes.')+
    ' Esta consulta não modifica quantidades.</p><div class="card">'+(rows||'<p class="small">Nenhum registro salvo.</p>')+'</div><button class="btn ghost" type="button" data-action="close">Fechar</button>');
@@ -1407,6 +1438,129 @@ function ntManualRecord(type,id){
 }
 
 
+
+/* Retificação documental: edita apenas dados administrativos e produção informativa.
+   Documentos de estoque e movimentos oficiais permanecem IMUTÁVEIS.
+   Cada alteração é auditada em um novo documento do Firestore. */
+let ntManualEditDraft=null;
+function ntManualEditableData(type,record){
+ if(type==='receipt')return {
+  fornecedor:String(record.fornecedor||''),pedidoCompra:String(record.pedidoCompra||''),
+  notaFiscal:String(record.notaFiscal||'')
+ };
+ return {itens:(record.itens||[]).map(x=>({
+  codigoMaquina:String(x.codigoMaquina||''),nomeMaquina:String(x.nomeMaquina||x.modelo||''),
+  unidadeMedida:String(x.unidadeMedida||''),lote:String(x.lote||x.ordemProducao||''),
+  opcao:String(x.opcao||''),quantidadePedida:Number(x.quantidadePedida||0),
+  quantidadeConcluida:Number(x.quantidadeConcluida||0)
+ }))};
+}
+function ntManualEditPanel(type,record){
+ const id=String(record.numero||'');
+ ntManualEditDraft={type,id,original:ntManualEditableData(type,record)};
+ const hint='<p class="small">Correção administrativa com trilha de auditoria. Os saldos de estoque, quantidades da NF, data e movimentos oficiais não serão alterados.</p>';
+ let fields='';
+ if(type==='receipt'){
+  fields=ntField('Fornecedor','neSupplier',record.fornecedor)+
+   ntField('Pedido de compra (PC)','nePC',record.pedidoCompra)+
+   ntField('Nota fiscal (NF)','neInvoice',record.notaFiscal)+
+   '<p class="small">Os novos dados serão usados nos PDFs de Recebimento e no Relatório Geral. O histórico original de movimentação continua preservado.</p>';
+ }else{
+  fields=(record.itens||[]).map((it,i)=>{
+   const item=ntManualEditDraft.original.itens[i];
+   return '<div class="nt-rc-lines"><h3>Máquina '+(i+1)+'</h3>'+
+    ntField('Código da máquina','neCode'+i,item.codigoMaquina)+
+    ntField('Produto','neName'+i,item.nomeMaquina)+
+    ntField('Unidade de medida','neUnit'+i,item.unidadeMedida)+
+    ntField('Lote / OP','neLot'+i,item.lote)+
+    ntField('Opção / configuração','neOption'+i,item.opcao)+
+    ntField('Quantidade planejada','nePlanned'+i,String(item.quantidadePedida),'number')+
+    ntField('Quantidade produzida','neDone'+i,String(item.quantidadeConcluida),'number')+
+    '</div>';
+  }).join('');
+ }
+ panel('<h2>Editar '+(type==='receipt'?'recebimento':'produção de máquinas')+'</h2>'+
+  '<p class="small">Registro '+esc(id)+' · '+esc(ntDate(type==='receipt'?record.dataRecebimento:record.dataProducao))+'</p>'+
+  hint+fields+'<div class="buttons"><button type="button" class="btn" data-action="nt-manual-edit-save">Salvar correção</button>'+
+  '<button type="button" class="btn ghost" data-action="nt-manual-edit-cancel">Voltar ao histórico</button></div>');
+}
+async function ntManualEditStart(type,id){
+ if(!['receipt','production'].includes(type)||!String(id||'').trim())throw Error('Registro de edição inválido.');
+ isReady();loader(true);
+ try{
+  const ref=doc(db,'nt_web_auditoria',id);
+  const [snap,corrections]=await Promise.all([
+   getDocFromServer(ref),
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
+  ]);
+  const action=type==='receipt'?NT_RECEIPT_ACTION:NT_PRODUCTION_ACTION;
+  if(!snap.exists()||snap.data().acao!==action||!Array.isArray(snap.data().itens))
+   throw Error('Registro original não localizado para edição.');
+  const latest=ntManualApplyEdits([{...snap.data(),numero:snap.id}],
+    corrections.docs.map(d=>({...d.data(),numero:d.id})))[0];
+  ntManualEditPanel(type,latest);
+ }finally{loader(false)}
+}
+function ntManualNewData(type,old){
+ if(type==='receipt'){
+  const supplier=String($('neSupplier')?.value||'').trim(),pc=String($('nePC')?.value||'').trim(),
+   invoice=String($('neInvoice')?.value||'').trim();
+  if(!supplier||supplier.length>160||!pc||pc.length>90||!invoice||invoice.length>90)
+   throw Error('Preencha fornecedor, pedido de compra e nota fiscal (limites: 160, 90 e 90 caracteres).');
+  return {fornecedor:supplier,pedidoCompra:pc,notaFiscal:invoice};
+ }
+ const items=old.itens.map((x,i)=>{
+  const code=String($('neCode'+i)?.value||'').trim(),name=String($('neName'+i)?.value||'').trim(),
+   unit=String($('neUnit'+i)?.value||'').trim().toUpperCase(),
+   lot=String($('neLot'+i)?.value||'').trim(),option=String($('neOption'+i)?.value||'').trim(),
+   pText=String($('nePlanned'+i)?.value||'').trim(),cText=String($('neDone'+i)?.value||'').trim(),
+   planned=Number(pText),completed=Number(cText);
+  if(!/^[A-Za-z0-9-]{5,40}$/.test(code)||name.length<3||name.length>160||
+     !/^[A-Z0-9²./ -]{1,12}$/.test(unit)||!lot||lot.length>90||option.length>120||
+     !pText||!cText||!Number.isInteger(planned)||!Number.isInteger(completed)||
+     planned<=0||completed<0||completed>planned)
+    throw Error('Máquina '+(i+1)+': confira código, produto, unidade, lote e quantidades inteiras.');
+  return {codigoMaquina:code,nomeMaquina:name,unidadeMedida:unit,
+   lote:lot,opcao:option,quantidadePedida:planned,quantidadeConcluida:completed};
+ });
+ return {itens:items};
+}
+async function ntManualEditSave(){
+ const draft=ntManualEditDraft;
+ if(!draft||!['receipt','production'].includes(draft.type))throw Error('Abra a edição pelo histórico.');
+ isReady();
+ const proposed=ntManualNewData(draft.type,draft.original);
+ if(JSON.stringify(proposed)===JSON.stringify(draft.original)){
+  notice('Nenhuma informação foi alterada.');return;
+ }
+ if(!confirm('Salvar retificação com histórico de antes e depois? Nenhum saldo será alterado.'))return;
+ const target=doc(db,'nt_web_auditoria',draft.id),logRef=doc(collection(db,'nt_web_auditoria'));
+ loader(true);
+ try{
+  const [snap,corrections]=await Promise.all([
+   getDocFromServer(target),
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
+  ]);
+  const action=draft.type==='receipt'?NT_RECEIPT_ACTION:NT_PRODUCTION_ACTION;
+  if(!snap.exists()||snap.data().acao!==action||!Array.isArray(snap.data().itens))
+   throw Error('Registro original não encontrado.');
+  const effective=ntManualApplyEdits([{...snap.data(),numero:snap.id}],
+    corrections.docs.map(d=>({...d.data(),numero:d.id})))[0];
+  const current=ntManualEditableData(draft.type,effective);
+  if(JSON.stringify(current)!==JSON.stringify(draft.original))
+   throw Error('Documento retificado em outra sessão. Reabra o histórico antes de salvar.');
+  const now=new Date().toISOString();
+  await setDoc(logRef,{acao:NT_MANUAL_EDIT_ACTION,documentoId:draft.id,
+   documentoTipo:draft.type,antes:current,depois:proposed,
+   usuario:user.email||'',uid:user.uid,criadoEm:serverTimestamp(),
+   criadoEmLocal:now});
+  ntManualEditDraft=null;
+  notice('Retificação registrada no histórico. PDFs novos mostram os dados corrigidos.');
+  await ntManualHistory(draft.type);
+ }catch(err){
+  notice('Não foi possível salvar a retificação: '+String(err.message||err)+'. Confira suas permissões no Firebase.',true);
+ }finally{loader(false)}
+}
 /* Resumo Gerencial: leitura de dados CONFIRMADOS do servidor no momento da emissão. */
 // Recebimentos apenas em leitura: auditados e vinculados a movimentações já contabilizadas.
 function ntManagerReceiptRows(receiptDocs,movements,from,to){
@@ -1538,13 +1692,15 @@ async function ntManagerOpen(mode){
   const movementQuery=mode==='month'
     ?query(collection(db,'nt_web_movimentos'),where('dia','>=',from),where('dia','<=',to))
     :query(collection(db,'nt_web_movimentos'),where('dia','==',date));
-  const [materialSnap,moveSnap,receiptSnap]=await Promise.all([
+  const [materialSnap,moveSnap,receiptSnap,correctionSnap]=await Promise.all([
    getDocsFromServer(collection(db,'nt_web_materiais')),
    getDocsFromServer(movementQuery),
-   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION)))
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
   ]);
   const materials=materialSnap.docs.map(d=>d.data()),moves=moveSnap.docs.map(d=>d.data());
-  const receipts=receiptSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens));
+  const receipts=ntManualApplyEdits(receiptSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens)),
+   correctionSnap.docs.map(d=>({...d.data(),numero:d.id})));
   const html=ntManagerReport(materials,moves,from,to,periodLabel,receipts);
   popup.document.open();popup.document.write(html);popup.document.close();
  }catch(e){
@@ -1618,7 +1774,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
    const m=byCode.get(code);
    stockMap.set(code,{codigo:code,nome:String(m?.nome||mv.nome||'—'),
     unidade:String(m?.unidadeMedida||'—'),saida:0,entrada:0,devolucao:0,
-    historico:[],inicio:null,fim:null,outras:null,validar:false});
+    historico:[],inicio:null,fim:null,outras:null,ajustes:0,ajusteInvalido:false,residual:null,validar:false});
   }
   const row=stockMap.get(code);
   row.historico.push(mv);
@@ -1626,6 +1782,12 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
    if(mv.tipo==='SAIDA')row.saida=rnd(row.saida+ntQty(mv));
    if(mv.tipo==='ENTRADA')row.entrada=rnd(row.entrada+ntQty(mv));
    if(mv.tipo==='DEVOLUCAO')row.devolucao=rnd(row.devolucao+ntQty(mv));
+   if(mv.tipo==='AJUSTE'){
+    const d=Number(mv.delta),before=Number(mv.antes),after=Number(mv.depois);
+    if(Number.isFinite(d)&&Number.isFinite(before)&&Number.isFinite(after)&&Math.abs(rnd(after-before-d))<.0001)
+     row.ajustes=rnd(row.ajustes+d);
+    else row.ajusteInvalido=true;
+   }
   }
  }
  const stockRows=[...stockMap.values()].map(row=>{
@@ -1634,7 +1796,9 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
   if(row.inicio!==null&&row.fim!==null){
    const movementDelta=rnd(row.entrada+row.devolucao-row.saida);
    row.outras=rnd(row.fim-row.inicio-movementDelta);
-   row.validar=Math.abs(row.outras)>0.0001;
+   row.residual=rnd(row.outras-row.ajustes);
+   // Ajustes com antes/depois e delta coerentes não são divergências pendentes.
+   row.validar=row.ajusteInvalido||Math.abs(row.residual)>0.0001;
   }else{
    // Dados antigos sem saldo antes/depois não podem parecer conciliados.
    row.validar=true;
@@ -1679,15 +1843,17 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
 async function ntGeneralDayFetch(date){
  if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase. Não foi possível consultar o relatório.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))throw Error('Escolha uma data válida.');
- const [materialSnap,moveSnap,receiptSnap,productionSnap]=await Promise.all([
+ const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap]=await Promise.all([
   getDocsFromServer(collection(db,'nt_web_materiais')),
   getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
-  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_PRODUCTION_ACTION)))
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_PRODUCTION_ACTION))),
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
  ]);
  const materials=materialSnap.docs.map(x=>x.data()),moves=moveSnap.docs.map(x=>x.data());
- const receipts=receiptSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens));
- const production=productionSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens));
+ const corrections=correctionSnap.docs.map(x=>({...x.data(),numero:x.id}));
+ const receipts=ntManualApplyEdits(receiptSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
+ const production=ntManualApplyEdits(productionSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
  return ntGeneralDayModel(date,materials,moves,receipts,production);
 }
 function ntGeneralReceiptPages(records,date,marker){
@@ -1847,15 +2013,15 @@ function ntGeneralDayPDF(model){
    part.map(x=>[x.codigo,x.nome,x.unidade,x.inicio===null?'—':fmt(x.inicio),
     fmt(x.saida),fmt(x.devolucao),fmt(x.entrada),x.fim===null?'—':fmt(x.fim)])):
    empty('Nenhum material teve movimentação registrada nesta data.');
-  const outliers=part.filter(x=>x.outras!==null&&Math.abs(Number(x.outras))>.0001);
+  const outliers=part.filter(x=>x.validar&&x.residual!==null);
   const unconfirmed=part.filter(x=>x.outras===null);
   const audit=(outliers.length?'<p class="note" style="color:#8b5435"><b>Diferenças para conferência (fora dos movimentos listados):</b> '+
-   outliers.map(x=>ntPlain(x.codigo)+' ('+ntPlain(x.nome)+'): '+ntPlain(fmt(x.outras))+' '+ntPlain(x.unidade)).join(' · ')+
+   outliers.map(x=>ntPlain(x.codigo)+' ('+ntPlain(x.nome)+'): '+(x.ajusteInvalido?'lançamento de ajuste inconsistente':ntPlain(fmt(x.residual))+' '+ntPlain(x.unidade))).join(' · ')+
    '. Consulte o histórico das contagens e ajustes.</p>':'')+
    (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
   const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    table+audit+
-   '<p class="note">O saldo final considera as operações e eventuais ajustes de conferência, discriminados acima quando existirem. Os lançamentos oficiais permanecem no histórico.</p>';
+   '<p class="note">O saldo final considera as movimentações e os ajustes de inventário confirmados, preservados integralmente no histórico. Somente diferenças ainda não conciliadas são destacadas acima.</p>';
   page('SALDOS DO ALMOXARIFADO','Saldos históricos antes e depois dos lançamentos do dia.',body,true,'nt-general-stock');
  }
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
@@ -2107,6 +2273,9 @@ if(a==='nt-production-save'){await ntProductionSave();return}
 if(a==='nt-production-pdf'){await ntManualPDF('production');return}
 if(a==='nt-production-history'){await ntManualHistory('production');return}
 if(a==='nt-manual-record'){await ntManualRecord(act.dataset.kind,act.dataset.code);return}
+if(a==='nt-manual-edit'){await ntManualEditStart(act.dataset.kind,act.dataset.code);return}
+if(a==='nt-manual-edit-save'){await ntManualEditSave();return}
+if(a==='nt-manual-edit-cancel'){await ntManualHistory(ntManualEditDraft?.type||'receipt');return}
 if(a==='nt-manager-day'){await ntManagerOpen('day');return}
 if(a==='nt-manager-month'){await ntManagerOpen('month');return}
 if(a==='nt-repos-new'){ntReposModal();return}if(a==='nt-repos-all'){ntReposBatch('all');return}if(a==='nt-repos-visible'){ntReposBatch('visible');return}if(a==='nt-repos-clear'){ntReposBatch('clear');return}if(a==='nt-repos-preview'){ntReposPreview();return}if(a==='nt-repos-issue'){await ntReposIssue();return}if(a==='nt-repos-history'){await ntReposHistory();return}if(a==='nt-repos-open-history'){ntReposOpenHistory(act.dataset.code);return}if(a==='nt-label-open'){ntLabelSelectPanel();return}if(a==='nt-label-all'){ntBatchLabelSelect('all');return}if(a==='nt-label-visible'){ntBatchLabelSelect('visible');return}if(a==='nt-label-clear'){ntBatchLabelSelect('clear');return}if(a==='nt-label-single'){const m=material(act.dataset.code);if(m)ntPrintLabels([m]);return}if(a==='nt-label-print'){ntPrintLabels(mats.filter(m=>ntLabelCodes.has(String(m.codigo))));return}if(a==='modal-details'){detail(act.dataset.code);return}if(a==='modal-history'){await countHistory(act.dataset.code);return}if(a==='more-mats'){visibleMaterials+=100;draw();return}if(a==='scan-qr'){await openQr(act.dataset.scanTarget||'materiais');return}if(a==='qr-close'){await stopQr();close();return}if(a==='close'){close();return}if(a==='modal-count'){itemCount(act.dataset.code);return}if(a==='modal-edit'){itemEdit(act.dataset.code);return}if(a==='novo'){itemEdit();return}if(a==='logout'){await signOut(appAuth);return}if(a==='resetconfig'){if(confirm('Desconectar a configuração deste navegador?')){localStorage.removeItem('nt-firebase-web-config');location.reload()}return}if(a==='import-measures'){$('importMeasuresFile')?.click();return}if(a==='csv-stock'){stockCsv();return}if(a==='csv-day'){dayCsv();return}if(a==='csv-history'){eventsCsv();return}if(a==='print-ci'){ntOpenReport('ci');return}if(a==='print-closing'){ntOpenReport('closing');return}if(a==='print-full-inventory'){ntOpenFullInventory();return}if(a==='backup'){await execute(fullBackup);return}if(a==='import'){$('arquivoCatalogo').click();return}if(a==='add-cart'){rememberOrder();const code=$('cartCode').value,q=rnd(nval($('cartQty').value)),m=material(code);if(!m||!(q>0)||!Number.isFinite(q))throw Error('Selecione material e quantidade válida.');if(!m.conferido)throw Error('Confira primeiro este material.');const ex=cart.find(x=>x.codigo===code),t=rnd((ex?.qtd||0)+q);if(t>m.quantidade)throw Error('Quantidade maior que saldo.');if(ex)ex.qtd=t;else cart.push({codigo:code,qtd:t});draw();return}if(a==='finish-cart'){rememberOrder();const person=window.orderPerson?.trim(),order=window.orderNumber?.trim();if(!person)throw Error('Informe o solicitante.');if(!cart.length)throw Error('Pedido vazio.');if(!confirm(`Finalizar ${cart.length} materiais para ${person}? Todos serão descontados juntos.`))return;const saved=await execute(async()=>{await doMoves(cart.map(r=>({...r,quantidade:r.qtd,tipo:'SAIDA'})),person,order,'Pedido separado');},cart.map(r=>r.codigo));if(saved){cart=[];window.orderPerson='';window.orderNumber='';draw()}return}}catch(err){notice(err.message,true)}}
