@@ -120,8 +120,11 @@
 .nt-rc-lines{margin-top:12px;border-top:1px solid #33536e;padding-top:12px}.nt-rc-lines details{border-bottom:1px solid #33536e;padding:9px 0}.nt-rc-lines summary{cursor:pointer;font-weight:700}
 @media(max-width:560px){.nt-rc-grid{grid-template-columns:1fr}.nt-rc-card{padding:14px}.nt-rc-date{grid-template-columns:1fr}}
 
+.mark{background:linear-gradient(145deg,#123d66,#071d33);border:1px solid #258f9e;overflow:hidden}
+.mark svg{display:block;width:100%;height:100%}
+#moveForm.card{margin-top:14px}
 </style></head>
-<body><div class="shell"><header><div class="brand"><div class="mark">NT</div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento" aria-label="Central de Relatórios"><span>▣</span>Relatórios</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
+<body><div class="shell"><header><div class="brand"><div class="mark" role="img" aria-label="New Termisa"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" rx="28" fill="#102e50"/><text x="8" y="71" font-family="Inter,Arial,sans-serif" font-size="63" font-weight="900" letter-spacing="-6" stroke="#fff" stroke-width="5" stroke-linejoin="round" paint-order="stroke" fill="#174857">n</text><text x="45" y="71" font-family="Inter,Arial,sans-serif" font-size="63" font-weight="900" font-style="italic" stroke="#fff" stroke-width="5" stroke-linejoin="round" paint-order="stroke" fill="#229fa2">T</text></svg></div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento" aria-label="Central de Relatórios"><span>▣</span>Relatórios</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
 <script>
 // Diagnostic if the CDN cannot initialize: never mistake a frozen page for a working stock system.
 window.addEventListener('error',function(e){
@@ -202,7 +205,26 @@ function filterMaterialSelect(id){
   if(hint)hint.textContent=found.length?`${found.length} encontrado(s)${found.length>80?' · exibindo os primeiros 80; refine a busca':''}. Toque na lista para escolher.`:'Nenhum material encontrado. Tente outro trecho do nome ou código.';
   if(id==='moveCode'&&!select.value&&$('stockHint'))$('stockHint').textContent='Selecione o material na lista filtrada.';
 }
-function panelHome(){let pending=mats.filter(x=>!x.conferido).length;return `${mainNotice()}<div class="grid"><div class="card"><div class="label">Materiais cadastrados</div><div class="value">${mats.length}</div><div class="small">Códigos únicos</div></div><div class="card"><div class="label">Aguardando conferência</div><div class="value warn">${pending}</div><div class="small">Saldos a validar</div></div><div class="card"><div class="label">Sem localização</div><div class="value">${mats.filter(x=>!x.rua||!x.posicao).length}</div><div class="small">Preencher cadastro</div></div><div class="card"><div class="label">No mínimo ou abaixo</div><div class="value">${mats.filter(x=>x.quantidade<=x.minimo).length}</div><div class="small">Ponto de reposição</div></div></div><div class="section"><h2>Acesso rápido</h2></div><div class="buttons"><button class="btn" data-go="movimentar">+ Movimentar</button><button class="btn alt" data-go="pedidos">Separar pedido</button></div><div class="gap"></div><div class="card"><h2>Últimas movimentações</h2>${recent.length?recent.slice(0,6).map(m=>`<div class="item"><div><strong>${esc(m.nome)}</strong><p class="small">${esc(m.tipo)} · ${esc(m.operador||'')} · ${formatDate(m)}</p></div><b class="${m.delta<0?'red':'green'}">${m.delta>0?'+':''}${fmt(m.delta)}</b></div>`).join(''):'<div class="small">Nenhum movimento ainda.</div>'}</div>${mats.length===0?`<div class="notice"><b>Importe o catálogo privado de 218 materiais</b><div class="small">Abra a aba Segurança → Importar cadastro. Mantenha o arquivo JSON somente em local seguro da empresa.</div></div>`:''}`}
+function panelHome(){let pending=mats.filter(x=>!x.conferido).length;return `${mainNotice()}<div class="grid"><div class="card"><div class="label">Materiais cadastrados</div><div class="value">${mats.length}</div><div class="small">Códigos únicos</div></div><div class="card"><div class="label">Aguardando conferência</div><div class="value warn">${pending}</div><div class="small">Saldos a validar</div></div><div class="card"><div class="label">Sem localização</div><div class="value">${mats.filter(x=>!x.rua||!x.posicao).length}</div><div class="small">Preencher cadastro</div></div><div class="card"><div class="label">No mínimo ou abaixo</div><div class="value">${mats.filter(x=>x.quantidade<=x.minimo).length}</div><div class="small">Ponto de reposição</div></div></div><div class="section"><h2>Acesso rápido</h2></div><div class="buttons"><button class="btn" data-go="movimentar">+ Movimentar</button><button class="btn alt" data-go="pedidos">Separar pedido</button></div><div class="gap"></div><div class="card"><h2>Últimas movimentações</h2>${recent.length?recent.slice(0,6).map(m=>`<div class="item"><div><strong>${esc(m.nome)}</strong><p class="small">${esc(m.tipo)} · ${esc(m.operador||'')} · ${formatDate(m)}</p></div><b class="${m.delta<0?'red':'green'}">${m.delta>0?'+':''}${fmt(m.delta)}</b></div>`).join(''):'<div class="small">Nenhum movimento ainda.</div>'}<div class="gap"></div><button class="btn alt" type="button" style="width:100%" data-action="nt-today-movements">Ver mais · movimentações de hoje</button></div>${mats.length===0?`<div class="notice"><b>Importe o catálogo privado de 218 materiais</b><div class="small">Abra a aba Segurança → Importar cadastro. Mantenha o arquivo JSON somente em local seguro da empresa.</div></div>`:''}`}
+
+/* Consulta completa dos movimentos de hoje, sem alterar o Firestore. */
+async function ntShowTodayMovements(){
+ if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase.');
+ const today=day();
+ panel('<h2>Movimentações de hoje · '+esc(ntDate(today))+'</h2><p class="small">Consultando o Firebase...</p>');
+ const snap=await getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',today)));
+ const entries=snap.docs.map(d=>({...d.data(),id:d.id})).filter(m=>!m.anulado).sort((a,b)=>ntDaySortMovement(b,a));
+ const html=entries.map(m=>'<div class="item"><div><strong>'+esc(m.nome||m.codigo||'Material')+'</strong>'+
+  '<p class="small">'+esc(m.tipo||'MOVIMENTAÇÃO')+' · '+esc(m.codigo||'—')+
+  ' · '+esc(m.operador||m.solicitante||'')+' · '+esc(formatDate(m))+'</p></div>'+
+  '<b class="'+(Number(m.delta)<0?'red':'green')+'">'+(Number(m.delta)>0?'+':'')+
+  esc(fmt(Number(m.delta)||0))+'</b></div>').join('');
+ panel('<h2>Movimentações de hoje · '+esc(ntDate(today))+'</h2>'+
+  '<p class="small" style="margin-bottom:12px">'+entries.length+' registro(s) confirmados no Firebase.</p>'+
+  '<div class="list" style="max-height:60vh;overflow-y:auto">'+
+  (html||'<div class="small">Nenhuma movimentação hoje.</div>')+'</div>'+
+  '<div class="gap"></div><button class="btn alt" type="button" style="width:100%" data-action="close">Fechar</button>');
+}
 function inventoryPct(conferidos,total){return total?Math.round(conferidos*1000/total)/10:0}
 function inventoryBar(conferidos,total){const pct=inventoryPct(conferidos,total);return `<div class="inventory-meter" role="progressbar" aria-label="Progresso da conferência" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><div class="inventory-meter-fill" style="width:${pct}%"></div></div>`}
 function missingLocation(x){return !String(x.rua||'').trim()||!String(x.posicao||'').trim()}
@@ -677,7 +699,7 @@ function closeView(){
  ntCenterCard('Recebimento de Materiais','Consulta das entradas registradas em Movimentar, por fornecedor, PC e nota fiscal.','Automático · leitura',button('nt-receipt-pdf','PDF do dia')+button('nt-receipt-history','Histórico / Editar','alt'))+
  ntCenterCard('Produção de Máquinas','Código, produto, unidade, quantidade produzida e lote/OP.','Preenchimento manual',button('nt-production-new','Registrar produção')+button('nt-production-pdf','PDF do dia','alt')+button('nt-production-history','Histórico / Editar','ghost'))+
  '</div><div class="nt-rc-group">Gestão e inventário</div><div class="nt-rc-grid">'+
- ntCenterCard('Central de Inteligência do Estoque','Gráficos, rankings, consumo, estoque mínimo, saldos e valores. Analise períodos de 1, 7, 30 ou 90 dias.','Automático · leitura',button('nt-intelligence-open','Abrir painel inteligente'))+
+ ntCenterCard('Central de Inteligência do Estoque','Gráficos, rankings, consumo, estoque mínimo, saldos e valores. Analise períodos de 1, 7, 30 ou 90 dias.','Automático · leitura',button('nt-intelligence-open','Abrir painel inteligente')+button('nt-intelligence-pdf','PDF diário','alt'))+
  ntCenterCard('Inventário Geral','Materiais, código, rua, posição, categoria, medida, saldos e valores.','Automático',button('print-full-inventory','Estoque completo · PDF')+button('csv-stock','Exportar CSV','alt'))+
  '</div><div class="nt-rc-note"><strong>Segurança dos dados</strong><p>Gerar PDFs não altera o estoque. Recebimento e Produção geram registros administrativos independentes; entradas e saídas reais são feitas em Movimentar.</p></div>'+
  '<div class="nt-rc-lines"><details><summary>Histórico de movimentações em '+date+'</summary><p class="small">Os relatórios automáticos consultam registros atuais do servidor e preservam os saldos oficiais.</p>'+button('csv-history','Histórico do dia · CSV','ghost')+'</details></div>';
@@ -1608,10 +1630,10 @@ async function ntManualLoad(action){
  return ntManualApplyEdits(original,corrections.docs.map(d=>({...d.data(),numero:d.id})))
   .sort((a,b)=>String(b.criadoEmLocal||'').localeCompare(String(a.criadoEmLocal||'')));
 }
-function ntReceiptReport(records,date){
+function ntReceiptReport(records,date,receiptRows=[]){
  // MESMO gerador A4 paisagem usado pela seção de Recebimento no Relatório Geral.
  const marker='__NT_RECEBIMENTO_RODAPE__';
- const pages=ntGeneralReceiptPages(records,date,marker);
+ const pages=ntGeneralReceiptPagesAudited(records,receiptRows,date,marker);
  if(!pages.length){
   pages.push('<section class="page landscape nt-general-receipt">'+
    ntTop('RECEBIMENTO DE MATERIAIS','Consolidado diário · entregas identificadas por fornecedor, nota e pedido.',date)+
@@ -1633,10 +1655,11 @@ async function ntManualPDF(kind,single=null){
  if(!popup){notice('Permita pop-ups para visualizar o relatório.',true);return}
  popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:26px">Consultando registros no Firebase...</body></html>');popup.document.close();
  try{
-  const found=single?[single]:await ntManualLoad(action);
+  const model=single?null:await ntGeneralDayFetch(selected);
+  const found=single?[single]:(type==='receipt'?model.receipts:model.production);
   const records=single?found:found.filter(r=>(type==='receipt'?r.dataRecebimento:r.dataProducao)===selected);
   const date=single?(type==='receipt'?single.dataRecebimento:single.dataProducao):selected;
-  popup.document.open();popup.document.write(type==='receipt'?ntReceiptReport(records,date):ntProductionReport(records,date));popup.document.close();
+  popup.document.open();popup.document.write(type==='receipt'?ntReceiptReport(records,date,model?.receiptRows||[]):ntProductionReport(records,date));popup.document.close();
  }catch(e){
   popup.document.open();popup.document.write('<!doctype html><html><meta charset="utf-8"><body><h2>Consulta indisponível</h2><p>Não foi possível carregar os registros do servidor. Não use dados desatualizados.</p></body></html>');popup.document.close();notice(e.message||'Erro de consulta',true);
  }
@@ -2210,6 +2233,18 @@ function ntGeneralReceiptPages(records,date,marker){
  return pages;
 }
 
+
+function ntGeneralReceiptPagesAudited(records,receiptRows,date,marker){
+ const pages=ntGeneralReceiptPages(records,date,marker);
+ const unlinked=(receiptRows||[]).filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO'&&!x.entradaConfirmada).length;
+ if(unlinked&&pages.length){
+  const note='<p class="nt-rx-footnote" style="margin-top:3mm;color:#8b5a32"><b>Conferência de vínculo:</b> '+
+   unlinked+' linha(s) documental(is) não puderam ser vinculadas individualmente à movimentação de entrada. '+
+   'Confira o histórico; quantidades iguais não comprovam o vínculo com a NF.</p>';
+  const last=pages.length-1;pages[last]=pages[last].replace(marker,note+marker);
+ }
+ return pages;
+}
 /* Os relatórios individuais e a compilação diária compartilham estas seções.
    Alterações visuais futuras devem ser feitas aqui, evitando modelos divergentes. */
 function ntGeneralProductionPages(machineRows,date,marker){
@@ -2547,6 +2582,24 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
  return pages;
 }
 
+
+function ntDailyIntelligenceIndividualPDF(model){
+ const marker='__NT_INTELIGENCIA_INDIVIDUAL_RODAPE__';
+ const pages=ntGeneralDailyIntelligencePages(model,model.date,marker);
+ return ntHtml('Inteligência do Estoque · '+ntDate(model.date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
+}
+async function ntDailyIntelligenceIndividualOpen(){
+ const selected=dateFilter,popup=window.open('','_blank');
+ if(!popup){notice('Permita pop-ups para gerar o PDF da inteligência.',true);return}
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:25px">Consultando Inteligência do Estoque...</body></html>');popup.document.close();
+ try{
+  const model=await ntGeneralDayFetch(selected);
+  popup.document.open();popup.document.write(ntDailyIntelligenceIndividualPDF(model));popup.document.close();
+ }catch(e){
+  popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:25px">Consulta ao Firebase indisponível.</body></html>');popup.document.close();
+  notice('Inteligência do Estoque: '+String(e.message||e),true);
+ }
+}
 /* Reposição: páginas equivalentes ao PDF individual; somente documentos
    efetivamente emitidos no histórico na data local do relatório. */
 function ntGeneralReposPages(repos,date,marker,catalog,consultadoEm){
@@ -2631,21 +2684,11 @@ function ntGeneralDayPDF(model){
  // A conferência por código segue disponível no Excel, sem duplicar no PDF.
  const receiptDocs=model.receipts;
  if(receiptDocs.length){
-  const receiptPages=ntGeneralReceiptPages(receiptDocs,date,marker);
-  // Havendo vínculo não confirmado, avisar sem deduzir que houve entrada adicional.
-  const unlinked=model.receiptRows.filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO'&&!x.entradaConfirmada).length;
-  if(unlinked&&receiptPages.length){
-   const note='<p class="nt-rx-footnote" style="margin-top:3mm;color:#8b5a32"><b>Conferência de vínculo:</b> '+
-    unlinked+' linha(s) documental(is) não puderam ser vinculadas individualmente à movimentação de entrada. '+
-    'Confira o histórico; quantidades iguais não comprovam o vínculo com a NF.</p>';
-   const last=receiptPages.length-1;
-   receiptPages[last]=receiptPages[last].replace(marker,note+marker);
-  }
-  pages.push(...receiptPages);
+  pages.push(...ntGeneralReceiptPagesAudited(receiptDocs,model.receiptRows,date,marker));
  }
  if(model.repos?.length)pages.push(...ntGeneralReposPages(model.repos,date,marker,model.materialCatalog,model.catalogConsultedAt));
  if(model.stockRows?.length)pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
- if(model.stockRows?.length||model.requests?.length)pages.push(...ntGeneralDailyIntelligencePages(model,date,marker));
+ if(model.stockRows?.length||model.requests?.length||model.receipts?.length)pages.push(...ntGeneralDailyIntelligencePages(model,date,marker));
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 
@@ -2929,7 +2972,7 @@ async function openQr(target){
 }
 
 async function handleActions(e){const act=e.target.closest('[data-action]');if(!act)return;const a=act.dataset.action;try{if(a==='nt-requests-pdf'){await ntRequestsIndividualOpen();return}if(a==='nt-saldos-pdf'){await ntSaldosIndividualOpen();return}
-if(a==='nt-geral-pdf'){ntGeneralDayOpenPDF();return}if(a==='nt-geral-excel'){await ntGeneralDayOpenExcel();return}
+if(a==='nt-geral-pdf'){ntGeneralDayOpenPDF();return}if(a==='nt-intelligence-pdf'){await ntDailyIntelligenceIndividualOpen();return}if(a==='nt-geral-excel'){await ntGeneralDayOpenExcel();return}
 if(a==='nt-repos-suggest'){ntReposSuggest();return}
 if(a==='nt-receipt-new'){await ntReceiptNew();return}if(a==='nt-receipt-mode'){ntReceiptCapture();ntReceiptManualMode=act.dataset.mode==='unknown';draw();return}
 if(a==='nt-receipt-add'){ntReceiptAdd();return}
@@ -2947,7 +2990,7 @@ if(a==='nt-manual-record'){await ntManualRecord(act.dataset.kind,act.dataset.cod
 if(a==='nt-manual-edit'){await ntManualEditStart(act.dataset.kind,act.dataset.code);return}
 if(a==='nt-manual-edit-save'){await ntManualEditSave();return}
 if(a==='nt-manual-edit-cancel'){await ntManualHistory(ntManualEditDraft?.type||'receipt');return}
-if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
+if(a==='nt-today-movements'){await ntShowTodayMovements();return}if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
 if(a==='nt-manager-month'){await ntManagerOpen('month');return}
 if(a==='nt-repos-new'){await ntReposNew();return}if(a==='nt-repos-all'){ntReposBatch('all');return}if(a==='nt-repos-visible'){ntReposBatch('visible');return}if(a==='nt-repos-clear'){ntReposBatch('clear');return}if(a==='nt-repos-preview'){ntReposPreview();return}if(a==='nt-repos-issue'){await ntReposIssue();return}if(a==='nt-repos-history'){await ntReposHistory();return}if(a==='nt-repos-open-history'){ntReposOpenHistory(act.dataset.code);return}
 if(a==='nt-repos-edit'){ntReposEdit(act.dataset.code);return}
