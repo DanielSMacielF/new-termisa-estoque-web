@@ -120,11 +120,13 @@
 .nt-rc-lines{margin-top:12px;border-top:1px solid #33536e;padding-top:12px}.nt-rc-lines details{border-bottom:1px solid #33536e;padding:9px 0}.nt-rc-lines summary{cursor:pointer;font-weight:700}
 @media(max-width:560px){.nt-rc-grid{grid-template-columns:1fr}.nt-rc-card{padding:14px}.nt-rc-date{grid-template-columns:1fr}}
 
-.mark{background:linear-gradient(145deg,#123d66,#071d33);border:1px solid #258f9e;overflow:hidden}
-.mark svg{display:block;width:100%;height:100%}
-#moveForm.card{margin-top:14px}
+/* Logomarca original New Termisa: apenas a área da marca; interface preservada. */
+.mark{display:flex;align-items:center;justify-content:center;background:linear-gradient(120deg,#17416a,#102b48);border:1px solid #33536e;overflow:hidden;width:176px;height:60px;min-width:176px;padding:7px;border-radius:18px}
+.mark img{display:block;width:100%;height:100%;object-fit:contain}
+/* Distância idêntica da borda aos três botões de movimentação. */
+#moveForm.card,.nt-receipt-movement{margin-top:14px}
 </style></head>
-<body><div class="shell"><header><div class="brand"><div class="mark" role="img" aria-label="New Termisa"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="100" height="100" rx="28" fill="#102e50"/><text x="8" y="71" font-family="Inter,Arial,sans-serif" font-size="63" font-weight="900" letter-spacing="-6" stroke="#fff" stroke-width="5" stroke-linejoin="round" paint-order="stroke" fill="#174857">n</text><text x="45" y="71" font-family="Inter,Arial,sans-serif" font-size="63" font-weight="900" font-style="italic" stroke="#fff" stroke-width="5" stroke-linejoin="round" paint-order="stroke" fill="#229fa2">T</text></svg></div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento" aria-label="Central de Relatórios"><span>▣</span>Relatórios</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
+<body><div class="shell"><header><div class="brand"><div class="mark"><img id="ntHeaderLogo" alt="New Termisa" width="162" height="46"></div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento" aria-label="Central de Relatórios"><span>▣</span>Relatórios</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
 <script>
 // Diagnostic if the CDN cannot initialize: never mistake a frozen page for a working stock system.
 window.addEventListener('error',function(e){
@@ -1382,7 +1384,7 @@ function ntReceiptView(){
   '<div class="field"><label for="nrUnknownUnit">Unidade de medida</label>'+
   '<input type="text" id="nrUnknownUnit" maxlength="12" placeholder="UN, KG, M, L..." autocomplete="off"></div>'+
   '<div class="nt-rc-note" style="margin:0 0 12px">Produtos ainda não cadastrados ficam registrados como <b>pendentes de cadastro</b>. O sistema não inventa código nem altera o estoque desses produtos.</div>';
- return '<section class="card" style="margin-top:13px">'+
+ return '<section class="card nt-receipt-movement">'+
   '<h2>Entrada · Recebimento de materiais</h2>'+
   '<p class="small" style="margin:7px 0 14px">Informe os dados da entrega. Ao confirmar, materiais cadastrados entram no estoque e o documento de recebimento é registrado junto, sem lançamento duplicado.</p>'+
   '<div class="field"><label for="nrDate">Data do recebimento (hoje)</label><input type="date" id="nrDate" value="'+esc(d.dataRecebimento)+'" readonly></div>'+
@@ -2249,8 +2251,17 @@ function ntGeneralReceiptPagesAudited(records,receiptRows,date,marker){
    Alterações visuais futuras devem ser feitas aqui, evitando modelos divergentes. */
 function ntGeneralProductionPages(machineRows,date,marker){
  const pages=[],empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
- for(let i=0,n=Math.max(1,Math.ceil(machineRows.length/10));i<n;i++){
-  const part=machineRows.slice(i*10,(i+1)*10);
+ // Ordem operacional estável por código; usada por ambos os PDFs, sem modificar os registros.
+ const ordered=[...(Array.isArray(machineRows)?machineRows:[])].sort((a,b)=>{
+  const codeA=String(a.codigoMaquina||'').trim(),codeB=String(b.codigoMaquina||'').trim();
+  const missingA=!codeA||codeA==='—',missingB=!codeB||codeB==='—';
+  if(missingA!==missingB)return missingA?1:-1;
+  return codeA.localeCompare(codeB,'pt-BR',{numeric:true,sensitivity:'base'})||
+   String(a.lote||'').localeCompare(String(b.lote||''),'pt-BR',{numeric:true})||
+   String(a.produto||'').localeCompare(String(b.produto||''),'pt-BR');
+ });
+ for(let i=0,n=Math.max(1,Math.ceil(ordered.length/10));i<n;i++){
+  const part=ordered.slice(i*10,(i+1)*10);
   const completed=part.reduce((sum,x)=>sum+x.concluida,0);
   const distinct=new Set(part.map(x=>x.codigoMaquina==='—'?x.produto:x.codigoMaquina)).size;
   const lots=new Set(part.map(x=>x.lote).filter(x=>x!=='—')).size;
@@ -3013,5 +3024,7 @@ document.addEventListener('input',e=>{if(e.target.id==='ntReposSearch'){ntReposR
 document.addEventListener('change',async e=>{if(e.target.id==='importMeasuresFile'){const file=e.target.files?.[0];try{await importOnlyMeasures(file)}catch(err){notice(err.message||'Falha ao importar unidades.',true)}finally{e.target.value=''}return}if(e.target.matches('[data-repos-check]')){ntReposToggle(e.target.dataset.reposCheck,e.target.checked);return}if(e.target.matches('[data-label-toggle]')){const code=e.target.dataset.labelToggle;if(e.target.checked)ntLabelCodes.add(code);else ntLabelCodes.delete(code);ntRefreshLabelPanel();return}if(e.target.id==='statusSelect'){filterPanelOpen=true;const v=e.target.value;if(['todos','pendentes','conferidos','sem-localizacao','estoque-baixo'].includes(v)){materialStatus=v;visibleMaterials=100;draw()}return}if(e.target.id==='streetSelect'){filterPanelOpen=true;const v=e.target.value;if(['todas','sem',...'ABCDEFGH'].includes(v)){materialStreet=v;visibleMaterials=100;draw()}return}if(e.target.id==='sortSelect'){filterPanelOpen=true;const v=e.target.value;if(['nome','localizacao'].includes(v)){materialSort=v;visibleMaterials=100;draw()}return}if(e.target.id==='moveCode'){const m=material(e.target.value);if($('stockHint'))$('stockHint').textContent=m?`Saldo: ${fmt(m.quantidade)} ${m.unidade} | ${m.rua||'Sem rua'}-${m.posicao||'?'} | ${m.conferido?'Conferido':'PENDENTE DE CONFERÊNCIA'}`:'Selecione o material.'}if(e.target.id==='ntManagerMonth'){if(/^\d{4}-\d{2}$/.test(e.target.value))ntManagerMonth=e.target.value;return}if(e.target.id==='dateInput'){dateFilter=e.target.value;bindDay();draw()}});
 $('arquivoCatalogo').addEventListener('change',async e=>{try{isReady();await importCatalog(e.target.files?.[0])}catch(err){notice(err.message,true)}finally{e.target.value=''}});
 window.addEventListener('online',()=>{serverReady=false;status('● Revalidando Firebase');if(user){for(const f of unsubs)f();bindListeners()}});window.addEventListener('offline',()=>{serverReady=false;status('● Sem internet',false,true)});
+const ntHeaderLogo=document.getElementById('ntHeaderLogo');
+if(ntHeaderLogo)ntHeaderLogo.src=NT_LOGO;
 load();
 </script><script defer src="./calculadora.js?v=20261027d"></script></body></html>
