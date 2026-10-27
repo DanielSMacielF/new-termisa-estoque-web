@@ -716,7 +716,44 @@ function ntReportCSS(){return `<style>
   vertical-align:middle!important;
  }
  @media print{html,body{background:white} .toolbar{display:none!important} .page{box-shadow:none!important;margin:0!important;height:auto;print-color-adjust:exact;-webkit-print-color-adjust:exact} }
- </style>`}
+ 
+/* Painel executivo exclusivamente na última folha do Relatório Geral do Dia */
+.nt-general-stock-intel .heading{margin-bottom:1.4mm}
+.nt-general-stock-intel .desc{margin-bottom:2mm}
+.nt-general-stock-intel .nt-di-eyebrow{font-size:7.6pt;letter-spacing:.7px;color:#148b93;font-weight:700;margin:1.5mm 0 1.8mm}
+.nt-general-stock-intel .nt-di-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3mm;margin:0 0 4mm}
+.nt-general-stock-intel .nt-di-metric{border-left:.9mm solid #1fa1a6;background:#e8f3f4;border-radius:2.5mm;padding:2.4mm 3.3mm;min-height:18.7mm}
+.nt-general-stock-intel .nt-di-metric small{font-size:7.5pt;color:#426573;display:block;font-weight:700;letter-spacing:.15px}
+.nt-general-stock-intel .nt-di-metric strong{color:#106f7b;display:block;margin-top:1mm;font-size:17pt;font-weight:700}
+.nt-general-stock-intel .nt-di-chartgrid{display:grid;grid-template-columns:minmax(0,1.17fr) minmax(0,.83fr);gap:3.3mm;align-items:stretch}
+.nt-general-stock-intel .nt-di-panel{background:#f3f8f9;border:1px solid #cbdee2;border-radius:3mm;padding:3.3mm 3.8mm 2.6mm;min-height:74mm}
+.nt-general-stock-intel .nt-di-panel h2{margin:0;color:#194957;font-size:10.1pt;letter-spacing:.15px;font-weight:700}
+.nt-general-stock-intel .nt-di-panel>p{margin:1mm 0 2.7mm;color:#496c77;font-size:7.2pt}
+.nt-general-stock-intel .nt-di-bars{display:grid;gap:1.3mm}
+.nt-general-stock-intel .nt-di-barrow{display:grid;grid-template-columns:minmax(0,45%) minmax(0,1fr) 9mm;gap:2.4mm;align-items:center;min-height:8.5mm}
+.nt-general-stock-intel .nt-di-barlabel{min-width:0}
+.nt-general-stock-intel .nt-di-barlabel b{color:#214956;font-size:7.2pt;line-height:1.18;display:block;overflow-wrap:anywhere;max-height:7.5mm;overflow:hidden;font-weight:600}
+.nt-general-stock-intel .nt-di-barlabel small{display:block;color:#607781;font-size:6.7pt;margin-top:.5mm;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.nt-general-stock-intel .nt-di-track{display:block;width:100%;height:3.6mm;border-radius:2mm;background:#dbe7eb;overflow:hidden}
+.nt-general-stock-intel .nt-di-track span{display:block;height:100%;background:linear-gradient(90deg,#178f97,#51bcc3);border-radius:2mm}
+.nt-general-stock-intel .nt-di-barrow>strong{font-size:9.6pt;color:#144c5d;text-align:right}
+.nt-general-stock-intel .nt-di-ringbox{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:2mm}
+.nt-general-stock-intel .nt-di-donut{width:48mm;height:48mm;max-width:100%;display:block;margin:auto}
+.nt-general-stock-intel .nt-di-legend{display:grid;gap:3.8mm;min-width:0}
+.nt-general-stock-intel .nt-di-legendrow{display:grid;grid-template-columns:3mm minmax(0,1fr) 8mm;gap:2mm;align-items:center;font-size:7.7pt;color:#214957}
+.nt-general-stock-intel .nt-di-legendrow i{display:block;width:3mm;height:3mm;border-radius:50%}
+.nt-general-stock-intel .nt-di-legendrow b{text-align:right;font-size:9pt}
+.nt-general-stock-intel .nt-di-usage{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1mm 3mm;align-items:center;border-top:.3mm solid #d6e4e7;padding-top:2.5mm;margin-top:1mm;color:#4b6d79;font-size:7.8pt}
+.nt-general-stock-intel .nt-di-usage b{color:#194957;font-size:8.2pt}
+.nt-general-stock-intel .nt-di-insighthead{font-size:9.5pt;letter-spacing:.15px;color:#194957;margin:5mm 0 2mm;font-weight:700}
+.nt-general-stock-intel .nt-di-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3mm}
+.nt-general-stock-intel .nt-di-insight{border-left:.9mm solid #36a8ab;background:#eaf4f4;border-radius:2.5mm;padding:2.5mm 3.2mm;min-height:22mm}
+.nt-general-stock-intel .nt-di-insight small{display:block;font-size:7pt;font-weight:700;letter-spacing:.2px;color:#156977}
+.nt-general-stock-intel .nt-di-insight p{font-size:8.1pt;line-height:1.35;color:#244957;margin:1.5mm 0 0;overflow-wrap:anywhere}
+.nt-general-stock-intel .nt-di-footnote{font-size:7pt;line-height:1.3;color:#56747d;border-top:.25mm solid #dbe8ea;padding-top:2.3mm;margin-top:3.1mm}
+.nt-general-stock-intel .nt-di-empty{color:#56717c;font-size:8.2pt;padding:9mm 2mm;text-align:center}
+@media print{.nt-general-stock-intel .nt-di-track span,.nt-general-stock-intel .nt-di-metric,.nt-general-stock-intel .nt-di-insight{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+</style>`}
 function ntTop(title,subtitle,date,compact=false){return `<div class="rhead"><img src="${NT_LOGO}" alt="New Termisa"><div class="company"><b>${compact?'FECHAMENTO DIÁRIO':'ALMOXARIFADO / NEW TERMISA'}</b>${ntPlain(ntDate(date))}</div></div><div class="line"></div><h1 class="heading">${ntPlain(title)}</h1><p class="desc">${ntPlain(subtitle)}</p>`}
 function ntFooter(num,total){return `<div class="footer"><span>NEW TERMISA &nbsp;|&nbsp; ALMOXARIFADO</span><span>PÁGINA ${num} DE ${total}</span></div>`}
 function ntTable(heads,widths,rows){return `<table><colgroup>${widths.map(w=>`<col style="width:${w}%">`).join('')}</colgroup><thead><tr>${heads.map((x,i)=>`<th class="${i===4&&heads.length===7?'right':''}">${ntPlain(x)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(row=>`<tr>${row.map((v,i)=>`<td class="${i===1?'code':i===2?'name':i===4&&heads.length===7?'qty':''}">${ntPlain(v)}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${heads.length}" class="empty">Nenhum registro encontrado para esta data.</td></tr>`}</tbody></table>`}
@@ -1961,6 +1998,93 @@ async function ntRequestsIndividualOpen(){
   notice(e.message||'Falha ao consultar pedidos',true);
  }
 }
+
+/* Inteligência do estoque no FINAL do relatório diário.
+   Usa apenas informações já lidas no Firebase e movimentos do DIA selecionado.
+   Barras CSS + gráfico SVG sem dependências externas, para impressão em PDF. */
+function ntGeneralDailyIntelligencePage(model,date,marker){
+ const requests=Array.isArray(model.requests)?model.requests:[];
+ const stockMap=new Map((model.stockRows||[]).map(x=>[String(x.codigo),x]));
+ const used=new Map();
+ for(const mv of requests){
+  const code=String(mv.codigo||'');
+  if(!code)continue;
+  const prev=used.get(code)||{codigo:code,nome:String(mv.nome||stockMap.get(code)?.nome||code),saidas:0,quantidade:0,unidade:String(stockMap.get(code)?.unidade||'—')};
+  prev.saidas+=1;
+  prev.quantidade=rnd(prev.quantidade+ntQty(mv));
+  used.set(code,prev);
+ }
+ const count=requests.length;
+ const ranked=[...used.values()].sort((a,b)=>b.saidas-a.saidas||a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
+ const single=ranked.filter(x=>x.saidas===1).length;
+ const multiple=ranked.filter(x=>x.saidas>1).length;
+ const entries=Number(model.totals?.stockEntries)||0;
+ const returns=Number(model.totals?.returnLines)||0;
+ const all=count+entries+returns;
+ const leader=ranked[0];
+ const topShare=count&&leader?leader.saidas*100/count:0;
+ const leaderText=leader?leader.nome:'—';
+ const donuts=[
+  {label:'Retiradas',value:count,color:'#12888f'},
+  {label:'Entradas',value:entries,color:'#3c86c4'},
+  {label:'Devoluções',value:returns,color:'#e1a457'}
+ ];
+ const r=35,circ=2*Math.PI*r;
+ let offset=0;
+ const arcs=donuts.filter(x=>x.value>0).map(x=>{
+  const portion=x.value/all;
+  const length=circ*portion;
+  const html='<circle cx="50" cy="50" r="'+r+'" fill="none" stroke="'+x.color+'" stroke-width="13" transform="rotate(-90 50 50)" stroke-dasharray="'+length.toFixed(3)+' '+(circ-length).toFixed(3)+'" stroke-dashoffset="'+(-offset).toFixed(3)+'"/>';
+  offset+=length;
+  return html;
+ }).join('');
+ const donutSvg='<svg class="nt-di-donut" viewBox="0 0 100 100" role="img" aria-label="Gráfico da distribuição de retiradas, entradas e devoluções do dia">'+
+  '<circle cx="50" cy="50" r="'+r+'" fill="none" stroke="#dce8eb" stroke-width="13"/>'+arcs+
+  '<text x="50" y="48" text-anchor="middle" font-size="18" font-weight="700" fill="#184755">'+all+'</text>'+
+  '<text x="50" y="60" text-anchor="middle" font-size="7.5" fill="#557482">MOVIMENTOS</text></svg>';
+ const bars=ranked.slice(0,6).map((x,i)=>{
+  const pct=leader?100*x.saidas/leader.saidas:0;
+  return '<div class="nt-di-barrow"><div class="nt-di-barlabel"><b>'+ntPlain(x.nome)+'</b><small>'+ntPlain(x.codigo)+' · '+ntPlain(fmt(x.quantidade))+' '+ntPlain(x.unidade)+'</small></div>'+
+   '<div class="nt-di-track"><span style="width:'+pct.toFixed(1)+'%"></span></div><strong>'+x.saidas+'</strong></div>';
+ }).join('');
+ const barChart=ranked.length?bars:'<div class="nt-di-empty">Nenhuma retirada operacional registrada neste dia.</div>';
+ const legends=donuts.map(x=>'<div class="nt-di-legendrow"><i style="background:'+x.color+'"></i><span>'+ntPlain(x.label)+'</span><b>'+x.value+'</b></div>').join('');
+ const metricRows=[
+  ['RETIRADAS DO DIA',String(count)],
+  ['MATERIAIS DISTINTOS',String(ranked.length)],
+  ['ENTRADAS REGISTRADAS',String(entries)],
+  ['DEVOLUÇÕES REGISTRADAS',String(returns)]
+ ];
+ const metrics='<div class="nt-di-metrics">'+metricRows.map(x=>'<div class="nt-di-metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
+ const diagnostics=[
+  {tag:'CONCENTRAÇÃO',value:leader
+   ?ntPlain(leaderText)+' teve '+leader.saidas+' '+(leader.saidas===1?'retirada':'retiradas')+' ('+ntPlain(topShare.toFixed(1).replace('.',','))+'% das saídas registradas).'
+   :'Nenhuma retirada para analisar nesta data.'},
+  {tag:'PADRÃO DE USO',value:count
+   ?single+' material(is) retirado(s) uma única vez; '+multiple+' com duas ou mais retiradas no dia.'
+   :'Não há histórico de consumo para comparar neste dia.'},
+  {tag:'LEITURA OPERACIONAL',value:all
+   ?count+' retirada(s), '+entries+' entrada(s) e '+returns+' devolução(ões) no dia. Frequências não representam quantidades somáveis.'
+   :'Nenhuma entrada, saída ou devolução operacional registrada nesta data.'}
+ ];
+ const insights='<div class="nt-di-insights">'+diagnostics.map(x=>
+  '<div class="nt-di-insight"><small>'+x.tag+'</small><p>'+x.value+'</p></div>').join('')+'</div>';
+ const html=
+  '<div class="nt-di-eyebrow">PAINEL EXECUTIVO · '+ntPlain(ntDate(date))+'</div>'+
+  metrics+
+  '<div class="nt-di-chartgrid">'+
+   '<div class="nt-di-panel"><h2>RANKING DE CONSUMO DO DIA</h2><p>Materiais com mais operações de saída · Top 6</p><div class="nt-di-bars">'+barChart+'</div></div>'+
+   '<div class="nt-di-panel"><h2>TIPOS DE MOVIMENTAÇÃO</h2><p>Participação das operações registradas na data</p><div class="nt-di-ringbox">'+donutSvg+'<div class="nt-di-legend">'+legends+'</div></div><div class="nt-di-usage"><span>1 retirada</span><b>'+single+' itens</b><span>2 ou mais</span><b>'+multiple+' itens</b></div></div>'+
+  '</div>'+
+  '<div class="nt-di-insighthead">DIAGNÓSTICOS AUTOMÁTICOS DO DIA</div>'+insights+
+  '<div class="nt-di-footnote">Fonte: movimentações operacionais da data selecionada, consultadas no Firebase. '+
+  'Ranking pela quantidade de operações, não por volume; cada material mantém sua unidade de medida. '+
+  'Análises de 7, 30 e 90 dias são exclusivas da Central de Inteligência do Estoque.</div>';
+ return '<section class="page landscape nt-general-stock-intel">'+
+  ntTop('INTELIGÊNCIA DO ESTOQUE','Gráficos, indicadores e análises automáticas exclusivamente do dia.',date)+
+  html+marker+'</section>';
+}
+
 function ntGeneralDayPDF(model){
  const date=model.date,pages=[],marker='__NT_GERAL_RODAPE__';
  const empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
@@ -1985,25 +2109,7 @@ function ntGeneralDayPDF(model){
  '<p class="note">Documento gerado com consultas novas ao servidor; registros incluídos depois desta emissão não aparecem neste arquivo.</p>';
  page('RELATÓRIO GERAL DO DIA','Resumo executivo · Produção, pedidos, entregas e estoque.',blocks+readout,true,'nt-general-summary');
 
- // Seção de inteligência apenas para retiradas da data selecionada.
- const ntDayUse=new Map();
- for(const mv of model.requests){
-  const code=String(mv.codigo||''),row=ntDayUse.get(code)||{code,nome:String(mv.nome||code||'—'),vezes:0,qtd:0,un:'—'};
-  row.vezes++;row.qtd+=ntQty(mv);
-  row.un=model.stockRows.find(x=>String(x.codigo)===code)?.unidade||'—';
-  ntDayUse.set(code,row);
- }
- const ntDailyRank=[...ntDayUse.values()].sort((a,b)=>b.vezes-a.vezes||a.nome.localeCompare(b.nome,'pt-BR'));
- const ntTopDaily=ntDailyRank.slice(0,8),ntLeastDaily=[...ntDailyRank].sort((a,b)=>a.vezes-b.vezes||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,5);
- const intelBody='<div class="sectionline"><span>INTELIGÊNCIA DO ESTOQUE · DIA '+ntPlain(ntDate(date))+'</span></div>'+
- '<div class="metrics"><div class="metric"><small>RETIRADAS DO DIA</small><strong>'+model.requests.length+'</strong></div>'+
- '<div class="metric"><small>MATERIAIS DISTINTOS</small><strong>'+ntDailyRank.length+'</strong></div></div>'+
- '<div class="sectionline"><span>MAIOR FREQUÊNCIA DE RETIRADA</span></div>'+
- (ntTopDaily.length?ntTable(['CÓDIGO','MATERIAL','RETIRADAS','QUANTIDADE','UN.'],[15,42,14,15,9],ntTopDaily.map(x=>[x.code,x.nome,String(x.vezes),fmt(x.qtd),x.un])):empty('Nenhuma retirada confirmada neste dia.'))+
- '<div class="sectionline"><span>MENOR FREQUÊNCIA ENTRE MATERIAIS RETIRADOS</span></div>'+
- (ntLeastDaily.length?ntTable(['CÓDIGO','MATERIAL','RETIRADAS'],[15,65,15],ntLeastDaily.map(x=>[x.code,x.nome,String(x.vezes)])):empty('Não há dados de consumo para comparar.'))+
- '<p class="note">Ranking por frequência de retirada; não mistura kg, metros e unidades. Apenas o dia selecionado. Consultas de 7, 30 e 90 dias ficam na Central de Inteligência do Estoque.</p>';
- page('INTELIGÊNCIA DO ESTOQUE','Resumo de consumo exclusivamente diário.',intelBody,true,'nt-general-stock-intel');
+ // A inteligência diária é incluída somente na última folha, após os saldos.
  pages.push(...ntGeneralProductionPages(model.machineRows,date,marker));
  pages.push(...ntGeneralRequestsPages(model,date,marker));
  // Uma única seção com o MESMO design do relatório próprio de Recebimento.
@@ -2024,6 +2130,7 @@ function ntGeneralDayPDF(model){
   pages.push(...receiptPages);
  }
  pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
+ pages.push(ntGeneralDailyIntelligencePage(model,date,marker));
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 
