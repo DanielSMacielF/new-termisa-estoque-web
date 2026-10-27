@@ -476,21 +476,59 @@ function ntReposBuild(){
  });
  return picked.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
 }
-function ntReposReportHtml(snapshot){
+
+/* Reposição: dados atuais do cadastro, somente leitura.
+   O histórico da solicitação não é sobrescrito quando o PDF é consultado. */
+function ntReposActualByCode(code,catalog){
+ const key=String(code??'');
+ const source=catalog instanceof Map?catalog.get(key):
+  (Array.isArray(catalog)?catalog.find(m=>String(m.codigo??'')===key):null);
+ if(!source)return {encontrado:false,unidade:'—',saldo:null};
+ const measure=String(source.unidadeMedida??'').trim();
+ const raw=source.quantidade;
+ const saldo=raw!==null&&raw!==undefined&&raw!==''&&Number.isFinite(Number(raw))?Number(raw):null;
+ return {encontrado:true,unidade:measure||'—',saldo};
+}
+async function ntReposCatalogFromServer(){
+ if(!user||!serverReady||!navigator.onLine)throw Error('É preciso estar conectado ao Firebase para consultar os saldos atuais.');
+ const snap=await getDocsFromServer(collection(db,'nt_web_materiais'));
+ if(snap.metadata.fromCache||snap.metadata.hasPendingWrites)throw Error('A consulta do estoque não foi confirmada pelo servidor.');
+ return {materiais:snap.docs.map(d=>d.data()),consultadoEm:new Date().toISOString()};
+}
+function ntReposQueryDate(iso){
+ const date=iso?new Date(iso):new Date();
+ if(!Number.isFinite(date.getTime()))return 'Data da consulta indisponível';
+ try{return new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Fortaleza',dateStyle:'short',timeStyle:'short'}).format(date)}
+ catch(_){return 'Data da consulta indisponível'}
+}
+function ntReposShowError(popup,message){
+ if(!popup)return;
+ popup.document.open();
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Consulta não concluída</title><body style="font:16px Arial;padding:28px;color:#173b4a"><h2>Não foi possível confirmar o saldo atual</h2><p>'+ntPlain(message)+'</p><p>O relatório não foi exibido com saldos antigos para evitar informações incorretas.</p></body></html>');
+ popup.document.close();
+}
+
+function ntReposReportHtml(snapshot,catalog,consultadoEm){
  // Individual e Geral usam rigorosamente o mesmo gerador de páginas.
  const date=ntRepoLocalDay(snapshot)||day(),marker='__NT_REPOS_INDIVIDUAL_RODAPE__';
- const pages=ntGeneralReposPages([snapshot],date,marker);
+ const pages=ntGeneralReposPages([snapshot],date,marker,catalog,consultadoEm);
  if(!pages.length)pages.push('<section class="page landscape nt-general-repos">'+ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais para análise e aquisição.',date)+'<p class="note">Nenhum material selecionado para reposição.</p>'+marker+'</section>');
  return ntHtml('Reposição de materiais · New Termisa',pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
-function ntReposOpenPDF(snapshot,popup){
+function ntReposOpenPDF(snapshot,popup,catalog,consultadoEm){
  if(!popup){notice('O navegador bloqueou a janela de relatório. Permita pop-ups.',true);return false}
- popup.document.open();popup.document.write(ntReposReportHtml(snapshot));popup.document.close();return true;
+ popup.document.open();popup.document.write(ntReposReportHtml(snapshot,catalog,consultadoEm));popup.document.close();return true;
 }
-function ntReposPreview(){
+async function ntReposPreview(){
  let items;try{items=ntReposBuild()}catch(e){notice(e.message,true);return}
- const snap={itens:items,criadoEmLocal:new Date().toISOString()};
- const popup=window.open('','_blank');ntReposOpenPDF(snap,popup);
+ const popup=window.open('','_blank');
+ if(!popup){notice('Permita pop-ups para visualizar o relatório.',true);return}
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:26px">Conferindo saldos e unidades no Firebase...</body></html>');popup.document.close();
+ try{
+  const atual=await ntReposCatalogFromServer();
+  const snap={itens:items,criadoEmLocal:new Date().toISOString()};
+  ntReposOpenPDF(snap,popup,atual.materiais,atual.consultadoEm);
+ }catch(e){ntReposShowError(popup,e.message||'Falha ao consultar o estoque.');notice('Não foi possível consultar o estoque para a prévia.',true)}
 }
 async function ntReposIssue(){
  let items;try{items=ntReposBuild();isReady()}catch(e){notice(e.message,true);return}
@@ -501,8 +539,15 @@ async function ntReposIssue(){
  const data={acao:NT_REPOS_ACTION,formato:'NEW_TERMISA_REPOSICAO_V1',numero:reportRef.id,criadoEmLocal:created,criadoEm:serverTimestamp(),operador:String(user.email||''),uid:String(user.uid||''),totalItens:items.length,itens:items};
  try{
    isReady();loader(true);
+   // Consultar materiais confirmados pelo servidor antes de emitir. Não grava no catálogo.
+   const live=await ntReposCatalogFromServer();
+   const updatedItems=items.map(item=>{
+    const atual=ntReposActualByCode(item.codigo,live.materiais);
+    return {...item,unidadeMedida:atual.unidade,saldoAtual:atual.saldo};
+   });
+   data.itens=updatedItems;
    await setDoc(reportRef,data); // Uma única gravação no histórico. Nenhuma gravação no estoque.
-   ntReposOpenPDF(data,popup);
+   ntReposOpenPDF(data,popup,live.materiais,live.consultadoEm);
    notice('Relatório salvo no histórico e PDF preparado.');close();
  }catch(e){
    popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:25px"><h2>Relatório não confirmado</h2><p>Não foi possível confirmar o salvamento do relatório no Firebase. A impressão não foi liberada para evitar documento sem histórico.</p><p>Confira suas permissões de acesso ao histórico (coleção de auditoria).</p></body></html>');popup.document.close();
@@ -521,9 +566,17 @@ async function ntReposHistory(){
  }catch(e){panel(`<h2>Histórico de relatórios</h2><div class="alert">Não foi possível consultar o histórico no Firebase. Confira as permissões da coleção de auditoria.</div><p class="small">${esc(e.message||'Erro de leitura')}</p><button class="btn" data-action="close">Fechar</button>`)}
 }
 let ntReposHistoryCache=new Map();
-function ntReposOpenHistory(id){const entry=ntReposHistoryCache.get(String(id));if(!entry){notice('Relatório não encontrado no histórico. Consulte novamente.',true);return}
- const popup=window.open('','_blank');ntReposOpenPDF(entry,popup)}
-
+async function ntReposOpenHistory(id){
+ const entry=ntReposHistoryCache.get(String(id));
+ if(!entry){notice('Relatório não encontrado no histórico. Consulte novamente.',true);return}
+ const popup=window.open('','_blank');
+ if(!popup){notice('Permita pop-ups para abrir o histórico.',true);return}
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:26px">Consultando o saldo atual no Firebase...</body></html>');popup.document.close();
+ try{
+  const live=await ntReposCatalogFromServer();
+  ntReposOpenPDF(entry,popup,live.materiais,live.consultadoEm);
+ }catch(e){ntReposShowError(popup,e.message||'Falha na consulta.');notice('Não foi possível consultar o estoque atual para esse relatório.',true)}
+}
 
 let ntManagerMonth=day().slice(0,7);
 function ntCenterCard(title,description,kind,buttons){
@@ -763,6 +816,7 @@ function ntReportCSS(){return `<style>
 .nt-general-repos table{font-size:9.2pt}
 .nt-general-repos th{font-size:8.8pt}
 .nt-general-repos td{padding:2.7mm 1.4mm;line-height:1.35}
+.nt-general-repos .nt-repos-stock-date{margin:2mm 0 3mm;color:#3d606b;font-size:8.2pt;line-height:1.4}
 </style>`}
 function ntTop(title,subtitle,date,compact=false){return `<div class="rhead"><img src="${NT_LOGO}" alt="New Termisa"><div class="company"><b>${compact?'FECHAMENTO DIÁRIO':'ALMOXARIFADO / NEW TERMISA'}</b>${ntPlain(ntDate(date))}</div></div><div class="line"></div><h1 class="heading">${ntPlain(title)}</h1><p class="desc">${ntPlain(subtitle)}</p>`}
 function ntFooter(num,total){return `<div class="footer"><span>NEW TERMISA &nbsp;|&nbsp; ALMOXARIFADO</span><span>PÁGINA ${num} DE ${total}</span></div>`}
@@ -1827,7 +1881,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
  const totalMachines=machineRows.reduce((n,r)=>n+r.concluida,0);
  const totalAsked=machineRows.reduce((n,r)=>n+r.pedida,0);
  const requests=new Set(requested.map(x=>String(x.pedido||'').trim()).filter(Boolean));
- return {date,materialsCount:materials.length,machineRows,receiptRows,receipts,repos,
+ return {date,materialsCount:materials.length,materialCatalog:materials,machineRows,receiptRows,receipts,repos,
   requests:[...requested].sort(ntDaySortMovement),
   stockRows,comparisons,production,
   totals:{machines:totalMachines,machinesRequested:totalAsked,orders:requests.size,
@@ -1858,7 +1912,9 @@ async function ntGeneralDayFetch(date){
  const receipts=ntManualApplyEdits(receiptSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
  const production=ntManualApplyEdits(productionSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
  const repos=reposSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens));
- return ntGeneralDayModel(date,materials,moves,receipts,production,repos);
+ const model=ntGeneralDayModel(date,materials,moves,receipts,production,repos);
+ model.catalogConsultedAt=new Date().toISOString();
+ return model;
 }
 function ntGeneralReceiptPages(records,date,marker){
  // Layout aprovado: várias entregas no mesmo A4 quando couber; nunca omite itens.
@@ -2128,8 +2184,10 @@ function ntGeneralDailyIntelligencePage(model,date,marker){
 
 /* Reposição: páginas equivalentes ao PDF individual; somente documentos
    efetivamente emitidos no histórico na data local do relatório. */
-function ntGeneralReposPages(repos,date,marker){
+function ntGeneralReposPages(repos,date,marker,catalog,consultadoEm){
  const pages=[];
+ const byCode=new Map((Array.isArray(catalog)?catalog:[]).map(m=>[String(m.codigo??''),m]));
+ const consultedLabel=ntReposQueryDate(consultadoEm);
  for(const doc of (repos||[])){
   const rows=Array.isArray(doc.itens)?doc.itens:[];
   if(!rows.length)continue;
@@ -2147,15 +2205,17 @@ function ntGeneralReposPages(repos,date,marker){
 
     '<div><small>SOLICITADO POR</small><strong>Almoxarifado</strong></div></div>':'';
    const intro='<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO'+(first?'':' · CONTINUAÇÃO')+'</span><span>'+rows.length+' '+(rows.length===1?'ITEM':'ITENS')+'</span></div>';
-   const table=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO','QTD. A COMPRAR'],[18,42,9,12,19],part.map(x=>[
-    String(x.codigo||''),String(x.nome||''),String(x.unidadeMedida||'—'),
-    x.saldoAtual==null?'—':fmt(x.saldoAtual),
-    x.quantidadeComprar==null||x.quantidadeComprar===''?'':fmt(x.quantidadeComprar)
-   ]));
+   const table=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO ATUAL','QTD. A COMPRAR'],[18,39,9,15,19],part.map(x=>{
+    const current=ntReposActualByCode(x.codigo,byCode);
+    return [String(x.codigo||''),String(x.nome||''),current.unidade,
+     current.saldo==null?'—':fmt(current.saldo),
+     x.quantidadeComprar==null||x.quantidadeComprar===''?'':fmt(x.quantidadeComprar)];
+   }));
+   const dataNote='<p class="note nt-repos-stock-date"><b>Saldo atual e unidade:</b> consultados no Firebase em '+ntPlain(consultedLabel)+'. O saldo não representa necessariamente o saldo da data original da solicitação.</p>';
    const end=last?'<div class="sectionline"><span>ENCAMINHAMENTO</span></div>'+
     '<p class="note">Solicita-se análise para aquisição dos materiais relacionados. Quantidades em branco serão definidas pelo setor responsável. Este registro não comprova compra ou recebimento.</p>':'';
    pages.push('<section class="page landscape nt-general-repos">'+
-    ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais solicitados para análise e aquisição.',date)+intro+meta+table+end+marker+'</section>');
+    ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais solicitados para análise e aquisição.',date)+intro+meta+table+dataNote+end+marker+'</section>');
   });
  }
  return pages;
@@ -2217,7 +2277,7 @@ function ntGeneralDayPDF(model){
   }
   pages.push(...receiptPages);
  }
- if(model.repos?.length)pages.push(...ntGeneralReposPages(model.repos,date,marker));
+ if(model.repos?.length)pages.push(...ntGeneralReposPages(model.repos,date,marker,model.materialCatalog,model.catalogConsultedAt));
  if(model.stockRows?.length)pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
  if(model.stockRows?.length||model.requests?.length)pages.push(ntGeneralDailyIntelligencePage(model,date,marker));
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
@@ -2279,9 +2339,15 @@ function ntDayExcelExport(model,XLSX){
   model.receiptRows.map(x=>[date,x.fornecedor,x.pedidoCompra,x.notaFiscal,x.codigo,x.nome,x.unidade,x.prevista,x.recebida,rnd(x.recebida-x.prevista),
     x.semCadastro?'PENDENTE DE CADASTRO':x.entradaConfirmada?'ENTRADA CONFIRMADA':x.statusEntrada==='ESTOQUE_ATUALIZADO'?'VERIFICAR VÍNCULO':x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA':'DOCUMENTO ANTERIOR',x.movimentacaoId,x.observacao]));
  if(model.repos?.length){
-  sheet('Reposicao Solicitada',['DATA','HORA','DOCUMENTO','EMITIDO POR','CÓDIGO','MATERIAL','UNIDADE','SALDO REGISTRADO','QTDE A COMPRAR','SITUAÇÃO'],
-   model.repos.flatMap(r=>(r.itens||[]).map(x=>[date,ntRepoLocalHour(r),String(r.numero||''),String(r.operador||''),String(x.codigo||''),String(x.nome||''),String(x.unidadeMedida||'—'),
-    x.saldoAtual==null?'':Number(x.saldoAtual),x.quantidadeComprar==null||x.quantidadeComprar===''?'':Number(x.quantidadeComprar),'SOLICITADO PARA ANÁLISE DE COMPRA'])));
+  const byCode=new Map((model.materialCatalog||[]).map(m=>[String(m.codigo??''),m]));
+  sheet('Reposicao Solicitada',['DATA DA SOLICITAÇÃO','HORA','CÓDIGO','MATERIAL','UNIDADE ATUAL','SALDO ATUAL','QTDE A COMPRAR','SITUAÇÃO','CONSULTA DO ESTOQUE'],
+   model.repos.flatMap(r=>(r.itens||[]).map(x=>{
+    const current=ntReposActualByCode(x.codigo,byCode);
+    return [date,ntRepoLocalHour(r),String(x.codigo||''),String(x.nome||''),current.unidade,
+     current.saldo==null?'':current.saldo,
+     x.quantidadeComprar==null||x.quantidadeComprar===''?'':Number(x.quantidadeComprar),
+     'SOLICITADO PARA ANÁLISE DE COMPRA',ntReposQueryDate(model.catalogConsultedAt)];
+   })));
  }
  sheet('Estoque Movimentado',['DATA','CÓDIGO','MATERIAL','UNIDADE','SALDO INICIAL','SAÍDAS','DEVOLUÇÕES','ENTRADAS','OUTRAS VARIAÇÕES','SALDO FINAL','CONFERÊNCIA'],
   model.stockRows.map(x=>[date,x.codigo,x.nome,x.unidade,x.inicio??'',x.saida,x.devolucao,x.entrada,x.outras??'',x.fim??'',x.validar?'Conferir histórico':'']));
