@@ -2423,19 +2423,19 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
  // Quando ha movimento expressivo ou risco, a segunda pagina amplia a precisão sem compactar letras.
  const detail=used.size>6||groups.length>1||zero.length>0||pressure.length>0||notReconciled>0||counted>0;
  if(detail){
-  const groupRows=groups.slice(0,8).map(g=>
-   '<div class="nt-deep-unitrow"><b>'+plain(g.unit)+'</b><span>'+g.items.length+' materiais</span>'+
+  const groupRows=groups.slice(0,6).map(g=>
+   '<div class="nt-deep-unitrow"><b>'+plain(g.unit)+'</b><span>'+g.items.length+' item(ns)</span>'+
    '<span>'+g.operations+' retiradas</span><strong>'+num(g.total)+' '+plain(g.unit)+'</strong></div>').join('');
-  const extraGroups=others.slice(0,3);
+  const extraGroups=others.slice(0,2);
   const otherCharts=extraGroups.map(g=>'<div class="nt-deep-section"><h3>MAIORES SAÍDAS EM '+plain(g.unit)+'</h3>'+
    '<div class="nt-di-bars">'+g.items.slice(0,2).map(item=>bar(item,g.items[0].quantidade)).join('')+
    '</div></div>').join('');
-  const moreMain=primary&&primary.items.length>6?'<div class="nt-deep-section"><h3>OUTRAS RETIRADAS EM '+plain(primary.unit)+'</h3>'+
+  const moreMain=primary&&primary.items.length>6&&extraGroups.length<=1?'<div class="nt-deep-section"><h3>OUTRAS RETIRADAS EM '+plain(primary.unit)+'</h3>'+
    '<div class="nt-di-bars">'+primary.items.slice(6,9).map(item=>bar(item,primary.items[0].quantidade)).join('')+
    '</div></div>':'';
-  const zeroRows=zero.slice(0,5).map(x=>'<div class="nt-deep-alertline"><b>'+plain(x.nome)+'</b>'+
+  const zeroRows=zero.slice(0,3).map(x=>'<div class="nt-deep-alertline"><b>'+plain(x.nome)+'</b>'+
    '<span>'+plain(x.codigo)+' · saldo final 0 '+plain(x.unidade)+'</span></div>').join('');
-  const pressureRows=pressure.slice(0,5).map(x=>'<div class="nt-deep-alertline"><b>'+plain(x.nome)+'</b>'+
+  const pressureRows=pressure.slice(0,3).map(x=>'<div class="nt-deep-alertline"><b>'+plain(x.nome)+'</b>'+
    '<span>'+plain(x.codigo)+' · '+plain(x.percent.toFixed(1).replace('.',','))+
    '% do saldo inicial retirado · final '+num(x.fim)+' '+plain(x.unidade)+'</span></div>').join('');
   const pageTwo='<div class="nt-di-eyebrow">ANÁLISE DETALHADA · '+plain(ntDate(date))+'</div>'+
@@ -2449,8 +2449,10 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
     '<div class="nt-deep-panel"><h2>CONSUMO POR UNIDADE DE MEDIDA</h2>'+
      '<p>Totais separados: não somar unidades incompatíveis.</p>'+
      '<div class="nt-deep-unitlist">'+(groupRows||blank)+'</div>'+
+     (groups.length>6?'<p class="nt-deep-muted">Outras '+(groups.length-6)+' unidade(s) também foram movimentadas.</p>':'')+
      '<h2 class="nt-deep-subhead">OUTRAS FAIXAS DE CONSUMO</h2>'+
      (otherCharts||moreMain||'<p class="nt-deep-muted">Todas as retiradas com unidade conhecida foram da mesma medida.</p>')+
+     (others.length>2?'<p class="nt-deep-muted">Outras unidades adicionais detalhadas no cadastro e nas movimentações.</p>':'')+
      (otherCharts&&moreMain?moreMain:'')+
      (missing.length?'<div class="nt-deep-muted">'+missing.length+
       ' material(is) não classificados por ausência de unidade ou quantidade válida.</div>':'')+
@@ -2459,8 +2461,10 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
      '<p>Somente materiais que tiveram saídas registradas.</p>'+
      '<h3 class="nt-deep-subhead">ZERADOS ('+zero.length+')</h3>'+
      (zeroRows||'<p class="nt-deep-muted">Nenhum saldo final zerado entre os materiais retirados.</p>')+
+     (zero.length>3?'<p class="nt-deep-muted">Mais '+(zero.length-3)+' item(ns) zerado(s); confira os saldos detalhados.</p>':'')+
      '<h3 class="nt-deep-subhead">RETIRADA ELEVADA EM RELAÇÃO AO INICIAL ('+pressure.length+')</h3>'+
      (pressureRows||'<p class="nt-deep-muted">Sem consumo ≥ 50% com saldo inicial e histórico conciliados.</p>')+
+     (pressure.length>3?'<p class="nt-deep-muted">Mais '+(pressure.length-3)+' item(ns) com retirada elevada; consulte a tabela de saldos.</p>':'')+
     '</div>'+
    '</div>'+
    '<div class="nt-di-footnote">Percentual = quantidade retirada / saldo inicial do dia, apenas em itens sem '+
