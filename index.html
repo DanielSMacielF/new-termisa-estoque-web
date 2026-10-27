@@ -1893,6 +1893,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
    pendingCodes:receiptRows.filter(x=>!x.codigo).length,
    stockItems:stockRows.length,stockNotReconciled:stockRows.filter(x=>x.validar).length,
    stockEntries:incoming.length,returnLines:operating.filter(m=>m.tipo==='DEVOLUCAO').length,
+   physicalCountEntries:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)).length,
    notes:comparisons.filter(x=>Math.abs(x.diferenca)>.0001).length}
  };
 }
@@ -2066,6 +2067,7 @@ async function ntSaldosIndividualOpen(){
 }
 function ntGeneralRequestsPages(model,date,marker){
  const pages=[],requests=model.requests,
+  measureByCode=new Map((model.stockRows||[]).map(x=>[String(x.codigo),{unidadeMedida:x.unidade}])),
   empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
  // Equilibre as páginas: 29 retiradas viram 15 + 14, sem reduzir a fonte.
  // Descrições excepcionalmente longas mantêm um limite mais conservador.
@@ -2077,7 +2079,7 @@ function ntGeneralRequestsPages(model,date,marker){
   const part=requests.slice(i*perPage,(i+1)*perPage);
   const body='<div class="sectionline"><span>COMUNICAÇÃO INTERNA · MATERIAIS ENTREGUES</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    (part.length?ntTable(['HORA','CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE.','SOLICITANTE','PEDIDO'],[8,14,33,7,9,17,12],
-     part.map(m=>[ntTime(m),String(m.codigo||''),String(m.nome||'—'),ntReportMeasure(m.codigo,new Map(model.stockRows.map(x=>[x.codigo,{unidadeMedida:x.unidade}]))),
+     part.map(m=>[ntTime(m),String(m.codigo||''),String(m.nome||'—'),ntReportMeasure(m.codigo,measureByCode),
       fmt(ntQty(m)),String(m.solicitante||'—'),String(m.pedido||'—')])):
      empty('Nenhuma saída operacional registrada para esta data.'))+
    '<p class="note">Cada linha representa uma saída real confirmada. Simulações e conferências físicas não são contadas como pedido atendido.</p>';
@@ -2251,7 +2253,8 @@ function ntGeneralDayPDF(model){
   ['REPOSIÇÕES',(totals.reposReports||0)
     ?totals.reposReports+' solicitação(ões) de reposição emitida(s), com '+totals.reposLines+' linha(s) de material. Confira os documentos após o recebimento.'
     :'Nenhuma solicitação de reposição emitida nesta data. Isso não significa que não haja materiais precisando de compra.'],
-  ['MOVIMENTAÇÕES DO ESTOQUE',totals.stockItems+' material(is) tiveram registro de movimentação no dia.']
+  ['MOVIMENTAÇÕES DO ESTOQUE',totals.stockItems+' material(is) tiveram registro de movimentação no dia.'+
+    ((totals.physicalCountEntries||0)>0?' Inclui '+totals.physicalCountEntries+' ajuste(s) de conferência física.':'')]
  ];
  const executive='<div class="nt-day-summary-rows">'+lines.map(([label,message])=>
   '<div class="nt-day-summary-row"><strong>'+ntPlain(label)+'</strong><span>'+ntPlain(message)+'</span></div>').join('')+'</div>';
@@ -2333,6 +2336,7 @@ function ntDayExcelExport(model,XLSX){
   ['Fornecedores',t.suppliers,'Fornecedores com recebimento documentado'],
   ['Linhas divergentes de NF',t.receiptDifferences,'Previsto na NF diferente do recebido'],
   ['Materiais movimentados',t.stockItems,'Inclui eventos de conferência no histórico'],
+  ['Ajustes de conferência física',t.physicalCountEntries||0,'Operações de ajuste registradas no histórico da data'],
   ['Movimentações de entrada',t.stockEntries,'Entradas operacionais registradas no estoque'],
   ['Saldos a conferir',t.stockNotReconciled,'Diferenças ainda não conciliadas após considerar ajustes confirmados'],
   ['Observação','Somente entradas vinculadas a materiais cadastrados atualizam o saldo','Entradas integradas possuem identificador; documentos antigos podem não ter vínculo']
