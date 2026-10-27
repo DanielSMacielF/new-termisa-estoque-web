@@ -58,17 +58,15 @@
 /* Reposição: nova interface isolada; não altera estilos nem funções de estoque */
 .nt-repos-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}
 .nt-repos-choices{border:1px solid #385b78;border-radius:12px;min-height:100px;max-height:45vh;overflow:auto;overscroll-behavior:contain}
-.nt-repos-line{display:grid;grid-template-columns:24px minmax(0,1fr) 115px;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid #385b784b}
+.nt-repos-line{display:grid;grid-template-columns:24px minmax(0,1fr);align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid #385b784b}
 .nt-repos-line:last-child{border-bottom:0}
 .nt-repos-line label{cursor:pointer;min-width:0}
 .nt-repos-line input[type=checkbox]{width:19px;height:19px;accent-color:#45b5f8}
-.nt-repos-line input[data-repos-qty]{width:100%;padding:9px;border-radius:9px;border:1px solid #618ab0;background:#071d33;color:#ecf7ff;text-align:right}
-.nt-repos-line input[data-repos-qty]:disabled{opacity:.5}
 .nt-repos-code{display:block;color:#a9c5dd;font-size:.8rem;margin-top:3px}
 .nt-repos-footer{position:sticky;bottom:0;z-index:2;background:#102b48;padding:12px 0 2px;border-top:1px solid #466b85;margin-top:12px}
 .nt-repos-history{display:flex;justify-content:space-between;gap:12px;padding:13px;border-bottom:1px solid #345675;align-items:center}
 .nt-repos-history:last-child{border-bottom:none}
-@media(max-width:540px){.nt-repos-line{grid-template-columns:22px minmax(0,1fr) 75px;gap:7px;padding:9px 6px}.nt-repos-line input[data-repos-qty]{padding:8px 3px;font-size:.83rem}.nt-repos-history{align-items:flex-start;flex-direction:column}.nt-repos-footer .buttons{display:grid;grid-template-columns:1fr}}
+@media(max-width:540px){.nt-repos-line{grid-template-columns:22px minmax(0,1fr);gap:7px;padding:9px 6px}.nt-repos-history{align-items:flex-start;flex-direction:column}.nt-repos-footer .buttons{display:grid;grid-template-columns:1fr}}
 
 /* AJUSTE PONTUAL 2026-10-22: alinhamento da navegacao inferior em celular.
    Apenas CSS de apresentacao. Nao altera Firebase, estoque nem logica de negocio. */
@@ -154,7 +152,7 @@ const allowedTypes=['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE'];const itemRef=c=>doc
 function status(msg,ok=false,err=false){$('status').textContent=msg;$('status').className='status '+(err?'bad':ok?'ok':'')}
 function notice(msg,bad=false){const e=$('toast');e.textContent=msg;e.classList.add('show');e.style.borderColor=bad?'#f78f97':'#5994bb';clearTimeout(notice.t);notice.t=setTimeout(()=>e.classList.remove('show'),5500)}
 function loader(x){busy=x;$('busy').classList.toggle('show',x)}function panel(x){$('modal').innerHTML=x;$('modalwrap').classList.add('show')}function close(){ $('modalwrap').classList.remove('show');ntClearTemporarySelections() }
-function ntClearTemporarySelections(){ntLabelCodes.clear();ntReposSelected.clear();ntReposAmounts.clear()}
+function ntClearTemporarySelections(){ntLabelCodes.clear();ntReposSelected.clear()}
 function isReady(){if(!user)throw Error('Entre na sua conta primeiro.');if(!navigator.onLine||!serverReady)throw Error('Sem conexão confirmada com o Firebase. Não foi salvo.');if(busy)throw Error('Já existe uma operação em andamento. Aguarde.')}
 async function consultarSaldosServidor(codigos, esperados={}){
   const unicos=[...new Set(codigos.map(String))];
@@ -455,38 +453,36 @@ function dayRows(moves=todayMoves){const result=new Map();for(const m of moves){
 // Reposição: snapshots dos documentos emitidos são gravados EXCLUSIVAMENTE em nt_web_auditoria.
 // Não existe escrita, transação nem ajuste em nt_web_materiais ou nt_web_movimentos neste módulo.
 const ntReposSelected=new Set();
-const ntReposAmounts=new Map();
 let ntReposEditingId=null;
 const NT_REPOS_ACTION='RELATORIO_REPOSICAO_EMITIDO';
 function ntReposEntry(){return `<div class="card" style="margin-bottom:12px"><h2>Reposição de materiais</h2><p class="small" style="margin-top:8px">Selecione os materiais para solicitar análise de compra. A quantidade a comprar é opcional e fica em branco no relatório quando não for informada.</p><div class="nt-repos-actions"><button class="btn" type="button" data-action="nt-repos-new">Criar relatório de reposição</button><button class="btn alt" type="button" data-action="nt-repos-history">Histórico dos relatórios</button></div><p class="small" style="margin-top:10px">Apenas documentos e histórico. Não altera saldos nem conferências.</p></div>`}
 function ntReposModal(){
  if(!user||!cloudOk){notice('Aguarde a sincronização dos materiais.',true);return}
- ntReposSelected.clear();ntReposAmounts.clear();ntReposEditingId=null;
+ ntReposSelected.clear();ntReposEditingId=null;
  const sorted=[...mats].sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
- const rows=sorted.map(m=>{const code=String(m.codigo),name=String(m.nome||'');return `<div class="nt-repos-line" data-repos-row="${esc(normMaterial(code+' '+name))}"><input aria-label="Incluir ${esc(name)}" type="checkbox" data-repos-check="${esc(code)}"><label data-repos-tick="${esc(code)}"><b>${esc(name)}</b><span class="nt-repos-code">${esc(code)}</span></label><input inputmode="decimal" data-repos-qty="${esc(code)}" type="text" aria-label="Quantidade opcional a comprar para ${esc(name)}" placeholder="Qtd. (opcional)" disabled autocomplete="off"></div>`}).join('');
- panel(`<h2>Relatório de reposição</h2><p class="small">Marque os materiais para solicitar compra. Quantidade a comprar: opcional. Não altera o estoque.</p><div class="field"><label for="ntReposSearch">Buscar material</label><input id="ntReposSearch" type="search" autocomplete="off" placeholder="Código ou parte do nome"></div><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-suggest">Sugerir compra</button><button type="button" class="btn ghost" data-action="nt-repos-visible">Marcar filtrados</button><button type="button" class="btn ghost" data-action="nt-repos-clear">Limpar</button></div><p class="small" id="ntReposCount" style="margin:9px 0">0 materiais selecionados</p><div class="nt-repos-choices">${rows}</div><div class="nt-repos-footer"><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-preview">Visualizar PDF (sem salvar)</button><button type="button" class="btn" data-action="nt-repos-issue">Salvar relatório e gerar PDF</button><button type="button" class="btn ghost" data-action="close">Cancelar</button></div></div>`);
+ const rows=sorted.map(m=>{const code=String(m.codigo),name=String(m.nome||'');return `<div class="nt-repos-line" data-repos-row="${esc(normMaterial(code+' '+name))}"><input aria-label="Incluir ${esc(name)}" type="checkbox" data-repos-check="${esc(code)}"><label data-repos-tick="${esc(code)}"><b>${esc(name)}</b><span class="nt-repos-code">${esc(code)}</span></label></div>`}).join('');
+ panel(`<h2>Relatório de reposição</h2><p class="small">Marque os materiais que precisam de reposição. A chefia e Compras definirão as quantidades. Não altera o estoque.</p><div class="field"><label for="ntReposSearch">Buscar material</label><input id="ntReposSearch" type="search" autocomplete="off" placeholder="Código ou parte do nome"></div><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-suggest">Sugerir compra</button><button type="button" class="btn ghost" data-action="nt-repos-visible">Marcar filtrados</button><button type="button" class="btn ghost" data-action="nt-repos-clear">Limpar</button></div><p class="small" id="ntReposCount" style="margin:9px 0">0 materiais selecionados</p><div class="nt-repos-choices">${rows}</div><div class="nt-repos-footer"><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-preview">Visualizar PDF (sem salvar)</button><button type="button" class="btn" data-action="nt-repos-issue">Salvar relatório e gerar PDF</button><button type="button" class="btn ghost" data-action="close">Cancelar</button></div></div>`);
 }
 function ntReposSuggest(){
  ntReposModal();
  if(!$('ntReposCount'))return;
- ntReposSelected.clear();ntReposAmounts.clear();
+ ntReposSelected.clear();
  for(const m of mats){
   const q=Number(m.quantidade)||0,minimum=Number(m.minimo)||0;
   if(!(minimum>0)||q>minimum)continue;
   const code=String(m.codigo);
   ntReposSelected.add(code);
-  if(minimum>q)ntReposAmounts.set(code,String(rnd(minimum-q)));
  }
  ntReposRefresh();
  if(!ntReposSelected.size)notice('Nenhum material encontrado no mínimo ou abaixo. Você pode selecionar materiais manualmente.');
 }
 function ntReposRefresh(){
  const terms=normMaterial($('ntReposSearch')?.value||'').split(/\s+/).filter(Boolean);
- document.querySelectorAll('[data-repos-row]').forEach(el=>{el.style.display=terms.every(t=>el.dataset.reposRow.includes(t))?'grid':'none';const cb=el.querySelector('[data-repos-check]'),q=el.querySelector('[data-repos-qty]');if(cb)cb.checked=ntReposSelected.has(cb.dataset.reposCheck);if(q){q.disabled=!ntReposSelected.has(q.dataset.reposQty);q.value=ntReposAmounts.get(q.dataset.reposQty)||''}});
+ document.querySelectorAll('[data-repos-row]').forEach(el=>{el.style.display=terms.every(t=>el.dataset.reposRow.includes(t))?'grid':'none';const cb=el.querySelector('[data-repos-check]');if(cb)cb.checked=ntReposSelected.has(cb.dataset.reposCheck)});
  const node=$('ntReposCount');if(node)node.textContent=`${ntReposSelected.size} material(is) selecionado(s)`;
 }
 function ntReposToggle(code,enable){if(enable)ntReposSelected.add(code);else ntReposSelected.delete(code);ntReposRefresh()}
-function ntReposBatch(mode){if(mode==='clear'){ntReposSelected.clear();ntReposAmounts.clear()}
+function ntReposBatch(mode){if(mode==='clear'){ntReposSelected.clear()}
  else if(mode==='all')mats.forEach(m=>ntReposSelected.add(String(m.codigo)));
  else if(mode==='visible')document.querySelectorAll('[data-repos-row]').forEach(el=>{if(el.style.display!=='none'){const cb=el.querySelector('[data-repos-check]');if(cb)ntReposSelected.add(cb.dataset.reposCheck)}});
  ntReposRefresh()}
@@ -497,9 +493,7 @@ function ntReportMeasure(code,catalog=mats){
 function ntReposBuild(){
  if(!ntReposSelected.size)throw Error('Selecione pelo menos um material.');
  const picked=[...ntReposSelected].map(code=>{const m=material(code);if(!m)throw Error('Material não encontrado: '+code);
- const raw=String(ntReposAmounts.get(code)||'').trim();let quantidadeComprar=null;
- if(raw){if(!/^\d{1,8}([,.]\d{1,4})?$/.test(raw))throw Error('Quantidade inválida no material '+code+'. Use até quatro casas decimais.');quantidadeComprar=nval(raw);if(!(quantidadeComprar>0))throw Error('A quantidade de compra precisa ser maior que zero: '+code)}
- return {codigo:String(m.codigo),nome:String(m.nome||'').trim(),unidadeMedida:ntReportMeasure(code),saldoAtual:Number(m.quantidade)||0,minimo:Number(m.minimo)||0,quantidadeComprar};
+ return {codigo:String(m.codigo),nome:String(m.nome||'').trim(),unidadeMedida:ntReportMeasure(code),saldoAtual:Number(m.quantidade)||0,minimo:Number(m.minimo)||0};
  });
  return picked.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
 }
@@ -614,8 +608,6 @@ function ntReposEdit(id){
   const code=String(item.codigo||'');
   if(!material(code))continue;
   ntReposSelected.add(code);
-  if(item.quantidadeComprar!==null&&item.quantidadeComprar!==''&&item.quantidadeComprar!==undefined)
-   ntReposAmounts.set(code,String(item.quantidadeComprar).replace('.',','));
  }
  ntReposRefresh();
  const h=document.querySelector('#ntReposSearch')?.closest('.field');
@@ -2334,10 +2326,9 @@ function ntGeneralRequestsPages(model,date,marker){
  const pages=[],requests=model.requests,
   measureByCode=new Map((model.stockRows||[]).map(x=>[String(x.codigo),{unidadeMedida:x.unidade}])),
   empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
- // Equilibre as páginas: 29 retiradas viram 15 + 14, sem reduzir a fonte.
- // Descrições excepcionalmente longas mantêm um limite mais conservador.
- const hasLongNames=requests.some(m=>String(m.nome||'').length>95);
- const capacity=hasLongNames?13:16;
+ // A4 paisagem: melhor aproveitamento sem reduzir fontes nem alterar o estilo.
+ // 38 lançamentos: duas folhas equilibradas de 19 linhas.
+ const capacity=19;
  const sheets=Math.max(1,Math.ceil(requests.length/capacity));
  const perPage=Math.max(1,Math.ceil(requests.length/sheets));
  for(let i=0;i<sheets;i++){
@@ -2348,13 +2339,13 @@ function ntGeneralRequestsPages(model,date,marker){
       fmt(ntQty(m)),String(m.solicitante||'—'),String(m.pedido||'—')])):
      empty('Nenhuma saída operacional registrada para esta data.'))+
    '<p class="note">Cada linha representa uma saída real confirmada. Simulações e conferências físicas não são contadas como pedido atendido.</p>';
-  pages.push('<section class="page landscape nt-general-requests">'+ntTop('MATERIAIS SOLICITADOS','Pedidos atendidos e materiais retirados do almoxarifado.',date)+body+marker+'</section>');
+  pages.push('<section class="page landscape nt-general-requests">'+ntTop('MATERIAIS ENTREGUES','Pedidos atendidos e materiais retirados do almoxarifado.',date)+body+marker+'</section>');
  }
  return pages;
 }
 function ntRequestsIndividualPDF(model){
  const marker='__NT_MATERIAIS_INDIVIDUAL_RODAPE__',pages=ntGeneralRequestsPages(model,model.date,marker);
- return ntHtml('Materiais solicitados · '+ntDate(model.date),
+ return ntHtml('Materiais entregues · '+ntDate(model.date),
   pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 async function ntRequestsIndividualOpen(){
@@ -2636,15 +2627,14 @@ function ntGeneralReposPages(repos,date,marker,catalog,consultadoEm){
 
     '<div><small>SOLICITADO POR</small><strong>Almoxarifado</strong></div></div>':'';
    const intro='<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO'+(first?'':' · CONTINUAÇÃO')+'</span><span>'+rows.length+' '+(rows.length===1?'ITEM':'ITENS')+'</span></div>';
-   const table=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO ATUAL','QTD. A COMPRAR'],[18,39,9,15,19],part.map(x=>{
+   const table=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO ATUAL'],[18,52,10,20],part.map(x=>{
     const current=ntReposActualByCode(x.codigo,byCode);
     return [String(x.codigo||''),String(x.nome||''),current.unidade,
-     current.saldo==null?'—':fmt(current.saldo),
-     x.quantidadeComprar==null||x.quantidadeComprar===''?'':fmt(x.quantidadeComprar)];
+     current.saldo==null?'—':fmt(current.saldo)];
    }));
    const dataNote='<p class="note nt-repos-stock-date"><b>Saldo atual e unidade:</b> consultados no Firebase em '+ntPlain(consultedLabel)+'. O saldo não representa necessariamente o saldo da data original da solicitação.</p>';
    const end=last?'<div class="sectionline"><span>ENCAMINHAMENTO</span></div>'+
-    '<p class="note">Solicita-se análise para aquisição dos materiais relacionados. Quantidades em branco serão definidas pelo setor responsável. Este registro não comprova compra ou recebimento.</p>':'';
+    '<p class="note">Solicita-se análise para aquisição dos materiais relacionados. A definição das quantidades e a autorização de compra cabem à chefia e ao setor de Compras. Este registro não comprova compra ou recebimento.</p>':'';
    pages.push('<section class="page landscape nt-general-repos">'+
     ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais solicitados para análise e aquisição.',date)+intro+meta+table+dataNote+end+marker+'</section>');
   });
@@ -2763,12 +2753,11 @@ function ntDayExcelExport(model,XLSX){
     x.semCadastro?'PENDENTE DE CADASTRO':x.entradaConfirmada?'ENTRADA CONFIRMADA':x.statusEntrada==='ESTOQUE_ATUALIZADO'?'VERIFICAR VÍNCULO':x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA':'DOCUMENTO ANTERIOR',x.movimentacaoId,x.observacao]));
  if(model.repos?.length){
   const byCode=new Map((model.materialCatalog||[]).map(m=>[String(m.codigo??''),m]));
-  sheet('Reposicao Solicitada',['DATA DA SOLICITAÇÃO','HORA','CÓDIGO','MATERIAL','UNIDADE ATUAL','SALDO ATUAL','QTDE A COMPRAR','SITUAÇÃO','CONSULTA DO ESTOQUE'],
+  sheet('Reposicao Solicitada',['DATA DA SOLICITAÇÃO','HORA','CÓDIGO','MATERIAL','UNIDADE ATUAL','SALDO ATUAL','SITUAÇÃO','CONSULTA DO ESTOQUE'],
    model.repos.flatMap(r=>(r.itens||[]).map(x=>{
     const current=ntReposActualByCode(x.codigo,byCode);
     return [date,ntRepoLocalHour(r),String(x.codigo||''),String(x.nome||''),current.unidade,
      current.saldo==null?'':current.saldo,
-     x.quantidadeComprar==null||x.quantidadeComprar===''?'':Number(x.quantidadeComprar),
      'SOLICITADO PARA ANÁLISE DE COMPRA',ntReposQueryDate(model.catalogConsultedAt)];
    })));
  }
@@ -3013,7 +3002,7 @@ function load(){if(location.protocol!=='https:' && location.hostname!=='localhos
 document.addEventListener('submit',async e=>{e.preventDefault();try{if(e.target.id==='configForm'){const data=parseConfig($('configText').value);localStorage.setItem('nt-firebase-web-config',JSON.stringify(data));location.reload();return}if(e.target.id==='loginForm'){loader(true);await signInWithEmailAndPassword(appAuth,$('email').value.trim(),$('senha').value);loader(false);return}if(e.target.id==='moveForm'){if(kind==='ENTRADA')throw Error('Registre entradas pelo Recebimento integrado, incluindo fornecedor, PC e NF.');const code=$('moveCode').value,q=rnd(nval($('moveQty').value)),p=$('movePerson').value.trim(),ref=$('moveOrder').value.trim(),obs=$('moveObs').value.trim();if(!material(code)||!Number.isFinite(q)||q<=0||!p)throw Error('Preencha todos os campos corretamente.');if(!confirm(`${kind}: ${fmt(q)} de ${material(code).nome}\nSolicitante: ${p}\nSalvar no Firebase?`))return;const saved=await execute(()=>doMoves([{codigo:code,quantidade:q,tipo:kind}],p,ref,obs),[code]);if(saved)e.target.reset();return}if(e.target.id==='countForm'){const code=$('countCode').value,qty=rnd(nval($('countQty').value)),p=$('countPerson').value.trim();if(!Number.isFinite(qty)||qty<0||!p)throw Error('Informe contagem e responsável.');if(!confirm(`Confirmar saldo físico de ${fmt(qty)} para ${material(code)?.nome}?`))return;const saved=await execute(()=>adjustMaterial(code,qty,p),[code],{[code]:{quantidade:qty,conferido:true}});if(saved)close();return}if(e.target.id==='editForm'){await saveItem(e);return}}catch(err){loader(false);notice(err.message||'Operação falhou.',true)}});
 document.addEventListener('click',async e=>{const tick=e.target.closest('[data-repos-tick]');if(tick){const c=tick.dataset.reposTick;ntReposToggle(c,!ntReposSelected.has(c));return}const summary=e.target.closest('summary');if(summary?.parentElement?.id==='inventoryFilterPanel'){filterPanelOpen=!summary.parentElement.open;return}const go=e.target.closest('[data-go]');if(go){if(tab==='movimentar'&&kind==='ENTRADA')ntReceiptCapture();ntClearTemporarySelections();close();tab=go.dataset.go;draw();window.scrollTo({top:0});return}const del=e.target.closest('[data-remove]');if(del){rememberOrder();cart.splice(+del.dataset.remove,1);draw();return}const details=e.target.closest('[data-details]');if(details){detail(details.dataset.details);return}const b=e.target.closest('[data-type]');if(b){if(kind==='ENTRADA')ntReceiptCapture();kind=b.dataset.type;draw();return}await handleActions(e)});
 let ntMaterialSearchTimer=null;
-document.addEventListener('input',e=>{if(e.target.id==='ntReposSearch'){ntReposRefresh();return}if(e.target.matches('[data-repos-qty]')){ntReposAmounts.set(e.target.dataset.reposQty,e.target.value);return}if(e.target.id==='ntLabelSearch'){ntRefreshLabelPanel();return}if(e.target.dataset.materialFilter){filterMaterialSelect(e.target.dataset.materialFilter);return}if(e.target.id==='searchInput'){
+document.addEventListener('input',e=>{if(e.target.id==='ntReposSearch'){ntReposRefresh();return}if(e.target.id==='ntLabelSearch'){ntRefreshLabelPanel();return}if(e.target.dataset.materialFilter){filterMaterialSelect(e.target.dataset.materialFilter);return}if(e.target.id==='searchInput'){
   filter=e.target.value;visibleMaterials=100;
   // Evita destruir o input em cada tecla repetida: segurar Backspace apaga continuamente.
   clearTimeout(ntMaterialSearchTimer);
