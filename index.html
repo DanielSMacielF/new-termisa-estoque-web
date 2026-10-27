@@ -753,6 +753,26 @@ function ntReportCSS(){return `<style>
 .nt-general-stock-intel .nt-di-footnote{font-size:7.5pt;line-height:1.3;color:#56747d;border-top:.25mm solid #dbe8ea;padding-top:2.3mm;margin-top:3.1mm}
 .nt-general-stock-intel .nt-di-empty{color:#56717c;font-size:8.2pt;padding:9mm 2mm;text-align:center}
 @media print{.nt-general-stock-intel .nt-di-track span,.nt-general-stock-intel .nt-di-metric,.nt-general-stock-intel .nt-di-insight{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+
+/* Panorama gerencial claro e reposição no mesmo padrão aprovado do PDF individual */
+.nt-general-summary .metrics{grid-template-columns:repeat(5,minmax(0,1fr));gap:2.5mm;margin:6mm 0}
+.nt-general-summary .metric{min-height:23mm;padding:3mm}
+.nt-general-summary .metric small{font-size:7.8pt;font-weight:600;line-height:1.25}
+.nt-general-summary .metric strong{font-size:18pt}
+.nt-day-summary-rows{display:grid;gap:2mm;margin:2mm 0 4mm}
+.nt-day-summary-row{display:grid;grid-template-columns:49mm minmax(0,1fr);gap:4mm;align-items:start;border-left:.9mm solid #1d9ea4;border-radius:2mm;background:#eef5f6;padding:3mm 4mm;min-height:11mm}
+.nt-day-summary-row strong{font-size:9pt;color:#194957;line-height:1.4}
+.nt-day-summary-row span{font-size:9.4pt;color:#2b5261;line-height:1.4}
+.nt-day-summary-warn{background:#fff3e4;border-left:.9mm solid #c69744;padding:2mm 4mm;margin:3mm 0;border-radius:2mm}
+.nt-day-summary-warn strong{font-size:8.5pt;color:#704e1c}
+.nt-day-summary-warn p{font-size:8.5pt;margin:1mm 0;color:#704e1c}
+.nt-general-repos .nt-day-repos-meta{display:grid;grid-template-columns:25% 33% 1fr;gap:2.5mm;margin:4mm 0}
+.nt-general-repos .nt-day-repos-meta>div{border-left:.7mm solid #119a9f;border-radius:2mm;background:#e8f2f3;padding:2.5mm;min-width:0}
+.nt-general-repos .nt-day-repos-meta small{display:block;font-size:7.2pt;color:#406273}
+.nt-general-repos .nt-day-repos-meta strong{display:block;font-size:8.2pt;color:#174657;overflow-wrap:anywhere}
+.nt-general-repos table{font-size:8.6pt}
+.nt-general-repos th{font-size:7.9pt}
+.nt-general-repos td{padding:2.5mm 1.2mm}
 </style>`}
 function ntTop(title,subtitle,date,compact=false){return `<div class="rhead"><img src="${NT_LOGO}" alt="New Termisa"><div class="company"><b>${compact?'FECHAMENTO DIÁRIO':'ALMOXARIFADO / NEW TERMISA'}</b>${ntPlain(ntDate(date))}</div></div><div class="line"></div><h1 class="heading">${ntPlain(title)}</h1><p class="desc">${ntPlain(subtitle)}</p>`}
 function ntFooter(num,total){return `<div class="footer"><span>NEW TERMISA &nbsp;|&nbsp; ALMOXARIFADO</span><span>PÁGINA ${num} DE ${total}</span></div>`}
@@ -1707,7 +1727,29 @@ function ntDayMachineRows(production){
   observacao:String(r.observacao||'')
  })));
 }
-function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
+
+function ntRepoLocalDay(r){
+ let stamp=String(r?.criadoEmLocal||'').trim(),d=stamp?new Date(stamp):null;
+ if((!d||!Number.isFinite(d.getTime()))&&r?.criadoEm){
+  const t=r.criadoEm;
+  if(typeof t.toDate==='function')d=t.toDate();
+  else if(Number.isFinite(Number(t.seconds)))d=new Date(Number(t.seconds)*1000);
+ }
+ if(!d||!Number.isFinite(d.getTime()))return '';
+ try{
+  const x=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d);
+  const p=Object.fromEntries(x.filter(t=>t.type!=='literal').map(t=>[t.type,t.value]));
+  return p.year+'-'+p.month+'-'+p.day;
+ }catch(_){return ''}
+}
+function ntRepoLocalHour(r){
+ const s=String(r?.criadoEmLocal||'').trim(),d=s?new Date(s):null;
+ if(!d||!Number.isFinite(d.getTime()))return '—';
+ try{return new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Fortaleza',hour:'2-digit',minute:'2-digit',hour12:false}).format(d)}
+ catch(_){return '—'}
+}
+
+function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,reposDocs=[]){
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
  const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE']);
  const all=[...movements].filter(m=>recognized.has(String(m.tipo))).sort(ntDaySortMovement);
@@ -1716,6 +1758,8 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
  const incoming=operating.filter(m=>m.tipo==='ENTRADA');
  const receipts=receiptDocs.filter(x=>x.dataRecebimento===date);
  const production=productionDocs.filter(x=>x.dataProducao===date);
+ const repos=(Array.isArray(reposDocs)?reposDocs:[]).filter(r=>Array.isArray(r.itens)&&ntRepoLocalDay(r)===date)
+  .sort((a,b)=>String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||''))||String(a.numero||'').localeCompare(String(b.numero||'')));
  const machineRows=ntDayMachineRows(production);
  const entranceById=new Map(operating.filter(m=>m.tipo==='ENTRADA'&&m.id).map(m=>[String(m.id),m]));
  const receiptRows=receipts.flatMap(r=>(r.itens||[]).map(x=>{
@@ -1793,10 +1837,11 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
  const totalMachines=machineRows.reduce((n,r)=>n+r.concluida,0);
  const totalAsked=machineRows.reduce((n,r)=>n+r.pedida,0);
  const requests=new Set(requested.map(x=>String(x.pedido||'').trim()).filter(Boolean));
- return {date,materialsCount:materials.length,machineRows,receiptRows,receipts,
+ return {date,materialsCount:materials.length,machineRows,receiptRows,receipts,repos,
   requests:[...requested].sort(ntDaySortMovement),
   stockRows,comparisons,production,
   totals:{machines:totalMachines,machinesRequested:totalAsked,orders:requests.size,
+   reposReports:repos.length,reposLines:repos.reduce((sum,r)=>sum+r.itens.length,0),
    requestsLines:requested.length,requestsMaterials:new Set(requested.map(x=>String(x.codigo))).size,
    suppliers:new Set(receipts.map(r=>String(r.fornecedor||'').trim()).filter(Boolean)).size,
    receipts:receipts.length,receiptLines:receiptRows.length,
@@ -1810,18 +1855,20 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
 async function ntGeneralDayFetch(date){
  if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase. Não foi possível consultar o relatório.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))throw Error('Escolha uma data válida.');
- const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap]=await Promise.all([
+ const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap,reposSnap]=await Promise.all([
   getDocsFromServer(collection(db,'nt_web_materiais')),
   getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_PRODUCTION_ACTION))),
-  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION))),
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_REPOS_ACTION)))
  ]);
  const materials=materialSnap.docs.map(x=>x.data()),moves=moveSnap.docs.map(x=>x.data());
  const corrections=correctionSnap.docs.map(x=>({...x.data(),numero:x.id}));
  const receipts=ntManualApplyEdits(receiptSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
  const production=ntManualApplyEdits(productionSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
- return ntGeneralDayModel(date,materials,moves,receipts,production);
+ const repos=reposSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens));
+ return ntGeneralDayModel(date,materials,moves,receipts,production,repos);
 }
 function ntGeneralReceiptPages(records,date,marker){
  // Layout aprovado: várias entregas no mesmo A4 quando couber; nunca omite itens.
@@ -2088,6 +2135,41 @@ function ntGeneralDailyIntelligencePage(model,date,marker){
   html+marker+'</section>';
 }
 
+
+/* Reposição: páginas equivalentes ao PDF individual; somente documentos
+   efetivamente emitidos no histórico na data local do relatório. */
+function ntGeneralReposPages(repos,date,marker){
+ const pages=[];
+ for(const doc of (repos||[])){
+  const rows=Array.isArray(doc.itens)?doc.itens:[];
+  if(!rows.length)continue;
+  let chunks=[],group=[],used=0;
+  for(const item of rows){
+   const weight=1+Math.max(0,Math.ceil(String(item.nome||'').length/47)-1)*.7;
+   if(group.length&&used+weight>(rows.length<=14?16:12)){chunks.push(group);group=[];used=0}
+   group.push(item);used+=weight;
+  }
+  if(group.length)chunks.push(group);
+  chunks.forEach((part,i)=>{
+   const first=i===0,last=i===chunks.length-1;
+   const meta=first?'<div class="nt-day-repos-meta"><div><small>DATA E HORA</small><strong>'+ntPlain(ntDate(date))+' · '+ntPlain(ntRepoLocalHour(doc))+'</strong></div>'+
+    '<div><small>DOCUMENTO</small><strong>'+ntPlain(String(doc.numero||'—'))+'</strong></div>'+
+    '<div><small>EMITIDO POR</small><strong>'+ntPlain(String(doc.operador||'Não informado'))+'</strong></div></div>':'';
+   const intro='<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO'+(first?'':' · CONTINUAÇÃO')+'</span><span>'+rows.length+' '+(rows.length===1?'ITEM':'ITENS')+'</span></div>';
+   const table=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO','QTD. A COMPRAR'],[18,42,9,12,19],part.map(x=>[
+    String(x.codigo||''),String(x.nome||''),String(x.unidadeMedida||'—'),
+    x.saldoAtual==null?'—':fmt(x.saldoAtual),
+    x.quantidadeComprar==null||x.quantidadeComprar===''?'':fmt(x.quantidadeComprar)
+   ]));
+   const end=last?'<div class="sectionline"><span>ENCAMINHAMENTO</span></div>'+
+    '<p class="note">Solicita-se análise para aquisição dos materiais relacionados. Quantidades em branco serão definidas pelo setor responsável. Este registro não comprova compra ou recebimento.</p>':'';
+   pages.push('<section class="page portrait nt-general-repos">'+
+    ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais solicitados para análise e aquisição.',date)+intro+meta+table+end+marker+'</section>');
+  });
+ }
+ return pages;
+}
+
 function ntGeneralDayPDF(model){
  const date=model.date,pages=[],marker='__NT_GERAL_RODAPE__';
  const empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
@@ -2097,20 +2179,32 @@ function ntGeneralDayPDF(model){
  const totals=model.totals;
  const highlights=[
   ['MÁQUINAS CONCLUÍDAS',fmt(totals.machines)],
-  ['LINHAS DE SAÍDA',String(totals.requestsLines)],
+  ['RETIRADAS',String(totals.requestsLines)],
   ['RECEBIMENTOS',String(totals.receipts)],
+  ['REPOSIÇÕES SOLICITADAS',String(totals.reposReports||0)],
   ['MATERIAIS MOVIMENTADOS',String(totals.stockItems)]
  ];
  const blocks='<div class="metrics">'+highlights.map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
+ const lines=[
+  ['PRODUÇÃO',fmt(totals.machines)+' máquina(s) concluída(s).'],
+  ['MATERIAIS ENTREGUES',totals.requestsLines+' retirada(s) realizadas de '+totals.requestsMaterials+' material(is) diferente(s).'],
+  ['RECEBIMENTOS',totals.receipts+' entrega(s) documentada(s), envolvendo '+totals.receiptLines+' linha(s) de material.'],
+  ['REPOSIÇÕES',(totals.reposReports||0)
+    ?totals.reposReports+' solicitação(ões) de reposição emitida(s), com '+totals.reposLines+' linha(s) de material. Confira os documentos após o recebimento.'
+    :'Nenhuma solicitação de reposição emitida nesta data. Isso não significa que não haja materiais precisando de compra.'],
+  ['MOVIMENTAÇÕES DO ESTOQUE',totals.stockItems+' material(is) tiveram registro de movimentação no dia.']
+ ];
+ const executive='<div class="nt-day-summary-rows">'+lines.map(([label,message])=>
+  '<div class="nt-day-summary-row"><strong>'+ntPlain(label)+'</strong><span>'+ntPlain(message)+'</span></div>').join('')+'</div>';
+ const alarms=[];
+ if(totals.receiptDifferences>0)alarms.push(totals.receiptDifferences+' diferença(s) entre NF e recebimento.');
+ if(totals.pendingCodes>0)alarms.push(totals.pendingCodes+' item(ns) recebido(s) sem cadastro.');
+ if(totals.stockNotReconciled>0)alarms.push(totals.stockNotReconciled+' saldo(s) com divergência histórica a conferir.');
+ const concerns=alarms.length?'<div class="nt-day-summary-warn"><strong>PONTOS DE ATENÇÃO</strong><p>'+alarms.map(ntPlain).join(' ')+'</p></div>':'';
  const readout='<div class="sectionline"><span>PANORAMA DO DIA</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
- '<p class="note"><b>Produção:</b> '+fmt(totals.machines)+' máquina(s) concluída(s) de '+fmt(totals.machinesRequested)+' informada(s) como pedida(s) nos registros do dia.</p>'+
- '<p class="note"><b>Comunicação Interna:</b> '+totals.requestsLines+' linha(s) de retirada para '+totals.requestsMaterials+' material(is) distinto(s); '+totals.orders+' pedido(s) com número preenchido.</p>'+
- '<p class="note"><b>Recebimentos:</b> '+totals.receipts+' documento(s) de entrega, '+totals.receiptLines+' linha(s) de material, '+totals.suppliers+' fornecedor(es), '+totals.receiptDifferences+' divergência(s) NF x recebido e '+totals.pendingCodes+' item(ns) sem código pendente(s).</p>'+
- '<p class="note"><b>Estoque:</b> '+totals.stockItems+' material(is) com registro de movimentação; '+totals.stockNotReconciled+' com variação que exige conferir o histórico completo.</p>'+
- '<div class="sectionline"><span>IMPORTANTE PARA A GERÊNCIA</span></div>'+
- '<p class="note">Recebimentos integrados de materiais cadastrados registram entradas e atualizam saldos no Firebase; itens sem código ficam pendentes, sem atualizar o estoque. Documentos de recebimento antigos podem não ter sido vinculados a uma entrada. Os registros de produção são informativos. Saldos vêm exclusivamente das movimentações oficiais.</p>'+
- '<p class="note">Documento gerado com consultas novas ao servidor; registros incluídos depois desta emissão não aparecem neste arquivo.</p>';
- page('RELATÓRIO GERAL DO DIA','Resumo executivo · Produção, pedidos, entregas e estoque.',blocks+readout,true,'nt-general-summary');
+ executive+concerns+
+ '<p class="note">Este documento reúne os registros do dia selecionado. Solicitação de reposição não significa compra ou recebimento; o saldo depende das movimentações oficiais.</p>';
+ page('RELATÓRIO GERAL DO DIA','Resumo executivo · Produção, saídas, recebimentos e reposições.',blocks+readout,true,'nt-general-summary');
 
  // A inteligência diária é incluída somente na última folha, após os saldos.
  pages.push(...ntGeneralProductionPages(model.machineRows,date,marker));
@@ -2132,6 +2226,7 @@ function ntGeneralDayPDF(model){
   }
   pages.push(...receiptPages);
  }
+ if(model.repos?.length)pages.push(...ntGeneralReposPages(model.repos,date,marker));
  pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
  pages.push(ntGeneralDailyIntelligencePage(model,date,marker));
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
@@ -2173,6 +2268,8 @@ function ntDayExcelExport(model,XLSX){
   ['Materiais distintos retirados',t.requestsMaterials,'Sem somar unidades diferentes'],
   ['Pedidos identificados',t.orders,'Somente pedidos com número informado'],
   ['Documentos de recebimento',t.receipts,'Recebimentos integrados podem registrar entradas oficiais'],
+  ['Solicitações de reposição',t.reposReports||0,'Relatórios emitidos e salvos na data selecionada'],
+  ['Materiais em solicitações',t.reposLines||0,'Itens solicitados, não comprados'],
   ['Produtos sem código',t.pendingCodes,'Documentados e pendentes, sem atualização de estoque'],
   ['Fornecedores',t.suppliers,'Fornecedores com recebimento documentado'],
   ['Linhas divergentes de NF',t.receiptDifferences,'Previsto na NF diferente do recebido'],
@@ -2190,6 +2287,11 @@ function ntDayExcelExport(model,XLSX){
  sheet('Recebimentos',['DATA','FORNECEDOR','PEDIDO DE COMPRA','NOTA FISCAL','CÓDIGO','MATERIAL','UNIDADE','QTD. NOTA','QTD. RECEBIDA','DIFERENÇA','SITUAÇÃO ENTRADA','ID MOVIMENTAÇÃO','OBSERVAÇÕES'],
   model.receiptRows.map(x=>[date,x.fornecedor,x.pedidoCompra,x.notaFiscal,x.codigo,x.nome,x.unidade,x.prevista,x.recebida,rnd(x.recebida-x.prevista),
     x.semCadastro?'PENDENTE DE CADASTRO':x.entradaConfirmada?'ENTRADA CONFIRMADA':x.statusEntrada==='ESTOQUE_ATUALIZADO'?'VERIFICAR VÍNCULO':x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA':'DOCUMENTO ANTERIOR',x.movimentacaoId,x.observacao]));
+ if(model.repos?.length){
+  sheet('Reposicao Solicitada',['DATA','HORA','DOCUMENTO','EMITIDO POR','CÓDIGO','MATERIAL','UNIDADE','SALDO REGISTRADO','QTDE A COMPRAR','SITUAÇÃO'],
+   model.repos.flatMap(r=>(r.itens||[]).map(x=>[date,ntRepoLocalHour(r),String(r.numero||''),String(r.operador||''),String(x.codigo||''),String(x.nome||''),String(x.unidadeMedida||'—'),
+    x.saldoAtual==null?'':Number(x.saldoAtual),x.quantidadeComprar==null||x.quantidadeComprar===''?'':Number(x.quantidadeComprar),'SOLICITADO PARA ANÁLISE DE COMPRA'])));
+ }
  sheet('Estoque Movimentado',['DATA','CÓDIGO','MATERIAL','UNIDADE','SALDO INICIAL','SAÍDAS','DEVOLUÇÕES','ENTRADAS','OUTRAS VARIAÇÕES','SALDO FINAL','CONFERÊNCIA'],
   model.stockRows.map(x=>[date,x.codigo,x.nome,x.unidade,x.inicio??'',x.saida,x.devolucao,x.entrada,x.outras??'',x.fim??'',x.validar?'Conferir histórico':'']));
  sheet('Conferência de Entradas',['DATA','CÓDIGO','MATERIAL','UNIDADE','RECEBIDO NO DOCUMENTO','ENTRADAS NO ESTOQUE','DIFERENÇA','SITUAÇÃO'],
