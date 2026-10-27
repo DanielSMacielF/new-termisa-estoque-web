@@ -26,7 +26,14 @@
   const current=inputText();
   disp.textContent=current;disp.classList.toggle('ntc-error',state.error);
   // This smaller line now shows the complete running calculation, not only "2 +".
-  expr.textContent=state.note||(state.trail?(state.trail+(state.next?'':' '+current)):(state.raw==='0'?'':current));
+  // Exibe o resultado parcial no topo enquanto o segundo número é digitado.
+  // Ao encadear operações, calcula na mesma ordem usada pelo botão '='.
+  let shown=state.note||(state.trail?(state.trail+(state.next?'':' '+current)):(state.raw==='0'?'':current));
+  if(!state.error&&state.op&&state.first!==null&&!state.next){
+   const preview=evaluate(state.first,Number(state.raw),state.op);
+   if(preview!==null)shown+=' = '+fmt(preview);
+  }
+  expr.textContent=shown;
   // When the expression fills several lines, keep its newest digits visible.
   expr.scrollTop=expr.scrollHeight;
  }
