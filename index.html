@@ -430,14 +430,15 @@ function dayRows(moves=todayMoves){const result=new Map();for(const m of moves){
 // Não existe escrita, transação nem ajuste em nt_web_materiais ou nt_web_movimentos neste módulo.
 const ntReposSelected=new Set();
 const ntReposAmounts=new Map();
+let ntReposEditingId=null;
 const NT_REPOS_ACTION='RELATORIO_REPOSICAO_EMITIDO';
 function ntReposEntry(){return `<div class="card" style="margin-bottom:12px"><h2>Reposição de materiais</h2><p class="small" style="margin-top:8px">Selecione os materiais para solicitar análise de compra. A quantidade a comprar é opcional e fica em branco no relatório quando não for informada.</p><div class="nt-repos-actions"><button class="btn" type="button" data-action="nt-repos-new">Criar relatório de reposição</button><button class="btn alt" type="button" data-action="nt-repos-history">Histórico dos relatórios</button></div><p class="small" style="margin-top:10px">Apenas documentos e histórico. Não altera saldos nem conferências.</p></div>`}
 function ntReposModal(){
  if(!user||!cloudOk){notice('Aguarde a sincronização dos materiais.',true);return}
- ntReposSelected.clear();ntReposAmounts.clear();
+ ntReposSelected.clear();ntReposAmounts.clear();ntReposEditingId=null;
  const sorted=[...mats].sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR'));
  const rows=sorted.map(m=>{const code=String(m.codigo),name=String(m.nome||'');return `<div class="nt-repos-line" data-repos-row="${esc(normMaterial(code+' '+name))}"><input aria-label="Incluir ${esc(name)}" type="checkbox" data-repos-check="${esc(code)}"><label data-repos-tick="${esc(code)}"><b>${esc(name)}</b><span class="nt-repos-code">${esc(code)}</span></label><input inputmode="decimal" data-repos-qty="${esc(code)}" type="text" aria-label="Quantidade opcional a comprar para ${esc(name)}" placeholder="Qtd. (opcional)" disabled autocomplete="off"></div>`}).join('');
- panel(`<h2>Relatório de reposição</h2><p class="small">Marque os materiais para solicitar compra. Quantidade a comprar: opcional. Não altera o estoque.</p><div class="field"><label for="ntReposSearch">Buscar material</label><input id="ntReposSearch" type="search" autocomplete="off" placeholder="Código ou parte do nome"></div><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-suggest">Sugerir compra</button><button type="button" class="btn ghost" data-action="nt-repos-visible">Marcar filtrados</button><button type="button" class="btn ghost" data-action="nt-repos-clear">Limpar</button></div><p class="small" id="ntReposCount" style="margin:9px 0">0 materiais selecionados</p><div class="nt-repos-choices">${rows}</div><div class="nt-repos-footer"><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-preview">Visualizar PDF (sem salvar)</button><button type="button" class="btn" data-action="nt-repos-issue">Salvar no histórico e gerar PDF</button><button type="button" class="btn ghost" data-action="close">Cancelar</button></div></div>`);
+ panel(`<h2>Relatório de reposição</h2><p class="small">Marque os materiais para solicitar compra. Quantidade a comprar: opcional. Não altera o estoque.</p><div class="field"><label for="ntReposSearch">Buscar material</label><input id="ntReposSearch" type="search" autocomplete="off" placeholder="Código ou parte do nome"></div><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-suggest">Sugerir compra</button><button type="button" class="btn ghost" data-action="nt-repos-visible">Marcar filtrados</button><button type="button" class="btn ghost" data-action="nt-repos-clear">Limpar</button></div><p class="small" id="ntReposCount" style="margin:9px 0">0 materiais selecionados</p><div class="nt-repos-choices">${rows}</div><div class="nt-repos-footer"><div class="buttons"><button type="button" class="btn alt" data-action="nt-repos-preview">Visualizar PDF (sem salvar)</button><button type="button" class="btn" data-action="nt-repos-issue">Salvar relatório e gerar PDF</button><button type="button" class="btn ghost" data-action="close">Cancelar</button></div></div>`);
 }
 function ntReposSuggest(){
  ntReposModal();
@@ -546,23 +547,93 @@ async function ntReposIssue(){
     return {...item,unidadeMedida:atual.unidade,saldoAtual:atual.saldo};
    });
    data.itens=updatedItems;
-   await setDoc(reportRef,data); // Uma única gravação no histórico. Nenhuma gravação no estoque.
-   ntReposOpenPDF(data,popup,live.materiais,live.consultadoEm);
-   notice('Relatório salvo no histórico e PDF preparado.');close();
+   if(ntReposEditingId){
+    const previous=ntReposHistoryCache.get(ntReposEditingId);
+    if(!previous)throw Error('Documento original não encontrado; reabra o histórico.');
+    await ntReposCorrection(ntReposEditingId,{itens:updatedItems},'Atualização de materiais solicitados');
+    const amended={...previous,itens:updatedItems,totalItens:updatedItems.length};
+    ntReposOpenPDF(amended,popup,live.materiais,live.consultadoEm);
+    notice('Solicitação atualizada. Histórico anterior preservado.');
+   }else{
+    await setDoc(reportRef,data);
+    ntReposOpenPDF(data,popup,live.materiais,live.consultadoEm);
+    notice('Solicitação salva no histórico e PDF preparado.');
+   }
+   ntReposEditingId=null;close();
  }catch(e){
    popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:25px"><h2>Relatório não confirmado</h2><p>Não foi possível confirmar o salvamento do relatório no Firebase. A impressão não foi liberada para evitar documento sem histórico.</p><p>Confira suas permissões de acesso ao histórico (coleção de auditoria).</p></body></html>');popup.document.close();
    notice('Não foi possível confirmar o histórico: '+(e.message||'erro de permissão ou conexão')+'. Verifique antes de tentar novamente.',true);
  }finally{loader(false)}
 }
+
+/* Alterações documentais registradas como retificações auditáveis.
+   Não existe exclusão de estoque, movimentos ou do documento original. */
+function ntReposEdit(id){
+ const record=ntReposHistoryCache.get(String(id));
+ if(!record){notice('Atualize o histórico antes de editar.',true);return}
+ ntReposModal();
+ ntReposEditingId=String(id);
+ for(const item of record.itens||[]){
+  const code=String(item.codigo||'');
+  if(!material(code))continue;
+  ntReposSelected.add(code);
+  if(item.quantidadeComprar!==null&&item.quantidadeComprar!==''&&item.quantidadeComprar!==undefined)
+   ntReposAmounts.set(code,String(item.quantidadeComprar).replace('.',','));
+ }
+ ntReposRefresh();
+ const h=document.querySelector('#ntReposSearch')?.closest('.field');
+ if(h)h.insertAdjacentHTML('beforebegin','<p class="small"><b>Editando solicitação emitida.</b> Inclua ou retire materiais e salve. A versão anterior será preservada no histórico de auditoria; o estoque não será alterado.</p>');
+}
+async function ntReposNew(){
+ if(!user||!serverReady||!navigator.onLine){notice('Conecte-se ao Firebase para editar a lista do dia.',true);return}
+ try{
+  loader(true);
+  const records=await ntManualLoad(NT_REPOS_ACTION);
+  ntReposHistoryCache=new Map(records.map(r=>[String(r.numero),r]));
+  const latest=ntReposDailyVersions(records).get(day());
+  loader(false);
+  if(latest&&!latest.excluidoDoGeral){ntReposEdit(latest.numero);return}
+  ntReposModal();
+ }catch(e){loader(false);notice('Não foi possível consultar a lista atual: '+(e.message||'erro de rede'),true)}
+}
+async function ntReposCorrection(id,depois,description){
+ if(!user||!serverReady||!navigator.onLine)throw Error('Conecte-se ao Firebase para registrar a alteração.');
+ const record=ntReposHistoryCache.get(String(id));
+ if(!record)throw Error('Documento não está no histórico. Atualize a lista.');
+ const ref=doc(collection(db,'nt_web_auditoria'));
+ const change={acao:NT_MANUAL_EDIT_ACTION,documentoTipo:'reposition',documentoId:String(id),
+  criadoEmLocal:new Date().toISOString(),criadoEm:serverTimestamp(),
+  operador:String(user.email||''),uid:String(user.uid||''),
+  antes:{itens:record.itens,excluidoDoGeral:!!record.excluidoDoGeral},depois,
+  descricao:String(description||'Retificação documental')};
+ await setDoc(ref,change);
+}
+async function ntReposVisibility(id){
+ const record=ntReposHistoryCache.get(String(id));
+ if(!record){notice('Atualize o histórico.',true);return}
+ const hide=!record.excluidoDoGeral;
+ const message=hide?
+  'Excluir esta versão do Relatório Geral do Dia? O documento original permanecerá no histórico e nenhum estoque será alterado.':
+  'Restaurar esta versão para participação no Relatório Geral? Apenas a versão mais recente de cada dia é exibida.';
+ if(!window.confirm(message))return;
+ try{
+  loader(true);
+  await ntReposCorrection(id,{excluidoDoGeral:hide},hide?'Exclusão lógica do relatório geral':'Restauração documental');
+  notice(hide?'Versão excluída do PDF geral, com histórico preservado.':'Versão restaurada.');await ntReposHistory();
+ }catch(e){notice('Não foi possível salvar a alteração: '+(e.message||'verifique permissões do Firebase'),true)}
+ finally{loader(false)}
+}
+
 async function ntReposHistory(){
  if(!user||!serverReady){notice('Conecte-se ao Firebase para consultar o histórico.',true);return}
  panel('<h2>Histórico de relatórios de reposição</h2><p class="small">Buscando relatórios emitidos no Firebase...</p>');
  try{
-   const snap=await getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_REPOS_ACTION)));
-   const records=snap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens)).sort((a,b)=>String(b.criadoEmLocal||'').localeCompare(String(a.criadoEmLocal||'')));
+   const records=await ntManualLoad(NT_REPOS_ACTION);
+   const latest=ntReposDailyVersions(records);
+   const status=r=>r.excluidoDoGeral?'Excluído do PDF geral':latest.get(ntRepoLocalDay(r))?.numero===r.numero?'Versão do relatório geral':'Versão anterior preservada';
    ntReposHistoryCache=new Map(records.map(r=>[r.numero,r]));
-   const rows=records.map(r=>`<div class="nt-repos-history"><div><b>${esc(new Date(r.criadoEmLocal).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}))}</b><div class="small">${esc(String(r.operador||'Operador não informado'))} · ${Number(r.totalItens)||r.itens.length} materiais</div></div><button class="btn alt" type="button" data-action="nt-repos-open-history" data-code="${esc(r.numero)}">Abrir PDF</button></div>`).join('');
-   panel(`<h2>Histórico de relatórios de reposição</h2><p class="small">Registros já emitidos, preservados como foram enviados na data original. ${records.length} relatório(s).</p><div class="card" style="max-height:53vh;overflow-y:auto;padding:0 10px">${rows||'<p class="small" style="padding:12px">Nenhum relatório de reposição salvo até agora.</p>'}</div><div class="buttons" style="margin-top:12px"><button class="btn alt" data-action="nt-repos-new">Novo relatório</button><button class="btn ghost" data-action="close">Fechar</button></div>`);
+   const rows=records.map(r=>`<div class="nt-repos-history"><div><b>${esc(new Date(r.criadoEmLocal).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}))}</b><div class="small">${r.itens.length} materiais · ${esc(status(r))}</div></div><div class="buttons"><button class="btn alt" type="button" data-action="nt-repos-open-history" data-code="${esc(r.numero)}">PDF</button><button class="btn alt" type="button" data-action="nt-repos-edit" data-code="${esc(r.numero)}">Editar</button><button class="btn ghost" type="button" data-action="nt-repos-visibility" data-code="${esc(r.numero)}">${r.excluidoDoGeral?'Restaurar':'Excluir página'}</button></div></div>`).join('');
+   panel(`<h2>Histórico de relatórios de reposição</h2><p class="small">Somente a versão mais recente de cada dia é incluída no PDF Geral. Você pode editar ou excluir uma página do relatório sem apagar os registros originais nem alterar o estoque. ${records.length} versão(ões) no histórico.</p><div class="card" style="max-height:53vh;overflow-y:auto;padding:0 10px">${rows||'<p class="small" style="padding:12px">Nenhum relatório de reposição salvo até agora.</p>'}</div><div class="buttons" style="margin-top:12px"><button class="btn alt" data-action="nt-repos-new">Editar lista de hoje</button><button class="btn ghost" data-action="close">Fechar</button></div>`);
  }catch(e){panel(`<h2>Histórico de relatórios</h2><div class="alert">Não foi possível consultar o histórico no Firebase. Confira as permissões da coleção de auditoria.</div><p class="small">${esc(e.message||'Erro de leitura')}</p><button class="btn" data-action="close">Fechar</button>`)}
 }
 let ntReposHistoryCache=new Map();
@@ -591,7 +662,7 @@ function closeView(){
  ntCenterCard('Relatório Geral do Dia','Todos os setores em um documento: produção, pedidos, fornecedores, saldos e conferência.','Automático + dados manuais',button('nt-geral-pdf','PDF completo')+button('nt-geral-excel','Baixar Excel (.xlsx)','alt'))+
  ntCenterCard('Comunicação Interna','Pedidos e entregas de materiais do dia '+date+'.','Automático',button('nt-requests-pdf','Gerar PDF'))+
  ntCenterCard('Fechamento Diário','Entradas, saídas, devoluções e saldos antes e depois de cada movimentação.','Automático',button('nt-saldos-pdf','Gerar PDF'))+
- ntCenterCard('Reposição de Materiais','Sugestões pelo estoque mínimo, com quantidades de compra ajustáveis.','Automático + revisão',button('nt-repos-new','Ver itens para compra')+button('nt-repos-history','Histórico','alt'))+
+ ntCenterCard('Reposição de Materiais','Lista diária editável, histórico e sugestões por estoque mínimo.','Automático + revisão',button('nt-repos-new','Ver itens para compra')+button('nt-repos-history','Histórico','alt'))+
  ntCenterCard('Recebimento de Materiais','Consulta das entradas registradas em Movimentar, por fornecedor, PC e nota fiscal.','Automático · leitura',button('nt-receipt-pdf','PDF do dia')+button('nt-receipt-history','Histórico / Editar','alt'))+
  ntCenterCard('Produção de Máquinas','Código, produto, unidade, quantidade produzida e lote/OP.','Preenchimento manual',button('nt-production-new','Registrar produção')+button('nt-production-pdf','PDF do dia','alt')+button('nt-production-history','Histórico / Editar','ghost'))+
  '</div><div class="nt-rc-group">Gestão e inventário</div><div class="nt-rc-grid">'+
@@ -1387,7 +1458,7 @@ function ntManualApplyEdits(records,corrections){
  for(const edit of changes){
   const id=String(edit.documentoId),record=byId.get(id);
   if(!record)continue;
-  const type=record.acao===NT_RECEIPT_ACTION?'receipt':record.acao===NT_PRODUCTION_ACTION?'production':'';
+  const type=record.acao===NT_RECEIPT_ACTION?'receipt':record.acao===NT_PRODUCTION_ACTION?'production':record.acao===NT_REPOS_ACTION?'reposition':'';
   if(type!==edit.documentoTipo)continue;
   const next={...record};
   if(type==='receipt'){
@@ -1395,6 +1466,12 @@ function ntManualApplyEdits(records,corrections){
     if(typeof edit.depois[k]!=='string')continue;
     next[k]=edit.depois[k];
    }
+  }else if(type==='reposition'){
+   if(Array.isArray(edit.depois.itens)&&edit.depois.itens.length>0){
+    next.itens=edit.depois.itens.map(item=>({...item}));
+    next.totalItens=next.itens.length;
+   }
+   if(typeof edit.depois.excluidoDoGeral==='boolean')next.excluidoDoGeral=edit.depois.excluidoDoGeral;
   }else if(Array.isArray(edit.depois.itens)&&edit.depois.itens.length===record.itens.length){
    next.itens=record.itens.map((x,i)=>({...x,...edit.depois.itens[i],
     modelo:edit.depois.itens[i].nomeMaquina,ordemProducao:edit.depois.itens[i].lote}));
@@ -1793,6 +1870,21 @@ function ntRepoLocalHour(r){
  catch(_){return '—'}
 }
 
+
+/* Relatórios emitidos: somente a versão mais recente de cada data entra no PDF geral.
+   Versões anteriores continuam no histórico; exclusão é documental, nunca apaga estoque. */
+function ntReposDailyVersions(records){
+ const byDay=new Map();
+ for(const r of (records||[])){
+  const d=ntRepoLocalDay(r);
+  if(!d||!Array.isArray(r.itens))continue;
+  const prev=byDay.get(d);
+  if(!prev||String(r.criadoEmLocal||'').localeCompare(String(prev.criadoEmLocal||''))>0||
+    (String(r.criadoEmLocal||'')===String(prev.criadoEmLocal||'')&&String(r.numero||'')>String(prev.numero||'')))byDay.set(d,r);
+ }
+ return byDay;
+}
+
 function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,reposDocs=[]){
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
  const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE']);
@@ -1802,8 +1894,8 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
  const incoming=operating.filter(m=>m.tipo==='ENTRADA');
  const receipts=receiptDocs.filter(x=>x.dataRecebimento===date);
  const production=productionDocs.filter(x=>x.dataProducao===date);
- const repos=(Array.isArray(reposDocs)?reposDocs:[]).filter(r=>Array.isArray(r.itens)&&ntRepoLocalDay(r)===date)
-  .sort((a,b)=>String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||''))||String(a.numero||'').localeCompare(String(b.numero||'')));
+ const latest=ntReposDailyVersions(Array.isArray(reposDocs)?reposDocs:[]).get(date);
+ const repos=latest&&!latest.excluidoDoGeral?[latest]:[];
  const machineRows=ntDayMachineRows(production);
  const entranceById=new Map(operating.filter(m=>m.tipo==='ENTRADA'&&m.id).map(m=>[String(m.id),m]));
  const receiptRows=receipts.flatMap(r=>(r.itens||[]).map(x=>{
@@ -1912,7 +2004,7 @@ async function ntGeneralDayFetch(date){
  const corrections=correctionSnap.docs.map(x=>({...x.data(),numero:x.id}));
  const receipts=ntManualApplyEdits(receiptSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
  const production=ntManualApplyEdits(productionSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
- const repos=reposSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens));
+ const repos=ntManualApplyEdits(reposSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens)),corrections);
  const model=ntGeneralDayModel(date,materials,moves,receipts,production,repos);
  model.catalogConsultedAt=new Date().toISOString();
  return model;
@@ -2205,7 +2297,7 @@ function ntGeneralReposPages(repos,date,marker,catalog,consultadoEm){
   for(const item of rows){
    const weight=1+Math.max(0,Math.ceil(String(item.nome||'').length/47)-1)*.7;
    // Paisagem A4: limite conservador de linhas para manter a tabela e o rodapé na mesma folha.
-   if(group.length&&used+weight>9.5){chunks.push(group);group=[];used=0}
+   if(group.length&&used+weight>15.5){chunks.push(group);group=[];used=0}
    group.push(item);used+=weight;
   }
   if(group.length)chunks.push(group);
@@ -2572,7 +2664,9 @@ if(a==='nt-manual-edit-save'){await ntManualEditSave();return}
 if(a==='nt-manual-edit-cancel'){await ntManualHistory(ntManualEditDraft?.type||'receipt');return}
 if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
 if(a==='nt-manager-month'){await ntManagerOpen('month');return}
-if(a==='nt-repos-new'){ntReposModal();return}if(a==='nt-repos-all'){ntReposBatch('all');return}if(a==='nt-repos-visible'){ntReposBatch('visible');return}if(a==='nt-repos-clear'){ntReposBatch('clear');return}if(a==='nt-repos-preview'){ntReposPreview();return}if(a==='nt-repos-issue'){await ntReposIssue();return}if(a==='nt-repos-history'){await ntReposHistory();return}if(a==='nt-repos-open-history'){ntReposOpenHistory(act.dataset.code);return}if(a==='nt-label-open'){ntLabelSelectPanel();return}if(a==='nt-label-all'){ntBatchLabelSelect('all');return}if(a==='nt-label-visible'){ntBatchLabelSelect('visible');return}if(a==='nt-label-clear'){ntBatchLabelSelect('clear');return}if(a==='nt-label-single'){const m=material(act.dataset.code);if(m)ntPrintLabels([m]);return}if(a==='nt-label-print'){ntPrintLabels(mats.filter(m=>ntLabelCodes.has(String(m.codigo))));return}if(a==='modal-details'){detail(act.dataset.code);return}if(a==='modal-history'){await countHistory(act.dataset.code);return}if(a==='more-mats'){visibleMaterials+=100;draw();return}if(a==='scan-qr'){await openQr(act.dataset.scanTarget||'materiais');return}if(a==='qr-close'){await stopQr();close();return}if(a==='close'){close();return}if(a==='modal-count'){itemCount(act.dataset.code);return}if(a==='modal-edit'){itemEdit(act.dataset.code);return}if(a==='novo'){itemEdit();return}if(a==='logout'){await signOut(appAuth);return}if(a==='resetconfig'){if(confirm('Desconectar a configuração deste navegador?')){localStorage.removeItem('nt-firebase-web-config');location.reload()}return}if(a==='import-measures'){$('importMeasuresFile')?.click();return}if(a==='csv-stock'){stockCsv();return}if(a==='csv-day'){dayCsv();return}if(a==='csv-history'){eventsCsv();return}if(a==='print-ci'){ntOpenReport('ci');return}if(a==='print-closing'){ntOpenReport('closing');return}if(a==='print-full-inventory'){ntOpenFullInventory();return}if(a==='backup'){await execute(fullBackup);return}if(a==='import'){$('arquivoCatalogo').click();return}if(a==='add-cart'){rememberOrder();const code=$('cartCode').value,q=rnd(nval($('cartQty').value)),m=material(code);if(!m||!(q>0)||!Number.isFinite(q))throw Error('Selecione material e quantidade válida.');if(!m.conferido)throw Error('Confira primeiro este material.');const ex=cart.find(x=>x.codigo===code),t=rnd((ex?.qtd||0)+q);if(t>m.quantidade)throw Error('Quantidade maior que saldo.');if(ex)ex.qtd=t;else cart.push({codigo:code,qtd:t});draw();return}if(a==='finish-cart'){rememberOrder();const person=window.orderPerson?.trim(),order=window.orderNumber?.trim();if(!person)throw Error('Informe o solicitante.');if(!cart.length)throw Error('Pedido vazio.');if(!confirm(`Finalizar ${cart.length} materiais para ${person}? Todos serão descontados juntos.`))return;const saved=await execute(async()=>{await doMoves(cart.map(r=>({...r,quantidade:r.qtd,tipo:'SAIDA'})),person,order,'Pedido separado');},cart.map(r=>r.codigo));if(saved){cart=[];window.orderPerson='';window.orderNumber='';draw()}return}}catch(err){notice(err.message,true)}}
+if(a==='nt-repos-new'){await ntReposNew();return}if(a==='nt-repos-all'){ntReposBatch('all');return}if(a==='nt-repos-visible'){ntReposBatch('visible');return}if(a==='nt-repos-clear'){ntReposBatch('clear');return}if(a==='nt-repos-preview'){ntReposPreview();return}if(a==='nt-repos-issue'){await ntReposIssue();return}if(a==='nt-repos-history'){await ntReposHistory();return}if(a==='nt-repos-open-history'){ntReposOpenHistory(act.dataset.code);return}
+if(a==='nt-repos-edit'){ntReposEdit(act.dataset.code);return}
+if(a==='nt-repos-visibility'){await ntReposVisibility(act.dataset.code);return}if(a==='nt-label-open'){ntLabelSelectPanel();return}if(a==='nt-label-all'){ntBatchLabelSelect('all');return}if(a==='nt-label-visible'){ntBatchLabelSelect('visible');return}if(a==='nt-label-clear'){ntBatchLabelSelect('clear');return}if(a==='nt-label-single'){const m=material(act.dataset.code);if(m)ntPrintLabels([m]);return}if(a==='nt-label-print'){ntPrintLabels(mats.filter(m=>ntLabelCodes.has(String(m.codigo))));return}if(a==='modal-details'){detail(act.dataset.code);return}if(a==='modal-history'){await countHistory(act.dataset.code);return}if(a==='more-mats'){visibleMaterials+=100;draw();return}if(a==='scan-qr'){await openQr(act.dataset.scanTarget||'materiais');return}if(a==='qr-close'){await stopQr();close();return}if(a==='close'){close();return}if(a==='modal-count'){itemCount(act.dataset.code);return}if(a==='modal-edit'){itemEdit(act.dataset.code);return}if(a==='novo'){itemEdit();return}if(a==='logout'){await signOut(appAuth);return}if(a==='resetconfig'){if(confirm('Desconectar a configuração deste navegador?')){localStorage.removeItem('nt-firebase-web-config');location.reload()}return}if(a==='import-measures'){$('importMeasuresFile')?.click();return}if(a==='csv-stock'){stockCsv();return}if(a==='csv-day'){dayCsv();return}if(a==='csv-history'){eventsCsv();return}if(a==='print-ci'){ntOpenReport('ci');return}if(a==='print-closing'){ntOpenReport('closing');return}if(a==='print-full-inventory'){ntOpenFullInventory();return}if(a==='backup'){await execute(fullBackup);return}if(a==='import'){$('arquivoCatalogo').click();return}if(a==='add-cart'){rememberOrder();const code=$('cartCode').value,q=rnd(nval($('cartQty').value)),m=material(code);if(!m||!(q>0)||!Number.isFinite(q))throw Error('Selecione material e quantidade válida.');if(!m.conferido)throw Error('Confira primeiro este material.');const ex=cart.find(x=>x.codigo===code),t=rnd((ex?.qtd||0)+q);if(t>m.quantidade)throw Error('Quantidade maior que saldo.');if(ex)ex.qtd=t;else cart.push({codigo:code,qtd:t});draw();return}if(a==='finish-cart'){rememberOrder();const person=window.orderPerson?.trim(),order=window.orderNumber?.trim();if(!person)throw Error('Informe o solicitante.');if(!cart.length)throw Error('Pedido vazio.');if(!confirm(`Finalizar ${cart.length} materiais para ${person}? Todos serão descontados juntos.`))return;const saved=await execute(async()=>{await doMoves(cart.map(r=>({...r,quantidade:r.qtd,tipo:'SAIDA'})),person,order,'Pedido separado');},cart.map(r=>r.codigo));if(saved){cart=[];window.orderPerson='';window.orderNumber='';draw()}return}}catch(err){notice(err.message,true)}}
 function load(){if(location.protocol!=='https:' && location.hostname!=='localhost'){status('● Precisa publicar em HTTPS',false,true);$('app').innerHTML='<div class="alert"><b>Não use este arquivo diretamente de Downloads.</b><p class="small">Para sincronizar e proteger o estoque, acesse o sistema somente pelo endereço HTTPS oficial da empresa. Não registre movimentos neste arquivo local.</p></div>';return;}const raw=localStorage.getItem('nt-firebase-web-config') || JSON.stringify(EMBEDDED_FIREBASE_CONFIG);if(!raw){status('● Falta conectar',false,true);$('app').innerHTML=homeConfig();return}let cfg;try{cfg=JSON.parse(raw);if(cfg.projectId!=='new-termisa-estoque')throw Error('Projeto não autorizado. Utilize New Termisa Estoque, não o Firebase oficial.');const fb=initializeApp(cfg);appAuth=getAuth(fb);db=getFirestore(fb);}catch(e){status('● Configuração inválida',false,true);$('app').innerHTML=homeConfig();notice('Configuração não foi aceita: '+e.message,true);return}onAuthStateChanged(appAuth,u=>{user=u;if(!u){for(const f of unsubs)f();unsubs=[];if(bindDay.unsub)bindDay.unsub();mats=[];recent=[];todayMoves=[];cloudOk=false;serverReady=false;$('navigation').classList.add('hide');status('● Entre para acessar');$('app').innerHTML=loginView()}else{status('● Verificando nuvem');bindListeners()}})}
 document.addEventListener('submit',async e=>{e.preventDefault();try{if(e.target.id==='configForm'){const data=parseConfig($('configText').value);localStorage.setItem('nt-firebase-web-config',JSON.stringify(data));location.reload();return}if(e.target.id==='loginForm'){loader(true);await signInWithEmailAndPassword(appAuth,$('email').value.trim(),$('senha').value);loader(false);return}if(e.target.id==='moveForm'){if(kind==='ENTRADA')throw Error('Registre entradas pelo Recebimento integrado, incluindo fornecedor, PC e NF.');const code=$('moveCode').value,q=rnd(nval($('moveQty').value)),p=$('movePerson').value.trim(),ref=$('moveOrder').value.trim(),obs=$('moveObs').value.trim();if(!material(code)||!Number.isFinite(q)||q<=0||!p)throw Error('Preencha todos os campos corretamente.');if(!confirm(`${kind}: ${fmt(q)} de ${material(code).nome}\nSolicitante: ${p}\nSalvar no Firebase?`))return;const saved=await execute(()=>doMoves([{codigo:code,quantidade:q,tipo:kind}],p,ref,obs),[code]);if(saved)e.target.reset();return}if(e.target.id==='countForm'){const code=$('countCode').value,qty=rnd(nval($('countQty').value)),p=$('countPerson').value.trim();if(!Number.isFinite(qty)||qty<0||!p)throw Error('Informe contagem e responsável.');if(!confirm(`Confirmar saldo físico de ${fmt(qty)} para ${material(code)?.nome}?`))return;const saved=await execute(()=>adjustMaterial(code,qty,p),[code],{[code]:{quantidade:qty,conferido:true}});if(saved)close();return}if(e.target.id==='editForm'){await saveItem(e);return}}catch(err){loader(false);notice(err.message||'Operação falhou.',true)}});
 document.addEventListener('click',async e=>{const tick=e.target.closest('[data-repos-tick]');if(tick){const c=tick.dataset.reposTick;ntReposToggle(c,!ntReposSelected.has(c));return}const summary=e.target.closest('summary');if(summary?.parentElement?.id==='inventoryFilterPanel'){filterPanelOpen=!summary.parentElement.open;return}const go=e.target.closest('[data-go]');if(go){if(tab==='movimentar'&&kind==='ENTRADA')ntReceiptCapture();ntClearTemporarySelections();close();tab=go.dataset.go;draw();window.scrollTo({top:0});return}const del=e.target.closest('[data-remove]');if(del){rememberOrder();cart.splice(+del.dataset.remove,1);draw();return}const details=e.target.closest('[data-details]');if(details){detail(details.dataset.details);return}const b=e.target.closest('[data-type]');if(b){if(kind==='ENTRADA')ntReceiptCapture();kind=b.dataset.type;draw();return}await handleActions(e)});
