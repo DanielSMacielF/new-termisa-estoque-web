@@ -1861,6 +1861,74 @@ function ntGeneralReceiptPages(records,date,marker){
  return pages;
 }
 
+/* Os relatórios individuais e a compilação diária compartilham estas seções.
+   Alterações visuais futuras devem ser feitas aqui, evitando modelos divergentes. */
+function ntGeneralProductionPages(machineRows,date,marker){
+ const pages=[],empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
+ for(let i=0,n=Math.max(1,Math.ceil(machineRows.length/10));i<n;i++){
+  const part=machineRows.slice(i*10,(i+1)*10);
+  const completed=part.reduce((sum,x)=>sum+x.concluida,0);
+  const distinct=new Set(part.map(x=>x.codigoMaquina==='—'?x.produto:x.codigoMaquina)).size;
+  const lots=new Set(part.map(x=>x.lote).filter(x=>x!=='—')).size;
+  const summaries='<div class="metrics nt-gp-metrics">'+[
+   ['MÁQUINAS CONCLUÍDAS',fmt(completed)],['PRODUTOS IDENTIFICADOS',String(distinct)],
+   ['LOTES IDENTIFICADOS',String(lots)],['DATA DE REFERÊNCIA',ntDate(date)]
+  ].map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
+  const table=part.length?ntTable(
+   ['CÓD. MÁQUINA','PRODUTO','UN.','QTDE. FEITA','LOTE / OP'],[16,42,8,15,19],
+   part.map(x=>[x.codigoMaquina,x.produto,x.unidade,fmt(x.concluida),x.lote])):
+   empty('Nenhuma máquina registrada como produzida nesta data.');
+  const unknown=part.filter(x=>x.codigoMaquina==='—'||x.unidade==='—').length;
+  const observation=unknown?'<p class="note">Há '+unknown+' registro(s) antigos sem código da máquina ou unidade cadastrados. Os campos não foram preenchidos automaticamente para evitar informações incorretas.</p>':'';
+  const body=summaries+
+   '<div class="sectionline"><span>RELAÇÃO DE PRODUTOS FABRICADOS</span><span>'+part.length+' produto(s) nesta página</span></div>'+
+   table+observation+
+   '<p class="note">Produção informada pelo setor responsável. Este relatório não realiza movimentações de estoque.</p>';
+  pages.push('<section class="page landscape nt-general-production">'+ntTop('PRODUÇÃO DE MÁQUINAS','Produção concluída, identificada por produto, código e lote.',date)+body+marker+'</section>');
+ }
+ return pages;
+}
+function ntGeneralStockPages(stock,date,marker){
+ const pages=[],empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
+ for(let i=0,n=Math.max(1,Math.ceil(stock.length/12));i<n;i++){
+  const part=stock.slice(i*12,(i+1)*12);
+  const table=part.length?ntTable(
+   ['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','INICIAL','SAÍDAS','DEVOL.','ENTRADAS','FINAL'],
+   [13,31,7,10,10,10,10,9],
+   part.map(x=>[x.codigo,x.nome,x.unidade,x.inicio===null?'—':fmt(x.inicio),
+    fmt(x.saida),fmt(x.devolucao),fmt(x.entrada),x.fim===null?'—':fmt(x.fim)])):
+   empty('Nenhum material teve movimentação registrada nesta data.');
+  const outliers=part.filter(x=>x.validar&&x.residual!==null);
+  const unconfirmed=part.filter(x=>x.outras===null);
+  const audit=(outliers.length?'<p class="note" style="color:#8b5435"><b>Diferenças para conferência (fora dos movimentos listados):</b> '+
+   outliers.map(x=>ntPlain(x.codigo)+' ('+ntPlain(x.nome)+'): '+(x.ajusteInvalido?'lançamento de ajuste inconsistente':ntPlain(fmt(x.residual))+' '+ntPlain(x.unidade))).join(' · ')+
+   '. Consulte o histórico das contagens e ajustes.</p>':'')+
+   (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
+  const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
+   table+audit+
+   '<p class="note">O saldo final considera as movimentações e os ajustes de inventário confirmados, preservados integralmente no histórico. Somente diferenças ainda não conciliadas são destacadas acima.</p>';
+  pages.push('<section class="page landscape nt-general-stock">'+ntTop('SALDOS DO ALMOXARIFADO','Saldos históricos antes e depois dos lançamentos do dia.',date)+body+marker+'</section>');
+ }
+ return pages;
+}
+function ntSaldosIndividualPDF(model){
+ const marker='__NT_SALDOS_INDIVIDUAL_RODAPE__',pages=ntGeneralStockPages(model.stockRows,model.date,marker);
+ return ntHtml('Saldos do Almoxarifado · '+ntDate(model.date),
+  pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
+}
+async function ntSaldosIndividualOpen(){
+ const selected=dateFilter,popup=window.open('','_blank');
+ if(!popup){notice('Permita pop-ups para visualizar o relatório.',true);return}
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:26px">Consultando saldos do Firebase...</body></html>');
+ popup.document.close();
+ try{
+  const model=await ntGeneralDayFetch(selected);
+  popup.document.open();popup.document.write(ntSaldosIndividualPDF(model));popup.document.close();
+ }catch(e){
+  popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body><h2>Consulta indisponível</h2><p>Não foi possível obter os saldos atuais do servidor.</p></body></html>');popup.document.close();
+  notice(e.message||'Falha ao consultar saldos',true);
+ }
+}
 function ntGeneralDayPDF(model){
  const date=model.date,pages=[],marker='__NT_GERAL_RODAPE__';
  const empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
@@ -1884,28 +1952,7 @@ function ntGeneralDayPDF(model){
  '<p class="note">Recebimentos integrados de materiais cadastrados registram entradas e atualizam saldos no Firebase; itens sem código ficam pendentes, sem atualizar o estoque. Documentos de recebimento antigos podem não ter sido vinculados a uma entrada. Os registros de produção são informativos. Saldos vêm exclusivamente das movimentações oficiais.</p>'+
  '<p class="note">Documento gerado com consultas novas ao servidor; registros incluídos depois desta emissão não aparecem neste arquivo.</p>';
  page('RELATÓRIO GERAL DO DIA','Resumo executivo · Produção, pedidos, entregas e estoque.',blocks+readout,true,'nt-general-summary');
- const machineRows=model.machineRows;
- for(let i=0,n=Math.max(1,Math.ceil(machineRows.length/10));i<n;i++){
-  const part=machineRows.slice(i*10,(i+1)*10);
-  const completed=part.reduce((sum,x)=>sum+x.concluida,0);
-  const distinct=new Set(part.map(x=>x.codigoMaquina==='—'?x.produto:x.codigoMaquina)).size;
-  const lots=new Set(part.map(x=>x.lote).filter(x=>x!=='—')).size;
-  const summaries='<div class="metrics nt-gp-metrics">'+[
-   ['MÁQUINAS CONCLUÍDAS',fmt(completed)],['PRODUTOS IDENTIFICADOS',String(distinct)],
-   ['LOTES IDENTIFICADOS',String(lots)],['DATA DE REFERÊNCIA',ntDate(date)]
-  ].map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
-  const table=part.length?ntTable(
-   ['CÓD. MÁQUINA','PRODUTO','UN.','QTDE. FEITA','OPÇÃO / LOTE'],[16,42,8,15,19],
-   part.map(x=>[x.codigoMaquina,x.produto,x.unidade,fmt(x.concluida),x.lote])):
-   empty('Nenhuma máquina registrada como produzida nesta data.');
-  const unknown=part.filter(x=>x.codigoMaquina==='—'||x.unidade==='—').length;
-  const observation=unknown?'<p class="note">Há '+unknown+' registro(s) antigos sem código da máquina ou unidade cadastrados. Os campos não foram preenchidos automaticamente para evitar informações incorretas.</p>':'';
-  const body=summaries+
-   '<div class="sectionline"><span>RELAÇÃO DE PRODUTOS FABRICADOS</span><span>'+part.length+' produto(s) nesta página</span></div>'+
-   table+observation+
-   '<p class="note">O número da coluna OPÇÃO / LOTE corresponde à identificação do lote/OP registrado pela Produção. Este documento é informativo e não realiza baixa de materiais.</p>';
-  page('PRODUÇÃO DE MÁQUINAS','Produção concluída, identificada por produto, código e lote.',body,true,'nt-general-production');
- }
+ pages.push(...ntGeneralProductionPages(model.machineRows,date,marker));
  const requests=model.requests;
  for(let i=0,n=Math.max(1,Math.ceil(requests.length/13));i<n;i++){
   const part=requests.slice(i*13,(i+1)*13);
@@ -1934,26 +1981,7 @@ function ntGeneralDayPDF(model){
   }
   pages.push(...receiptPages);
  }
- const stock=model.stockRows;
- for(let i=0,n=Math.max(1,Math.ceil(stock.length/12));i<n;i++){
-  const part=stock.slice(i*12,(i+1)*12);
-  const table=part.length?ntTable(
-   ['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','INICIAL','SAÍDAS','DEVOL.','ENTRADAS','FINAL'],
-   [13,31,7,10,10,10,10,9],
-   part.map(x=>[x.codigo,x.nome,x.unidade,x.inicio===null?'—':fmt(x.inicio),
-    fmt(x.saida),fmt(x.devolucao),fmt(x.entrada),x.fim===null?'—':fmt(x.fim)])):
-   empty('Nenhum material teve movimentação registrada nesta data.');
-  const outliers=part.filter(x=>x.validar&&x.residual!==null);
-  const unconfirmed=part.filter(x=>x.outras===null);
-  const audit=(outliers.length?'<p class="note" style="color:#8b5435"><b>Diferenças para conferência (fora dos movimentos listados):</b> '+
-   outliers.map(x=>ntPlain(x.codigo)+' ('+ntPlain(x.nome)+'): '+(x.ajusteInvalido?'lançamento de ajuste inconsistente':ntPlain(fmt(x.residual))+' '+ntPlain(x.unidade))).join(' · ')+
-   '. Consulte o histórico das contagens e ajustes.</p>':'')+
-   (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
-  const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
-   table+audit+
-   '<p class="note">O saldo final considera as movimentações e os ajustes de inventário confirmados, preservados integralmente no histórico. Somente diferenças ainda não conciliadas são destacadas acima.</p>';
-  page('SALDOS DO ALMOXARIFADO','Saldos históricos antes e depois dos lançamentos do dia.',body,true,'nt-general-stock');
- }
+ pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 
