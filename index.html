@@ -1743,7 +1743,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
    const m=byCode.get(code);
    stockMap.set(code,{codigo:code,nome:String(m?.nome||mv.nome||'—'),
     unidade:String(m?.unidadeMedida||'—'),saida:0,entrada:0,devolucao:0,
-    historico:[],inicio:null,fim:null,outras:null,validar:false});
+    historico:[],inicio:null,fim:null,outras:null,ajustes:0,ajusteInvalido:false,residual:null,validar:false});
   }
   const row=stockMap.get(code);
   row.historico.push(mv);
@@ -1751,6 +1751,12 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
    if(mv.tipo==='SAIDA')row.saida=rnd(row.saida+ntQty(mv));
    if(mv.tipo==='ENTRADA')row.entrada=rnd(row.entrada+ntQty(mv));
    if(mv.tipo==='DEVOLUCAO')row.devolucao=rnd(row.devolucao+ntQty(mv));
+   if(mv.tipo==='AJUSTE'){
+    const d=Number(mv.delta),before=Number(mv.antes),after=Number(mv.depois);
+    if(Number.isFinite(d)&&Number.isFinite(before)&&Number.isFinite(after)&&Math.abs(rnd(after-before-d))<.0001)
+     row.ajustes=rnd(row.ajustes+d);
+    else row.ajusteInvalido=true;
+   }
   }
  }
  const stockRows=[...stockMap.values()].map(row=>{
@@ -1759,7 +1765,9 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
   if(row.inicio!==null&&row.fim!==null){
    const movementDelta=rnd(row.entrada+row.devolucao-row.saida);
    row.outras=rnd(row.fim-row.inicio-movementDelta);
-   row.validar=Math.abs(row.outras)>0.0001;
+   row.residual=rnd(row.outras-row.ajustes);
+   // Ajustes com antes/depois e delta coerentes não são divergências pendentes.
+   row.validar=row.ajusteInvalido||Math.abs(row.residual)>0.0001;
   }else{
    // Dados antigos sem saldo antes/depois não podem parecer conciliados.
    row.validar=true;
@@ -1972,15 +1980,15 @@ function ntGeneralDayPDF(model){
    part.map(x=>[x.codigo,x.nome,x.unidade,x.inicio===null?'—':fmt(x.inicio),
     fmt(x.saida),fmt(x.devolucao),fmt(x.entrada),x.fim===null?'—':fmt(x.fim)])):
    empty('Nenhum material teve movimentação registrada nesta data.');
-  const outliers=part.filter(x=>x.outras!==null&&Math.abs(Number(x.outras))>.0001);
+  const outliers=part.filter(x=>x.validar&&x.residual!==null);
   const unconfirmed=part.filter(x=>x.outras===null);
   const audit=(outliers.length?'<p class="note" style="color:#8b5435"><b>Diferenças para conferência (fora dos movimentos listados):</b> '+
-   outliers.map(x=>ntPlain(x.codigo)+' ('+ntPlain(x.nome)+'): '+ntPlain(fmt(x.outras))+' '+ntPlain(x.unidade)).join(' · ')+
+   outliers.map(x=>ntPlain(x.codigo)+' ('+ntPlain(x.nome)+'): '+(x.ajusteInvalido?'lançamento de ajuste inconsistente':ntPlain(fmt(x.residual))+' '+ntPlain(x.unidade))).join(' · ')+
    '. Consulte o histórico das contagens e ajustes.</p>':'')+
    (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
   const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    table+audit+
-   '<p class="note">O saldo final considera as operações e eventuais ajustes de conferência, discriminados acima quando existirem. Os lançamentos oficiais permanecem no histórico.</p>';
+   '<p class="note">O saldo final considera as movimentações e os ajustes de inventário confirmados, preservados integralmente no histórico. Somente diferenças ainda não conciliadas são destacadas acima.</p>';
   page('SALDOS DO ALMOXARIFADO','Saldos históricos antes e depois dos lançamentos do dia.',body,true,'nt-general-stock');
  }
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
