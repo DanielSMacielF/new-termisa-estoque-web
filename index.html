@@ -1017,7 +1017,7 @@ function ntCIChunks(rows){
  return pages;
 }
 function ntCI(movements,date,catalog=mats){
- const entries=movements.filter(m=>m.tipo==='SAIDA'&&!testeIdentificado(m))
+ const entries=movements.filter(m=>m.tipo==='SAIDA'&&!m.anulado&&!testeIdentificado(m))
    .sort((a,b)=>String(a.timeClient||'').localeCompare(String(b.timeClient||'')));
  const requests=new Set(entries.map(m=>String(m.pedido||'').trim()).filter(Boolean));
  const people=new Set(entries.map(m=>String(m.solicitante||'').trim()).filter(Boolean));
@@ -1989,7 +1989,7 @@ function ntReposDailyVersions(records){
 function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,reposDocs=[]){
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
  const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE']);
- const all=[...movements].filter(m=>recognized.has(String(m.tipo))).sort(ntDaySortMovement);
+ const all=[...movements].filter(m=>!m.anulado&&recognized.has(String(m.tipo))).sort(ntDaySortMovement);
  const operating=all.filter(m=>!testeIdentificado(m)&&['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo));
  const requested=operating.filter(m=>m.tipo==='SAIDA');
  const incoming=operating.filter(m=>m.tipo==='ENTRADA');
@@ -2700,13 +2700,156 @@ async function ntGeneralDayOpenExcel(){
  finally{loader(false)}
 }
 
-function securityView(){return `<h2>Segurança e backups</h2><div class="card"><div class="small">Conta Firebase</div><p style="margin:8px 0"><b>${esc(user?.email||'')}</b></p><p class="small">UID autorizado: <code style="word-break:break-all">${esc(user?.uid||'')}</code></p><div class="gap"></div><button class="btn alt" data-action="logout">Sair da conta</button></div><div class="card"><h2>Backup e exportação</h2><p class="small">Os dados oficiais ficam no Firestore. Faça também backup externo, especialmente antes de mudanças importantes.</p><div class="buttons" style="margin-top:10px"><button class="btn" data-action="backup">Baixar backup JSON completo</button><button class="btn alt" data-action="csv-stock">Exportar estoque CSV</button></div></div><div class="card"><h2>Importação inicial do catálogo</h2><p class="small">O arquivo privado inclui os 218 materiais do V32. Somente use a importação com uma base vazia. <b>Não substitui dados existentes.</b> A operação requer permissão de administrador pelas regras.</p><button class="btn alt" data-action="import">Selecionar JSON privado</button><div class="small" style="margin-top:12px">Materiais atualmente no banco: ${mats.length}</div></div><div class="notice"><b>Sem internet, sem lançamentos</b><p class="small">Esta versão exige confirmação online das gravações para evitar diferenças entre aparelhos. O navegador não guarda movimentações offline para sincronizar depois.</p></div>`}
+
+/* Correção assistida e auditável do aramado de 27/10/2026.
+   Não grava nada no ato de VERIFICAR. O ajuste errado já recuperou o saldo
+   físico do código 080100326; não cria entrada/devolução duplicada.
+   Se as evidências divergirem do histórico esperado, BLOQUEIA sem gravar. */
+const NT_ARM_FIX={dia:'2026-10-27',errado:'080100326',certo:'080100190',quantidade:30,
+ auditoria:'RETIFICACAO_PEDIDO_20261027_080100326_080100190'};
+let ntArmCandidate=null;
+function ntArmQty(m){return Number(m.quantidade);}
+function ntArmValid(m,a,code){return !!m&&String(m.tipo)===a&&String(m.codigo)===code&&
+ String(m.dia)===NT_ARM_FIX.dia&&!m.anulado&&!testeIdentificado(m);}
+function ntArmPattern(original,adjust,wrong,right){
+ if(!ntArmValid(original,'SAIDA',NT_ARM_FIX.errado)||
+  ntArmQty(original)!==NT_ARM_FIX.quantidade)throw Error('A retirada original não corresponde a 30 UN do aramado informado.');
+ if(!ntArmValid(adjust,'AJUSTE',NT_ARM_FIX.errado)||
+  Number(adjust.antes)!==20||Number(adjust.depois)!==50||Number(adjust.delta)!==30)
+   throw Error('Não encontrei a conferência esperada de 20 para 50 UN. Não é seguro corrigir automaticamente.');
+ if(!Number.isFinite(Date.parse(original.timeClient))||!Number.isFinite(Date.parse(adjust.timeClient))||
+  Date.parse(adjust.timeClient)<=Date.parse(original.timeClient))
+   throw Error('A conferência não é posterior à retirada equivocada. Confira o histórico.');
+ if(!wrong||String(wrong.codigo)!==NT_ARM_FIX.errado||
+  !String(wrong.nome||'').toUpperCase().includes('ARAMADO')||Number(wrong.quantidade)!==50)
+   throw Error('O aramado retirado por engano precisa estar com saldo atual exatamente 50 UN.');
+ if(!right||String(right.codigo)!==NT_ARM_FIX.certo||
+  !String(right.nome||'').toUpperCase().includes('ARAMADO')||
+  !Number.isFinite(Number(right.quantidade))||Number(right.quantidade)<30||!right.conferido)
+   throw Error('O aramado correto está sem conferência ou com saldo insuficiente para 30 UN. Não foi alterado.');
+}
+async function ntArmRead(){
+ const f=NT_ARM_FIX;
+ const [movesSnap,wrongSnap,rightSnap,markerSnap]=await Promise.all([
+  getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',f.dia))),
+  getDocFromServer(itemRef(f.errado)),getDocFromServer(itemRef(f.certo)),
+  getDocFromServer(doc(db,'nt_web_auditoria',f.auditoria))
+ ]);
+ if(markerSnap.exists())throw Error('Esta correção já foi registrada. Não é permitido repetir o desconto.');
+ if(!wrongSnap.exists()||!rightSnap.exists())throw Error('Um dos materiais não existe no Firebase.');
+ const movements=movesSnap.docs.map(d=>({...d.data(),id:d.id}));
+ const wrongEvents=movements.filter(x=>String(x.codigo)===f.errado&&!x.anulado&&!testeIdentificado(x));
+ const originals=wrongEvents.filter(x=>x.tipo==='SAIDA'&&ntArmQty(x)===30);
+ if(originals.length!==1)throw Error('Encontrei '+originals.length+' retiradas candidatas. A seleção exige conferência manual.');
+ const original=originals[0];
+ const adj=wrongEvents.filter(x=>x.tipo==='AJUSTE'&&Number(x.antes)===20&&Number(x.depois)===50&&Number(x.delta)===30);
+ if(adj.length!==1||wrongEvents.length!==2)
+  throw Error('O código errado tem outros registros ou uma conferência diferente. Nenhum saldo foi modificado.');
+ const rightDup=movements.some(x=>String(x.codigo)===f.certo&&x.tipo==='SAIDA'&&!x.anulado&&
+  ntArmQty(x)===30&&String(x.pedido||'')===String(original.pedido||'')&&!testeIdentificado(x));
+ if(rightDup)throw Error('Já existe retirada de 30 UN do material certo para esse pedido. Para evitar desconto duplo, operação bloqueada.');
+ const wrong=wrongSnap.data(),right=rightSnap.data();
+ ntArmPattern(original,adj[0],wrong,right);
+ return {original,adjust:adj[0],wrong,right,checkedAt:Date.now()};
+}
+async function ntArmPreview(){
+ isReady();loader(true);ntArmCandidate=null;
+ try{
+  const v=await ntArmRead();ntArmCandidate=v;
+  panel('<h2>Conferir correção do aramado</h2>'+
+   '<p class="small">27/10/2026 · referência '+esc(v.original.pedido||'sem número')+
+   ' · solicitante '+esc(v.original.solicitante||'não informado')+'</p>'+
+   '<div class="inventory-history-row"><b>Material escolhido por engano</b><p>'+
+   esc(v.wrong.nome)+' · '+NT_ARM_FIX.errado+'</p><p>Saldo atual: <b>50 UN</b> (será preservado)</p>'+
+   '<p class="small">A retirada de 30 UN e a conferência corretiva ficarão marcadas como anuladas para os relatórios. Registros originais preservados no Firebase.</p></div>'+
+   '<div class="inventory-history-row"><b>Material que deveria ter saído</b><p>'+
+   esc(v.right.nome)+' · '+NT_ARM_FIX.certo+'</p><p>Saldo atual: <b>'+
+   fmt(v.right.quantidade)+' UN</b> · após corrigir: <b>'+fmt(Number(v.right.quantidade)-30)+' UN</b></p>'+
+   '<p class="small">Será gravada uma única saída de 30 UN vinculada ao pedido original, com trilha de auditoria.</p></div>'+
+   '<div class="alert"><b>Confira antes de confirmar</b><p>Esta correção altera o estoque REAL do código '+NT_ARM_FIX.certo+
+   ' em 30 UN. O outro aramado permanecerá em 50 UN. Se a quantidade certa já foi descontada manualmente, cancele.</p></div>'+
+   '<div class="buttons"><button class="btn" type="button" data-action="nt-arm-fix-confirm">Confirmar correção no Firebase</button>'+
+   '<button class="btn alt" type="button" data-action="nt-arm-fix-cancel">Cancelar</button></div>');
+ }catch(err){panel('<h2>Correção interrompida por segurança</h2><p>'+
+  esc(err.message||'Falha ao consultar registros no Firebase')+
+  '</p><p class="small">Nada foi alterado. Envie esta mensagem para conferirmos a movimentação.</p>'+
+  '<button type="button" class="btn alt" data-action="nt-arm-fix-cancel">Fechar</button>');}
+ finally{loader(false)}
+}
+async function ntArmCommit(){
+ isReady();const v=ntArmCandidate;ntArmCandidate=null;
+ if(!v||Date.now()-v.checkedAt>120000)throw Error('A conferência expirou. Faça a verificação novamente.');
+ if(!window.confirm('Confirmar a retificação? O código 080100326 permanecerá com 50 UN e 080100190 perderá 30 UN.'))return;
+ const f=NT_ARM_FIX;
+ const refWrong=itemRef(f.errado),refRight=itemRef(f.certo);
+ const refOriginal=doc(db,'nt_web_movimentos',v.original.id);
+ const refAdjust=doc(db,'nt_web_movimentos',v.adjust.id);
+ const audit=doc(db,'nt_web_auditoria',f.auditoria);
+ const evt=moveRef(),stamp=new Date().toISOString();
+ let committed=false;
+ loader(true);
+ try{
+  await runTransaction(db,async tx=>{
+   // Leitura de todas as dependências antes da primeira gravação.
+   const snaps=[];
+   for(const ref of [audit,refOriginal,refAdjust,refWrong,refRight])snaps.push(await tx.get(ref));
+   const [mark,originalSnap,adjustSnap,wrongSnap,rightSnap]=snaps;
+   if(mark.exists())throw Error('Correção já executada. Nenhum novo desconto permitido.');
+   if(!originalSnap.exists()||!adjustSnap.exists()||!wrongSnap.exists()||!rightSnap.exists())
+    throw Error('Um dos registros desapareceu. Nenhuma alteração aplicada.');
+   const original=originalSnap.data(),adjust=adjustSnap.data();
+   const wrong=wrongSnap.data(),right=rightSnap.data();
+   ntArmPattern(original,adjust,wrong,right);
+   if(String(original.pedido||'')!==String(v.original.pedido||'')||
+      String(original.solicitante||'')!==String(v.original.solicitante||'')||
+      Number(right.quantidade)!==Number(v.right.quantidade))
+      throw Error('Pedido ou saldo mudou desde a conferência. Verifique novamente.');
+   const after=rnd(Number(right.quantidade)-30);
+   if(after<0)throw Error('O material correto ficou com saldo insuficiente.');
+   tx.update(refOriginal,{anulado:true,motivoAnulacao:'Retirada de aramado incorreto: retificação de pedido',
+    retificacaoId:f.auditoria,retificadoEm:serverTimestamp(),retificadoPor:user.email||''});
+   tx.update(refAdjust,{anulado:true,motivoAnulacao:'Conferência compensatória após retirada de código incorreto',
+    retificacaoId:f.auditoria,retificadoEm:serverTimestamp(),retificadoPor:user.email||''});
+   tx.update(refRight,{quantidade:after,ultimoMovimentoId:evt.id,atualizadoEm:serverTimestamp()});
+   tx.set(evt,{id:evt.id,codigo:f.certo,nome:right.nome,unidade:right.unidadeMedida||right.unidade||'UN',
+    tipo:'SAIDA',quantidade:30,delta:-30,antes:Number(right.quantidade),depois:after,
+    solicitante:String(original.solicitante||'Almoxarifado'),pedido:String(original.pedido||''),
+    observacao:'Retificação de material do pedido de 27/10/2026. Saída incorreta '+f.errado+
+     ' anulada (movimento '+v.original.id+').',
+    operador:user.email||'',uid:user.uid,dia:f.dia,timeClient:stamp,criadoEm:serverTimestamp(),
+    retificacaoId:f.auditoria});
+   tx.set(audit,{acao:'RETIFICACAO_SAIDA',dataReferencia:f.dia,materialErrado:f.errado,
+    materialCorreto:f.certo,quantidade:30,estoqueErradoPreservado:Number(wrong.quantidade),
+    saldoCorretoAntes:Number(right.quantidade),saldoCorretoDepois:after,
+    movimentoOriginal:v.original.id,conferenciaCompensatoria:v.adjust.id,
+    novoMovimento:evt.id,pedido:String(original.pedido||''),
+    motivo:'Código de aramado selecionado por engano durante atendimento de pedido.',
+    operador:user.email||'',uid:user.uid,criadoEmLocal:stamp,criadoEm:serverTimestamp()});
+  });
+  committed=true;
+  const saved=await getDocFromServer(audit);
+  if(!saved.exists())throw Error('A gravação foi aceita, mas não foi possível ler o registro de auditoria.');
+  panel('<h2>Correção registrada!</h2>'+
+   '<p>O aramado <b>'+f.errado+'</b> permaneceu em <b>50 UN</b>.</p>'+
+   '<p>O aramado <b>'+f.certo+'</b> teve a retirada de <b>30 UN</b> registrada com o pedido original.</p>'+
+   '<p class="small">O lançamento equivocado e a conferência compensatória foram preservados como anulados no histórico. Atualize o Relatório Geral do Dia.</p>'+
+   '<button type="button" class="btn" data-action="nt-arm-fix-cancel">Concluir</button>');
+  notice('Correção do aramado confirmada no Firebase!');
+ }catch(err){
+  panel('<h2>'+ (committed?'Correção gravada':'Correção não realizada')+'</h2><p>'+
+   esc(err.message||'Erro de conexão')+'</p><p class="small">'+
+   (committed?'Não repita. A correção foi enviada; confira o histórico.':'Nenhuma movimentação adicional foi realizada por esta operação.')+
+   '</p><button class="btn alt" data-action="nt-arm-fix-cancel">Fechar</button>');
+ }finally{loader(false)}
+}
+
+function securityView(){return `<h2>Segurança e backups</h2><div class="card"><div class="small">Conta Firebase</div><p style="margin:8px 0"><b>${esc(user?.email||'')}</b></p><p class="small">UID autorizado: <code style="word-break:break-all">${esc(user?.uid||'')}</code></p><div class="gap"></div><button class="btn alt" data-action="logout">Sair da conta</button></div><div class="card"><h2>Backup e exportação</h2><p class="small">Os dados oficiais ficam no Firestore. Faça também backup externo, especialmente antes de mudanças importantes.</p><div class="buttons" style="margin-top:10px"><button class="btn" data-action="backup">Baixar backup JSON completo</button><button class="btn alt" data-action="csv-stock">Exportar estoque CSV</button></div></div><div class="card"><h2>Correção assistida · Aramado (27/10)</h2><p class="small">Confere a retirada equivocada de 30 UN do código 080100326 e a conferência que restaurou seu saldo a 50 UN. Verifica o material correto 080100190 e bloqueia descontos duplicados. Nenhum dado é alterado ao verificar.</p><button class="btn alt" type="button" data-action="nt-arm-fix-preview">Verificar registros para correção</button></div><div class="card"><h2>Importação inicial do catálogo</h2><p class="small">O arquivo privado inclui os 218 materiais do V32. Somente use a importação com uma base vazia. <b>Não substitui dados existentes.</b> A operação requer permissão de administrador pelas regras.</p><button class="btn alt" data-action="import">Selecionar JSON privado</button><div class="small" style="margin-top:12px">Materiais atualmente no banco: ${mats.length}</div></div><div class="notice"><b>Sem internet, sem lançamentos</b><p class="small">Esta versão exige confirmação online das gravações para evitar diferenças entre aparelhos. O navegador não guarda movimentações offline para sincronizar depois.</p></div>`}
 function draw(){if(!user)return;$('navigation').classList.remove('hide');for(const b of $('navigation').querySelectorAll('button'))b.classList.toggle('active',b.dataset.go===tab);$('app').innerHTML= !cloudOk?'<div class="alert">Não foi possível ler o estoque no Firebase. Confira as regras de segurança e o UID autorizado.</div>':({painel:panelHome,materiais:materialList,movimentar:moveView,pedidos:orderView,fechamento:closeView,seguranca:securityView})[tab]();}
 function formatDate(m){let d=m.criadoEm?.toDate?.()||new Date(m.timeClient||Date.now());return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
 function bindListeners(){for(const f of unsubs)f();unsubs=[];serverReady=false;cloudOk=false;unsubs.push(onSnapshot(query(collection(db,'nt_web_materiais'),orderBy('nome')),{includeMetadataChanges:true},snap=>{const entryBeingEdited=tab==='movimentar'&&kind==='ENTRADA'&&!!$('nrSupplier');
  mats=snap.docs.map(d=>d.data());serverReady=!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites&&navigator.onLine;cloudOk=true;status(serverReady?'● Sincronizado':'● Sem conexão confirmada',serverReady,!serverReady);
- if(!entryBeingEdited)draw()},e=>{status('● Acesso negado',false,true);cloudOk=false;draw();notice('Não conseguiu acessar materiais: '+e.message,true)}));unsubs.push(onSnapshot(query(collection(db,'nt_web_movimentos'),orderBy('criadoEm','desc'),limit(40)),snap=>{recent=snap.docs.map(d=>d.data());if(tab==='painel')draw()},e=>notice('Histórico: '+e.message,true)));bindDay()}
-function bindDay(){if(bindDay.unsub)bindDay.unsub();todayMoves=[];bindDay.unsub=onSnapshot(query(collection(db,'nt_web_movimentos'),where('dia','==',dateFilter)),snap=>{todayMoves=snap.docs.map(d=>d.data()).sort((a,b)=>String(a.timeClient).localeCompare(String(b.timeClient)));if(tab==='fechamento')draw()},e=>notice('Fechamento: '+e.message,true))}
+ if(!entryBeingEdited)draw()},e=>{status('● Acesso negado',false,true);cloudOk=false;draw();notice('Não conseguiu acessar materiais: '+e.message,true)}));unsubs.push(onSnapshot(query(collection(db,'nt_web_movimentos'),orderBy('criadoEm','desc'),limit(40)),snap=>{recent=snap.docs.map(d=>d.data()).filter(m=>!m.anulado);if(tab==='painel')draw()},e=>notice('Histórico: '+e.message,true)));bindDay()}
+function bindDay(){if(bindDay.unsub)bindDay.unsub();todayMoves=[];bindDay.unsub=onSnapshot(query(collection(db,'nt_web_movimentos'),where('dia','==',dateFilter)),snap=>{todayMoves=snap.docs.map(d=>d.data()).filter(m=>!m.anulado).sort((a,b)=>String(a.timeClient).localeCompare(String(b.timeClient)));if(tab==='fechamento')draw()},e=>notice('Fechamento: '+e.message,true))}
 async function doMoves(rows,person,order,obs){if(!rows.length)throw Error('Selecione um material');if(!person)throw Error('Informe o solicitante.');if(rows.length>100)throw Error('Máximo de 100 itens por pedido.');const codes=new Set();for(const r of rows){
  if(!['SAIDA','ENTRADA','DEVOLUCAO'].includes(r.tipo)||!Number.isFinite(r.quantidade)||r.quantidade<=0)throw Error('Quantidade inválida.');
  const code=String(r.codigo||'').trim();
@@ -2730,7 +2873,7 @@ async function countHistory(code){
   panel(`<h2>Histórico de conferência</h2><p class="small">${esc(item.nome)} · ${esc(code)}</p><p class="small" style="margin-top:14px">Consultando registros no Firebase...</p>`);
   try{
     const snap=await getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('codigo','==',String(code))));
-    const found=snap.docs.map(x=>x.data()).filter(x=>x.tipo==='AJUSTE'&&(x.pedido==='CONFERÊNCIA FÍSICA'||x.observacao==='Ajuste de contagem física'));
+    const found=snap.docs.map(x=>x.data()).filter(x=>x.tipo==='AJUSTE'&&!x.anulado&&(x.pedido==='CONFERÊNCIA FÍSICA'||x.observacao==='Ajuste de contagem física'));
     found.sort((a,b)=>String(b.timeClient||'').localeCompare(String(a.timeClient||'')));
     panel(`<h2>Histórico de conferência</h2><p class="small">${esc(item.nome)} · ${esc(code)}</p><p class="small" style="margin-top:10px">${found.length} conferência(s) física(s) registrada(s). Consulta somente leitura.</p>
       ${found.slice(0,50).map(x=>`<div class="inventory-history-row"><b>${readableCountDate(x.criadoEm,x.timeClient)}</b><p class="small">Responsável: ${esc(x.solicitante||'Não informado')} · Operador: ${esc(x.operador||'Não informado')}</p><p style="margin-top:7px">Saldo anterior: <b>${fmt(x.antes)} ${esc(x.unidade||item.unidade||'')}</b></p><p>Saldo conferido: <b>${fmt(x.depois)} ${esc(x.unidade||item.unidade||'')}</b></p><p class="small">Diferença registrada: ${fmt(x.delta)}</p></div>`).join('')||'<div class="notice" style="margin-top:14px">Nenhuma conferência física foi encontrada no histórico de movimentações desse material.</div>'}
@@ -2877,7 +3020,10 @@ if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return
 if(a==='nt-manager-month'){await ntManagerOpen('month');return}
 if(a==='nt-repos-new'){await ntReposNew();return}if(a==='nt-repos-all'){ntReposBatch('all');return}if(a==='nt-repos-visible'){ntReposBatch('visible');return}if(a==='nt-repos-clear'){ntReposBatch('clear');return}if(a==='nt-repos-preview'){ntReposPreview();return}if(a==='nt-repos-issue'){await ntReposIssue();return}if(a==='nt-repos-history'){await ntReposHistory();return}if(a==='nt-repos-open-history'){ntReposOpenHistory(act.dataset.code);return}
 if(a==='nt-repos-edit'){ntReposEdit(act.dataset.code);return}
-if(a==='nt-repos-visibility'){await ntReposVisibility(act.dataset.code);return}if(a==='nt-label-open'){ntLabelSelectPanel();return}if(a==='nt-label-all'){ntBatchLabelSelect('all');return}if(a==='nt-label-visible'){ntBatchLabelSelect('visible');return}if(a==='nt-label-clear'){ntBatchLabelSelect('clear');return}if(a==='nt-label-single'){const m=material(act.dataset.code);if(m)ntPrintLabels([m]);return}if(a==='nt-label-print'){ntPrintLabels(mats.filter(m=>ntLabelCodes.has(String(m.codigo))));return}if(a==='modal-details'){detail(act.dataset.code);return}if(a==='modal-history'){await countHistory(act.dataset.code);return}if(a==='more-mats'){visibleMaterials+=100;draw();return}if(a==='scan-qr'){await openQr(act.dataset.scanTarget||'materiais');return}if(a==='qr-close'){await stopQr();close();return}if(a==='close'){close();return}if(a==='modal-count'){itemCount(act.dataset.code);return}if(a==='modal-edit'){itemEdit(act.dataset.code);return}if(a==='novo'){itemEdit();return}if(a==='logout'){await signOut(appAuth);return}if(a==='resetconfig'){if(confirm('Desconectar a configuração deste navegador?')){localStorage.removeItem('nt-firebase-web-config');location.reload()}return}if(a==='import-measures'){$('importMeasuresFile')?.click();return}if(a==='csv-stock'){stockCsv();return}if(a==='csv-day'){dayCsv();return}if(a==='csv-history'){eventsCsv();return}if(a==='print-ci'){ntOpenReport('ci');return}if(a==='print-closing'){ntOpenReport('closing');return}if(a==='print-full-inventory'){ntOpenFullInventory();return}if(a==='backup'){await execute(fullBackup);return}if(a==='import'){$('arquivoCatalogo').click();return}if(a==='add-cart'){rememberOrder();const code=$('cartCode').value,q=rnd(nval($('cartQty').value)),m=material(code);if(!m||!(q>0)||!Number.isFinite(q))throw Error('Selecione material e quantidade válida.');if(!m.conferido)throw Error('Confira primeiro este material.');const ex=cart.find(x=>x.codigo===code),t=rnd((ex?.qtd||0)+q);if(t>m.quantidade)throw Error('Quantidade maior que saldo.');if(ex)ex.qtd=t;else cart.push({codigo:code,qtd:t});draw();return}if(a==='finish-cart'){rememberOrder();const person=window.orderPerson?.trim(),order=window.orderNumber?.trim();if(!person)throw Error('Informe o solicitante.');if(!cart.length)throw Error('Pedido vazio.');if(!confirm(`Finalizar ${cart.length} materiais para ${person}? Todos serão descontados juntos.`))return;const saved=await execute(async()=>{await doMoves(cart.map(r=>({...r,quantidade:r.qtd,tipo:'SAIDA'})),person,order,'Pedido separado');},cart.map(r=>r.codigo));if(saved){cart=[];window.orderPerson='';window.orderNumber='';draw()}return}}catch(err){notice(err.message,true)}}
+if(a==='nt-repos-visibility'){await ntReposVisibility(act.dataset.code);return}if(a==='nt-label-open'){ntLabelSelectPanel();return}if(a==='nt-label-all'){ntBatchLabelSelect('all');return}if(a==='nt-label-visible'){ntBatchLabelSelect('visible');return}if(a==='nt-label-clear'){ntBatchLabelSelect('clear');return}if(a==='nt-label-single'){const m=material(act.dataset.code);if(m)ntPrintLabels([m]);return}if(a==='nt-label-print'){ntPrintLabels(mats.filter(m=>ntLabelCodes.has(String(m.codigo))));return}if(a==='modal-details'){detail(act.dataset.code);return}if(a==='modal-history'){await countHistory(act.dataset.code);return}if(a==='more-mats'){visibleMaterials+=100;draw();return}if(a==='scan-qr'){await openQr(act.dataset.scanTarget||'materiais');return}if(a==='qr-close'){await stopQr();close();return}if(a==='close'){close();return}if(a==='modal-count'){itemCount(act.dataset.code);return}if(a==='modal-edit'){itemEdit(act.dataset.code);return}if(a==='novo'){itemEdit();return}if(a==='logout'){await signOut(appAuth);return}if(a==='resetconfig'){if(confirm('Desconectar a configuração deste navegador?')){localStorage.removeItem('nt-firebase-web-config');location.reload()}return}if(a==='import-measures'){$('importMeasuresFile')?.click();return}if(a==='csv-stock'){stockCsv();return}if(a==='csv-day'){dayCsv();return}if(a==='csv-history'){eventsCsv();return}if(a==='print-ci'){ntOpenReport('ci');return}if(a==='print-closing'){ntOpenReport('closing');return}if(a==='print-full-inventory'){ntOpenFullInventory();return}if(a==='nt-arm-fix-preview'){await ntArmPreview();return}
+if(a==='nt-arm-fix-confirm'){await ntArmCommit();return}
+if(a==='nt-arm-fix-cancel'){ntArmCandidate=null;close();return}
+if(a==='backup'){await execute(fullBackup);return}if(a==='import'){$('arquivoCatalogo').click();return}if(a==='add-cart'){rememberOrder();const code=$('cartCode').value,q=rnd(nval($('cartQty').value)),m=material(code);if(!m||!(q>0)||!Number.isFinite(q))throw Error('Selecione material e quantidade válida.');if(!m.conferido)throw Error('Confira primeiro este material.');const ex=cart.find(x=>x.codigo===code),t=rnd((ex?.qtd||0)+q);if(t>m.quantidade)throw Error('Quantidade maior que saldo.');if(ex)ex.qtd=t;else cart.push({codigo:code,qtd:t});draw();return}if(a==='finish-cart'){rememberOrder();const person=window.orderPerson?.trim(),order=window.orderNumber?.trim();if(!person)throw Error('Informe o solicitante.');if(!cart.length)throw Error('Pedido vazio.');if(!confirm(`Finalizar ${cart.length} materiais para ${person}? Todos serão descontados juntos.`))return;const saved=await execute(async()=>{await doMoves(cart.map(r=>({...r,quantidade:r.qtd,tipo:'SAIDA'})),person,order,'Pedido separado');},cart.map(r=>r.codigo));if(saved){cart=[];window.orderPerson='';window.orderNumber='';draw()}return}}catch(err){notice(err.message,true)}}
 function load(){if(location.protocol!=='https:' && location.hostname!=='localhost'){status('● Precisa publicar em HTTPS',false,true);$('app').innerHTML='<div class="alert"><b>Não use este arquivo diretamente de Downloads.</b><p class="small">Para sincronizar e proteger o estoque, acesse o sistema somente pelo endereço HTTPS oficial da empresa. Não registre movimentos neste arquivo local.</p></div>';return;}const raw=localStorage.getItem('nt-firebase-web-config') || JSON.stringify(EMBEDDED_FIREBASE_CONFIG);if(!raw){status('● Falta conectar',false,true);$('app').innerHTML=homeConfig();return}let cfg;try{cfg=JSON.parse(raw);if(cfg.projectId!=='new-termisa-estoque')throw Error('Projeto não autorizado. Utilize New Termisa Estoque, não o Firebase oficial.');const fb=initializeApp(cfg);appAuth=getAuth(fb);db=getFirestore(fb);}catch(e){status('● Configuração inválida',false,true);$('app').innerHTML=homeConfig();notice('Configuração não foi aceita: '+e.message,true);return}onAuthStateChanged(appAuth,u=>{user=u;if(!u){for(const f of unsubs)f();unsubs=[];if(bindDay.unsub)bindDay.unsub();mats=[];recent=[];todayMoves=[];cloudOk=false;serverReady=false;$('navigation').classList.add('hide');status('● Entre para acessar');$('app').innerHTML=loginView()}else{status('● Verificando nuvem');bindListeners()}})}
 document.addEventListener('submit',async e=>{e.preventDefault();try{if(e.target.id==='configForm'){const data=parseConfig($('configText').value);localStorage.setItem('nt-firebase-web-config',JSON.stringify(data));location.reload();return}if(e.target.id==='loginForm'){loader(true);await signInWithEmailAndPassword(appAuth,$('email').value.trim(),$('senha').value);loader(false);return}if(e.target.id==='moveForm'){if(kind==='ENTRADA')throw Error('Registre entradas pelo Recebimento integrado, incluindo fornecedor, PC e NF.');const code=$('moveCode').value,q=rnd(nval($('moveQty').value)),p=$('movePerson').value.trim(),ref=$('moveOrder').value.trim(),obs=$('moveObs').value.trim();if(!material(code)||!Number.isFinite(q)||q<=0||!p)throw Error('Preencha todos os campos corretamente.');if(!confirm(`${kind}: ${fmt(q)} de ${material(code).nome}\nSolicitante: ${p}\nSalvar no Firebase?`))return;const saved=await execute(()=>doMoves([{codigo:code,quantidade:q,tipo:kind}],p,ref,obs),[code]);if(saved)e.target.reset();return}if(e.target.id==='countForm'){const code=$('countCode').value,qty=rnd(nval($('countQty').value)),p=$('countPerson').value.trim();if(!Number.isFinite(qty)||qty<0||!p)throw Error('Informe contagem e responsável.');if(!confirm(`Confirmar saldo físico de ${fmt(qty)} para ${material(code)?.nome}?`))return;const saved=await execute(()=>adjustMaterial(code,qty,p),[code],{[code]:{quantidade:qty,conferido:true}});if(saved)close();return}if(e.target.id==='editForm'){await saveItem(e);return}}catch(err){loader(false);notice(err.message||'Operação falhou.',true)}});
 document.addEventListener('click',async e=>{const tick=e.target.closest('[data-repos-tick]');if(tick){const c=tick.dataset.reposTick;ntReposToggle(c,!ntReposSelected.has(c));return}const summary=e.target.closest('summary');if(summary?.parentElement?.id==='inventoryFilterPanel'){filterPanelOpen=!summary.parentElement.open;return}const go=e.target.closest('[data-go]');if(go){if(tab==='movimentar'&&kind==='ENTRADA')ntReceiptCapture();ntClearTemporarySelections();close();tab=go.dataset.go;draw();window.scrollTo({top:0});return}const del=e.target.closest('[data-remove]');if(del){rememberOrder();cart.splice(+del.dataset.remove,1);draw();return}const details=e.target.closest('[data-details]');if(details){detail(details.dataset.details);return}const b=e.target.closest('[data-type]');if(b){if(kind==='ENTRADA')ntReceiptCapture();kind=b.dataset.type;draw();return}await handleActions(e)});
