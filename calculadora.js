@@ -51,10 +51,16 @@
   show();
  }
  function del(){
-  if(state.error){reset();return}
-  if(state.next){state.next=false;state.raw='0';state.note='';show();return}
-  if(state.finished){state.finished=false;state.note=''}
-  let s=state.raw.slice(0,-1);state.raw=s===''||s==='-'?'0':s;show();
+  if(state.error||state.next){reset();return}
+  // After a completed calculation, don't keep the previous sum above the new number.
+  if(state.finished){
+   state.finished=false;state.note='';state.trail='';state.first=null;state.op=null;
+  }
+  // Clear the complete operation once the last digit is deleted.
+  if(state.raw==='0'||state.raw==='-0'){reset();return}
+  const shortened=state.raw.slice(0,-1);
+  if(shortened===''||shortened==='-'||shortened==='0'||shortened==='-0'){reset();return}
+  state.raw=shortened;show();
  }
  function sign(){if(state.error||state.raw==='0')return;state.raw=state.raw[0]==='-'?state.raw.slice(1):'-'+state.raw;state.finished=false;show()}
  function percent(){if(state.error)return;state.raw=round(Number(state.raw)/100);state.finished=false;show()}
