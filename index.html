@@ -1017,7 +1017,7 @@ function ntCIChunks(rows){
  return pages;
 }
 function ntCI(movements,date,catalog=mats){
- const entries=movements.filter(m=>m.tipo==='SAIDA'&&!m.anulado&&!testeIdentificado(m))
+ const entries=ntArmEffectiveMovements(movements).filter(m=>m.tipo==='SAIDA'&&!m.anulado&&!testeIdentificado(m))
    .sort((a,b)=>String(a.timeClient||'').localeCompare(String(b.timeClient||'')));
  const requests=new Set(entries.map(m=>String(m.pedido||'').trim()).filter(Boolean));
  const people=new Set(entries.map(m=>String(m.solicitante||'').trim()).filter(Boolean));
@@ -1073,7 +1073,7 @@ function ntSaldosDoDia(movements){
 function ntClosing(movements,date,catalog=mats){
  // Relatório executivo mostra SOMENTE movimentos operacionais reais.
  // Ajustes e simulações permanecem íntegros no histórico/auditoria, fora deste PDF.
- const operational=movements.filter(m=>['SAIDA','ENTRADA','DEVOLUCAO'].includes(String(m.tipo))&&!testeIdentificado(m));
+ const operational=ntArmEffectiveMovements(movements).filter(m=>['SAIDA','ENTRADA','DEVOLUCAO'].includes(String(m.tipo))&&!testeIdentificado(m));
  const grouped=dayRows(operational),balances=ntSaldosDoDia(operational);
  const types={SAIDA:new Set(),DEVOLUCAO:new Set(),ENTRADA:new Set()};
  for(const m of operational)types[m.tipo].add(String(m.codigo));
@@ -1989,7 +1989,7 @@ function ntReposDailyVersions(records){
 function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,reposDocs=[]){
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
  const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE']);
- const all=[...movements].filter(m=>!m.anulado&&recognized.has(String(m.tipo))).sort(ntDaySortMovement);
+ const all=ntArmEffectiveMovements(movements).filter(m=>!m.anulado&&recognized.has(String(m.tipo))).sort(ntDaySortMovement);
  const operating=all.filter(m=>!testeIdentificado(m)&&['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo));
  const requested=operating.filter(m=>m.tipo==='SAIDA');
  const incoming=operating.filter(m=>m.tipo==='ENTRADA');
@@ -2707,6 +2707,21 @@ async function ntGeneralDayOpenExcel(){
    Se as evidências divergirem do histórico esperado, BLOQUEIA sem gravar. */
 const NT_ARM_FIX={dia:'2026-10-27',errado:'080100326',certo:'080100190',quantidade:30,
  auditoria:'RETIFICACAO_PEDIDO_20261027_080100326_080100190'};
+/* Retificação sem alterar movimentos antigos: os registros seguem no histórico.
+   O movimento de saída novo tem ID determinístico e contém os IDs retificados na
+   observação. Isso permite reconciliar os PDFs com trilha auditável, inclusive se
+   as regras do Firestore não permitirem UPDATE em movimentos passados. */
+function ntArmEffectiveMovements(movements){
+ const rows=Array.isArray(movements)?movements:[];
+ const fix=NT_ARM_FIX,marker=rows.find(m=>String(m.id||'')===fix.auditoria&&
+  String(m.codigo||'')===fix.certo&&m.tipo==='SAIDA'&&Number(m.quantidade)===fix.quantidade&&
+  String(m.dia||'')===fix.dia&&String(m.observacao||'').startsWith(fix.auditoria+'|'));
+ if(!marker)return rows;
+ const pieces=String(marker.observacao).split('|');
+ if(pieces.length<4||!pieces[1]||!pieces[2]||pieces[1]===pieces[2])return rows;
+ const omit=new Set([pieces[1],pieces[2]]);
+ return rows.filter(m=>!omit.has(String(m.id||'')));
+}
 let ntArmCandidate=null;
 function ntArmQty(m){return Number(m.quantidade);}
 function ntArmValid(m,a,code){return !!m&&String(m.tipo)===a&&String(m.codigo)===code&&
@@ -2733,7 +2748,7 @@ async function ntArmRead(){
  const [movesSnap,wrongSnap,rightSnap,markerSnap]=await Promise.all([
   getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',f.dia))),
   getDocFromServer(itemRef(f.errado)),getDocFromServer(itemRef(f.certo)),
-  getDocFromServer(doc(db,'nt_web_auditoria',f.auditoria))
+  getDocFromServer(doc(db,'nt_web_movimentos',f.auditoria))
  ]);
  if(markerSnap.exists())throw Error('Esta correção já foi registrada. Não é permitido repetir o desconto.');
  if(!wrongSnap.exists()||!rightSnap.exists())throw Error('Um dos materiais não existe no Firebase.');
@@ -2761,11 +2776,11 @@ async function ntArmPreview(){
    ' · solicitante '+esc(v.original.solicitante||'não informado')+'</p>'+
    '<div class="inventory-history-row"><b>Material escolhido por engano</b><p>'+
    esc(v.wrong.nome)+' · '+NT_ARM_FIX.errado+'</p><p>Saldo atual: <b>50 UN</b> (será preservado)</p>'+
-   '<p class="small">A retirada de 30 UN e a conferência corretiva ficarão marcadas como anuladas para os relatórios. Registros originais preservados no Firebase.</p></div>'+
+   '<p class="small">A retirada de 30 UN e a conferência corretiva continuarão no histórico original e serão desconsideradas apenas nos relatórios após a retificação.</p></div>'+
    '<div class="inventory-history-row"><b>Material que deveria ter saído</b><p>'+
    esc(v.right.nome)+' · '+NT_ARM_FIX.certo+'</p><p>Saldo atual: <b>'+
    fmt(v.right.quantidade)+' UN</b> · após corrigir: <b>'+fmt(Number(v.right.quantidade)-30)+' UN</b></p>'+
-   '<p class="small">Será gravada uma única saída de 30 UN vinculada ao pedido original, com trilha de auditoria.</p></div>'+
+   '<p class="small">Será gravada uma única saída de 30 UN vinculada ao pedido original; os IDs dos registros retificados ficam na observação.</p></div>'+
    '<div class="alert"><b>Confira antes de confirmar</b><p>Esta correção altera o estoque REAL do código '+NT_ARM_FIX.certo+
    ' em 30 UN. O outro aramado permanecerá em 50 UN. Se a quantidade certa já foi descontada manualmente, cancele.</p></div>'+
    '<div class="buttons"><button class="btn" type="button" data-action="nt-arm-fix-confirm">Confirmar correção no Firebase</button>'+
@@ -2779,67 +2794,62 @@ async function ntArmPreview(){
 async function ntArmCommit(){
  isReady();const v=ntArmCandidate;ntArmCandidate=null;
  if(!v||Date.now()-v.checkedAt>120000)throw Error('A conferência expirou. Faça a verificação novamente.');
- if(!window.confirm('Confirmar a retificação? O código 080100326 permanecerá com 50 UN e 080100190 perderá 30 UN.'))return;
+ if(!window.confirm('Confirmar a retificação? O código 080100326 permanecerá em 50 UN e 080100190 perderá 30 UN.'))return;
  const f=NT_ARM_FIX;
  const refWrong=itemRef(f.errado),refRight=itemRef(f.certo);
  const refOriginal=doc(db,'nt_web_movimentos',v.original.id);
  const refAdjust=doc(db,'nt_web_movimentos',v.adjust.id);
- const audit=doc(db,'nt_web_auditoria',f.auditoria);
- const evt=moveRef(),stamp=new Date().toISOString();
+ // A saída de correção usa o formato normal de movimento e ID fixo:
+ // não edita documentos antigos nem cria documentos na coleção de auditoria.
+ const evt=doc(db,'nt_web_movimentos',f.auditoria);
+ const stamp=new Date().toISOString();
  let committed=false;
  loader(true);
  try{
   await runTransaction(db,async tx=>{
-   // Leitura de todas as dependências antes da primeira gravação.
    const snaps=[];
-   for(const ref of [audit,refOriginal,refAdjust,refWrong,refRight])snaps.push(await tx.get(ref));
+   for(const ref of [evt,refOriginal,refAdjust,refWrong,refRight])snaps.push(await tx.get(ref));
    const [mark,originalSnap,adjustSnap,wrongSnap,rightSnap]=snaps;
-   if(mark.exists())throw Error('Correção já executada. Nenhum novo desconto permitido.');
+   if(mark.exists())throw Error('Retificação já registrada; não pode descontar duas vezes.');
    if(!originalSnap.exists()||!adjustSnap.exists()||!wrongSnap.exists()||!rightSnap.exists())
-    throw Error('Um dos registros desapareceu. Nenhuma alteração aplicada.');
+    throw Error('Um registro não está mais disponível. Nenhuma alteração aplicada.');
    const original=originalSnap.data(),adjust=adjustSnap.data();
    const wrong=wrongSnap.data(),right=rightSnap.data();
    ntArmPattern(original,adjust,wrong,right);
    if(String(original.pedido||'')!==String(v.original.pedido||'')||
       String(original.solicitante||'')!==String(v.original.solicitante||'')||
       Number(right.quantidade)!==Number(v.right.quantidade))
-      throw Error('Pedido ou saldo mudou desde a conferência. Verifique novamente.');
-   const after=rnd(Number(right.quantidade)-30);
-   if(after<0)throw Error('O material correto ficou com saldo insuficiente.');
-   tx.update(refOriginal,{anulado:true,motivoAnulacao:'Retirada de aramado incorreto: retificação de pedido',
-    retificacaoId:f.auditoria,retificadoEm:serverTimestamp(),retificadoPor:user.email||''});
-   tx.update(refAdjust,{anulado:true,motivoAnulacao:'Conferência compensatória após retirada de código incorreto',
-    retificacaoId:f.auditoria,retificadoEm:serverTimestamp(),retificadoPor:user.email||''});
+     throw Error('Pedido ou saldo mudou desde a última conferência. Verifique novamente.');
+   const after=rnd(Number(right.quantidade)-f.quantidade);
+   if(!Number.isFinite(after)||after<0)throw Error('Saldo insuficiente no aramado correto.');
+   // Exatamente as mesmas operações admitidas nas retiradas normais:
+   // update apenas no saldo atual e create apenas em nt_web_movimentos.
    tx.update(refRight,{quantidade:after,ultimoMovimentoId:evt.id,atualizadoEm:serverTimestamp()});
    tx.set(evt,{id:evt.id,codigo:f.certo,nome:right.nome,unidade:right.unidadeMedida||right.unidade||'UN',
-    tipo:'SAIDA',quantidade:30,delta:-30,antes:Number(right.quantidade),depois:after,
-    solicitante:String(original.solicitante||'Almoxarifado'),pedido:String(original.pedido||''),
-    observacao:'Retificação de material do pedido de 27/10/2026. Saída incorreta '+f.errado+
-     ' anulada (movimento '+v.original.id+').',
-    operador:user.email||'',uid:user.uid,dia:f.dia,timeClient:stamp,criadoEm:serverTimestamp(),
-    retificacaoId:f.auditoria});
-   tx.set(audit,{acao:'RETIFICACAO_SAIDA',dataReferencia:f.dia,materialErrado:f.errado,
-    materialCorreto:f.certo,quantidade:30,estoqueErradoPreservado:Number(wrong.quantidade),
-    saldoCorretoAntes:Number(right.quantidade),saldoCorretoDepois:after,
-    movimentoOriginal:v.original.id,conferenciaCompensatoria:v.adjust.id,
-    novoMovimento:evt.id,pedido:String(original.pedido||''),
-    motivo:'Código de aramado selecionado por engano durante atendimento de pedido.',
-    operador:user.email||'',uid:user.uid,criadoEmLocal:stamp,criadoEm:serverTimestamp()});
+    tipo:'SAIDA',quantidade:f.quantidade,delta:-f.quantidade,
+    antes:Number(right.quantidade),depois:after,
+    solicitante:String(original.solicitante||'Almoxarifado'),
+    pedido:String(original.pedido||''),
+    observacao:f.auditoria+'|'+v.original.id+'|'+v.adjust.id+
+      '|Retificação do pedido: aramado corrigido sem estornar fisicamente o código '+f.errado,
+    operador:user.email||'',uid:user.uid,dia:f.dia,timeClient:stamp,criadoEm:serverTimestamp()});
   });
   committed=true;
-  const saved=await getDocFromServer(audit);
-  if(!saved.exists())throw Error('A gravação foi aceita, mas não foi possível ler o registro de auditoria.');
+  const saved=await getDocFromServer(evt);
+  if(!saved.exists())throw Error('Retificação enviada, mas não foi possível consultar a movimentação. NÃO repita.');
   panel('<h2>Correção registrada!</h2>'+
-   '<p>O aramado <b>'+f.errado+'</b> permaneceu em <b>50 UN</b>.</p>'+
-   '<p>O aramado <b>'+f.certo+'</b> teve a retirada de <b>30 UN</b> registrada com o pedido original.</p>'+
-   '<p class="small">O lançamento equivocado e a conferência compensatória foram preservados como anulados no histórico. Atualize o Relatório Geral do Dia.</p>'+
+   '<p>O aramado <b>'+f.errado+'</b> permanece em <b>50 UN</b>.</p>'+
+   '<p>O aramado <b>'+f.certo+'</b> teve <b>30 UN</b> descontadas com a referência original.</p>'+
+   '<p class="small">A saída errada e sua conferência compensatória foram preservadas no histórico, mas deixam de contar nos relatórios do dia. Emita novamente os PDFs.</p>'+
    '<button type="button" class="btn" data-action="nt-arm-fix-cancel">Concluir</button>');
-  notice('Correção do aramado confirmada no Firebase!');
+  notice('Retificação confirmada no Firebase!');
  }catch(err){
-  panel('<h2>'+ (committed?'Correção gravada':'Correção não realizada')+'</h2><p>'+
-   esc(err.message||'Erro de conexão')+'</p><p class="small">'+
-   (committed?'Não repita. A correção foi enviada; confira o histórico.':'Nenhuma movimentação adicional foi realizada por esta operação.')+
-   '</p><button class="btn alt" data-action="nt-arm-fix-cancel">Fechar</button>');
+  panel('<h2>'+(committed?'Gravação enviada — confira os saldos':'Correção não realizada')+'</h2>'+
+   '<p>'+esc(err.message||'Não foi possível concluir a retificação')+'</p>'+
+   '<p class="small">'+(committed?
+    'Não repita a operação. Atualize e confira os materiais 080100326 e 080100190 no Firebase.':
+    'Nenhuma movimentação adicional foi confirmada por esta tentativa. Se aparecer permissão insuficiente, as regras do Firebase precisam ser revistas sem permitir acesso público.')+
+   '</p><button type="button" class="btn alt" data-action="nt-arm-fix-cancel">Fechar</button>');
  }finally{loader(false)}
 }
 
