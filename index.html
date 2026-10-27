@@ -910,6 +910,49 @@ function ntReportCSS(){return `<style>
  .nt-general-stock-intel .footer{bottom:8mm}
 }
 
+
+/* Inteligência do Estoque: duas folhas A4 com escalas por unidade separadas. */
+.nt-general-stock-intel .nt-di-panel{min-height:75mm}
+.nt-general-stock-intel .nt-di-unitnote{font-size:7.4pt;line-height:1.25;color:#557481;margin-top:3mm;border-top:.3mm solid #dce9eb;padding-top:2mm}
+.nt-general-stock-deep .heading{margin-bottom:1.5mm}
+.nt-general-stock-deep .desc{margin-bottom:2mm}
+.nt-general-stock-deep .nt-di-eyebrow{color:#148b93;font-size:7.7pt;letter-spacing:.5px;font-weight:700;margin:1.8mm 0 2mm}
+.nt-general-stock-deep .nt-di-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3mm;margin:0 0 4mm}
+.nt-general-stock-deep .nt-di-metric{border-left:.9mm solid #1fa1a6;background:#e8f3f4;border-radius:2.3mm;padding:2.5mm 3mm;min-height:17mm}
+.nt-general-stock-deep .nt-di-metric small{font-size:7.1pt;display:block;font-weight:700;color:#426573;line-height:1.2}
+.nt-general-stock-deep .nt-di-metric strong{font-size:17pt;display:block;font-weight:700;color:#106f7b;margin-top:1mm}
+.nt-general-stock-deep .nt-deep-columns{display:grid;grid-template-columns:1fr 1fr;gap:3.4mm;align-items:stretch}
+.nt-general-stock-deep .nt-deep-panel{background:#f3f8f9;border:1px solid #cbdee2;border-radius:3mm;padding:3mm 3.8mm;min-height:108mm;min-width:0}
+.nt-general-stock-deep .nt-deep-panel h2{font-size:10pt;color:#194957;margin:0 0 1mm}
+.nt-general-stock-deep .nt-deep-panel>p{font-size:7.5pt;color:#496c77;margin:0 0 2mm}
+.nt-general-stock-deep .nt-deep-subhead{font-size:8pt;font-weight:700;color:#176777;margin:3.3mm 0 1.5mm}
+.nt-general-stock-deep .nt-deep-unitlist{display:grid;gap:1mm}
+.nt-general-stock-deep .nt-deep-unitrow{display:grid;grid-template-columns:13mm minmax(0,1fr) 24mm 31mm;gap:2mm;align-items:center;font-size:7.6pt;color:#315668;border-bottom:.25mm solid #d7e5e8;padding:1.3mm 0;white-space:nowrap}
+.nt-general-stock-deep .nt-deep-unitrow b{color:#1c5665}
+.nt-general-stock-deep .nt-deep-unitrow strong{text-align:right;color:#0d7883}
+.nt-general-stock-deep .nt-deep-section{margin-top:3mm}
+.nt-general-stock-deep .nt-deep-section h3{font-size:7.6pt;margin:0 0 1.6mm;color:#176777}
+.nt-general-stock-deep .nt-di-bars{display:grid;gap:1.3mm}
+.nt-general-stock-deep .nt-di-barrow{display:grid;grid-template-columns:minmax(0,40%) minmax(0,1fr) 21mm;gap:1.5mm;min-height:6.5mm;align-items:center}
+.nt-general-stock-deep .nt-di-barlabel{min-width:0}
+.nt-general-stock-deep .nt-di-barlabel b{color:#214956;font-size:7.7pt;line-height:1.12;display:block;overflow-wrap:anywhere}
+.nt-general-stock-deep .nt-di-barlabel small{font-size:7pt;color:#607781;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nt-general-stock-deep .nt-di-track{height:2.7mm;background:#dbe7eb;border-radius:2mm;overflow:hidden}
+.nt-general-stock-deep .nt-di-track span{display:block;height:100%;background:#2d9eaa;border-radius:2mm}
+.nt-general-stock-deep .nt-di-barrow strong{font-size:8pt;color:#144c5d;text-align:right;white-space:nowrap}
+.nt-general-stock-deep .nt-deep-alertline{padding:1.8mm 2mm;margin:1.5mm 0;border-left:.7mm solid #d39a43;background:#fff5e6;border-radius:1.5mm;color:#395a66;overflow-wrap:anywhere}
+.nt-general-stock-deep .nt-deep-alertline b{display:block;font-size:8.4pt;line-height:1.16}
+.nt-general-stock-deep .nt-deep-alertline span{display:block;font-size:7.5pt;line-height:1.2;margin-top:.8mm}
+.nt-general-stock-deep .nt-deep-muted{font-size:7.6pt;line-height:1.35;color:#5a7480;margin:2mm 0}
+.nt-general-stock-deep .nt-di-empty{font-size:8pt;padding:4mm 0}
+.nt-general-stock-deep .nt-di-footnote{font-size:7.5pt;line-height:1.25;margin-top:3mm;padding-top:2mm;border-top:.25mm solid #dbe8ea;color:#56747d}
+@media print{
+ .page.landscape.nt-general-stock-deep{height:208mm;min-height:208mm;padding-top:7mm;padding-bottom:18mm;break-inside:avoid-page;page-break-inside:avoid}
+ .nt-general-stock-deep .line{margin:2mm 0 3mm}
+ .nt-general-stock-deep .rhead{min-height:12mm}
+ .nt-general-stock-deep .footer{bottom:8mm}
+}
+
 /* Panorama gerencial claro e reposição no mesmo padrão aprovado do PDF individual */
 .nt-general-summary .metrics{grid-template-columns:repeat(5,minmax(0,1fr));gap:2.5mm;margin:6mm 0}
 .nt-general-summary .metric{min-height:23mm;padding:3mm}
@@ -2256,125 +2299,179 @@ async function ntRequestsIndividualOpen(){
 /* Inteligência do estoque no FINAL do relatório diário.
    Usa apenas informações já lidas no Firebase e movimentos do DIA selecionado.
    Barras CSS + gráfico SVG sem dependências externas, para impressão em PDF. */
-function ntGeneralDailyIntelligencePage(model,date,marker){
+function ntGeneralDailyIntelligencePages(model,date,marker){
  const requests=Array.isArray(model.requests)?model.requests:[];
- const stockMap=new Map((model.stockRows||[]).map(x=>[String(x.codigo),x]));
+ const stockRows=Array.isArray(model.stockRows)?model.stockRows:[];
+ const stockMap=new Map(stockRows.map(r=>[String(r.codigo),r]));
  const used=new Map();
+ const unitAlias={'UNIDADE':'UN','UNIDADES':'UN','UND':'UN','UN.':'UN','PEÇA':'UN','PEÇAS':'UN','QUILOGRAMA':'KG','QUILOGRAMAS':'KG','METRO':'M','METROS':'M','LITRO':'L','LITROS':'L','M²':'M2'};
  for(const mv of requests){
-  const code=String(mv.codigo||'');
-  if(!code)continue;
-  const unidadeOriginal=String(stockMap.get(code)?.unidade||'—').trim().toUpperCase();
-  const unitAlias={'UNIDADE':'UN','UNIDADES':'UN','UND':'UN','UN.':'UN','PEÇA':'UN','PEÇAS':'UN','QUILOGRAMA':'KG','QUILOGRAMAS':'KG','METRO':'M','METROS':'M','LITRO':'L','LITROS':'L','M²':'M2'};
-  const unit=unitAlias[unidadeOriginal]||unidadeOriginal||'—';
-  const prev=used.get(code)||{codigo:code,nome:String(mv.nome||stockMap.get(code)?.nome||code),saidas:0,quantidade:0,unidade:unit};
-  prev.saidas+=1;
-  prev.quantidade=rnd(prev.quantidade+ntQty(mv));
-  used.set(code,prev);
+  const codigo=String(mv.codigo||'').trim();
+  if(!codigo)continue;
+  const previous=stockMap.get(codigo);
+  const raw=String(previous?.unidade||'—').trim().toUpperCase();
+  const unidade=unitAlias[raw]||raw||'—';
+  const current=used.get(codigo)||{
+   codigo,nome:String(previous?.nome||mv.nome||codigo),unidade,quantidade:0,operacoes:0
+  };
+  const amount=Number(ntQty(mv));
+  current.operacoes++;
+  if(Number.isFinite(amount)&&amount>0)current.quantidade=rnd(current.quantidade+amount);
+  used.set(codigo,current);
  }
- const count=requests.length;
- const rankedByFrequency=[...used.values()].sort((a,b)=>b.saidas-a.saidas||a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
- const single=rankedByFrequency.filter(x=>x.saidas===1).length;
- const multiple=rankedByFrequency.filter(x=>x.saidas>1).length;
- const entries=Number(model.totals?.stockEntries)||0;
- const returns=Number(model.totals?.returnLines)||0;
- const all=count+entries+returns;
-
- // Comparar quantitativos apenas dentro da mesma unidade. Nunca somar UN, KG, M e L.
- const groupsMap=new Map();
- const unknownUnit=[...used.values()].filter(item=>!item.unidade||item.unidade==='—'||item.unidade==='-').length;
- for(const item of used.values()){
-  if(!Number.isFinite(item.quantidade)||item.quantidade<=0||!item.unidade||item.unidade==='—'||item.unidade==='-')continue;
-  if(!groupsMap.has(item.unidade))groupsMap.set(item.unidade,[]);
-  groupsMap.get(item.unidade).push(item);
- }
- const groups=[...groupsMap.entries()].map(([unidade,items])=>({
-   unidade,items:items.sort((a,b)=>b.quantidade-a.quantidade||b.saidas-a.saidas||a.nome.localeCompare(b.nome,'pt-BR'))
- })).sort((a,b)=>b.items.length-a.items.length||((a.unidade==='UN'?0:1)-(b.unidade==='UN'?0:1))||a.unidade.localeCompare(b.unidade));
- // Ate seis barras. Prioriza a unidade mais utilizada; reserva lugar para outras
- // unidades, quando existirem, sem comparar comprimentos de barras entre unidades.
- const chosenGroups=groups.slice(0,3);
- const main=chosenGroups[0];
- const ranked=[];
- if(main)ranked.push(...main.items.slice(0,Math.max(1,6-(chosenGroups.length-1))));
- for(const group of chosenGroups.slice(1))ranked.push(group.items[0]);
- for(const group of chosenGroups){
-  for(const item of group.items){
-   if(ranked.length>=6)break;
-   if(!ranked.includes(item))ranked.push(item);
+ const byUnit=new Map(),missing=[];
+ for(const row of used.values()){
+  if(!row.unidade||row.unidade==='—'||row.unidade==='-'||row.quantidade<=0){
+   missing.push(row);continue;
   }
+  if(!byUnit.has(row.unidade))byUnit.set(row.unidade,[]);
+  byUnit.get(row.unidade).push(row);
  }
- const groupMax=new Map(groups.map(g=>[g.unidade,g.items[0].quantidade]));
- const zeroBalance=(model.stockRows||[]).filter(x=>x.saida>0&&x.fim!==null&&Number(x.fim)===0).length;
- const leader=main?.items[0];
- const unitTotal=main?main.items.reduce((sum,x)=>sum+x.quantidade,0):0;
- const topShare=leader&&unitTotal?leader.quantidade*100/unitTotal:0;
- const donuts=[
-  {label:'Retiradas',value:count,color:'#12888f'},
-  {label:'Entradas',value:entries,color:'#3c86c4'},
-  {label:'Devoluções',value:returns,color:'#e1a457'}
- ];
- const r=35,circ=2*Math.PI*r;
+ const groups=[...byUnit.entries()].map(([unit,items])=>{
+  items.sort((a,b)=>b.quantidade-a.quantidade||a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
+  return {unit,items,total:rnd(items.reduce((sum,x)=>sum+x.quantidade,0)),
+   operations:items.reduce((sum,x)=>sum+x.operacoes,0)};
+ }).sort((a,b)=>b.items.length-a.items.length||a.unit.localeCompare(b.unit));
+ const primary=groups.find(g=>g.unit==='UN')||groups[0]||null;
+ const others=groups.filter(g=>g!==primary);
+ const totalOperations=requests.length;
+ const stockIn=Number(model.totals?.stockEntries)||0;
+ const returns=Number(model.totals?.returnLines)||0;
+ const movements=totalOperations+stockIn+returns;
+ const onlyOnce=[...used.values()].filter(x=>x.operacoes===1).length;
+ const repeated=[...used.values()].filter(x=>x.operacoes>1).length;
+ const zero=stockRows.filter(x=>x.saida>0&&x.fim!==null&&Number(x.fim)===0)
+  .sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+ // A percentagem e confiavel quando ha somente saídas: sem entradas, devolucoes,
+ // ajustes ou divergencias que distorceriam o saldo de referencia.
+ const pressure=stockRows.filter(x=>Number(x.saida)>0&&Number(x.inicio)>0&&
+  x.entrada===0&&x.devolucao===0&&x.ajustes===0&&!x.validar&&
+  x.fim!==null&&Number.isFinite(Number(x.fim))).
+  map(x=>({...x,percent:100*Number(x.saida)/Number(x.inicio)})).
+  filter(x=>x.percent>=50&&x.percent<=100.0001).
+  sort((a,b)=>b.percent-a.percent||a.nome.localeCompare(b.nome,'pt-BR'));
+ const notReconciled=Number(model.totals?.stockNotReconciled)||0;
+ const counted=Number(model.totals?.physicalCountEntries)||0;
+ const plain=value=>ntPlain(String(value??''));
+ const num=value=>plain(fmt(value));
+ const blank='<p class="nt-di-empty">Sem registros suficientes para este indicador no dia.</p>';
+ const metrics=items=>'<div class="nt-di-metrics">'+items.map(([title,value])=>
+  '<div class="nt-di-metric"><small>'+plain(title)+'</small><strong>'+plain(value)+'</strong></div>').join('')+'</div>';
+ const bar=(row,max)=>{const width=max>0?100*row.quantidade/max:0;
+  return '<div class="nt-di-barrow"><div class="nt-di-barlabel"><b>'+plain(row.nome)+'</b>'+
+   '<small>'+plain(row.codigo)+' · '+row.operacoes+' '+(row.operacoes===1?'retirada':'retiradas')+'</small></div>'+
+   '<div class="nt-di-track"><span style="width:'+width.toFixed(1)+'%"></span></div>'+
+   '<strong>'+num(row.quantidade)+' '+plain(row.unidade)+'</strong></div>';
+ };
+ const mainBars=primary?primary.items.slice(0,6).map(row=>bar(row,primary.items[0].quantidade)).join(''):blank;
+ const donutData=[{name:'Retiradas',value:totalOperations,color:'#12888f'},
+  {name:'Entradas',value:stockIn,color:'#3c86c4'},
+  {name:'Devoluções',value:returns,color:'#e1a457'}];
+ const radius=35,circ=2*Math.PI*radius;
  let offset=0;
- const arcs=donuts.filter(x=>x.value>0).map(x=>{
-  const portion=x.value/all;
-  const length=circ*portion;
-  const html='<circle cx="50" cy="50" r="'+r+'" fill="none" stroke="'+x.color+'" stroke-width="13" transform="rotate(-90 50 50)" stroke-dasharray="'+length.toFixed(3)+' '+(circ-length).toFixed(3)+'" stroke-dashoffset="'+(-offset).toFixed(3)+'"/>';
-  offset+=length;
-  return html;
+ const arcs=donutData.filter(item=>item.value>0&&movements>0).map(item=>{
+  const length=circ*item.value/movements;
+  const svg='<circle cx="50" cy="50" r="'+radius+'" fill="none" stroke="'+item.color+
+   '" stroke-width="13" transform="rotate(-90 50 50)" stroke-dasharray="'+length.toFixed(3)+' '+
+   (circ-length).toFixed(3)+'" stroke-dashoffset="'+(-offset).toFixed(3)+'"/>';
+  offset+=length;return svg;
  }).join('');
- const donutSvg='<svg class="nt-di-donut" viewBox="0 0 100 100" role="img" aria-label="Gráfico da distribuição de retiradas, entradas e devoluções do dia">'+
-  '<circle cx="50" cy="50" r="'+r+'" fill="none" stroke="#dce8eb" stroke-width="13"/>'+arcs+
-  '<text x="50" y="48" text-anchor="middle" font-size="18" font-weight="700" fill="#184755">'+all+'</text>'+
-  '<text x="50" y="60" text-anchor="middle" font-size="7.5" fill="#557482">MOVIMENTOS</text></svg>';
- const bars=ranked.map(x=>{
-  const top=groupMax.get(x.unidade)||x.quantidade;
-  const pct=top>0?100*x.quantidade/top:0;
-  return '<div class="nt-di-barrow"><div class="nt-di-barlabel"><b>'+ntPlain(x.nome)+'</b>'+
-   '<small>'+ntPlain(x.codigo)+' · '+x.saidas+' '+(x.saidas===1?'retirada':'retiradas')+' · '+ntPlain(x.unidade)+'</small></div>'+
-   '<div class="nt-di-track"><span style="width:'+pct.toFixed(1)+'%"></span></div>'+
-   '<strong>'+ntPlain(fmt(x.quantidade))+' '+ntPlain(x.unidade)+'</strong></div>';
- }).join('');
- const barChart=ranked.length?bars:'<div class="nt-di-empty">'+
-  (unknownUnit?'Retiradas sem unidade cadastrada não podem ser comparadas em quantidade.':'Nenhuma retirada operacional registrada neste dia.')+'</div>';
- const legends=donuts.map(x=>'<div class="nt-di-legendrow"><i style="background:'+x.color+'"></i><span>'+ntPlain(x.label)+'</span><b>'+x.value+'</b></div>').join('');
- const metricRows=[
-  ['RETIRADAS DO DIA',String(count)],
-  ['MATERIAIS DISTINTOS',String(used.size)],
-  ['ENTRADAS REGISTRADAS',String(entries)],
-  ['DEVOLUÇÕES REGISTRADAS',String(returns)]
+ const donut='<svg class="nt-di-donut" viewBox="0 0 100 100" role="img" aria-label="Operações de entrada, retirada e devolução">'+
+  '<circle cx="50" cy="50" r="35" fill="none" stroke="#dce8eb" stroke-width="13"/>'+arcs+
+  '<text x="50" y="48" text-anchor="middle" font-size="18" font-weight="700" fill="#184755">'+movements+'</text>'+
+  '<text x="50" y="60" text-anchor="middle" font-size="7.5" fill="#557482">OPERAÇÕES</text></svg>';
+ const legend=donutData.map(item=>'<div class="nt-di-legendrow"><i style="background:'+item.color+'"></i><span>'+
+  item.name+'</span><b>'+item.value+'</b></div>').join('');
+ const lead=primary?.items[0];
+ const leadShare=lead&&primary.total>0?(100*lead.quantidade/primary.total):0;
+ const messages=[
+  ['MAIOR CONSUMO EM '+(primary?.unit||'—'),lead?
+   lead.nome+': '+fmt(lead.quantidade)+' '+lead.unidade+' ('+leadShare.toFixed(1).replace('.',',')+
+   '% do consumo em '+lead.unidade+').':'Nenhuma saída com unidade definida.'],
+  ['FREQUÊNCIA DE RETIRADAS',onlyOnce+' material(is) retirado(s) uma vez; '+repeated+
+   ' com duas ou mais operações no dia.'],
+  ['ATENÇÃO AO SALDO',zero.length?zero.length+' material(is) movimentado(s) terminaram o dia com saldo zerado.':
+   'Nenhum material retirado terminou o dia com saldo histórico igual a zero.']
  ];
- const metrics='<div class="nt-di-metrics">'+metricRows.map(x=>'<div class="nt-di-metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
- const diagnostics=[
-  {tag:'MAIOR QUANTIDADE',value:leader
-   ?ntPlain(leader.nome)+': '+ntPlain(fmt(leader.quantidade))+' '+ntPlain(leader.unidade)+
-    ' ('+ntPlain(topShare.toFixed(1).replace('.',','))+'% do total retirado em '+ntPlain(leader.unidade)+').'
-   :'Nenhuma retirada para analisar nesta data.'},
-  {tag:'FREQUÊNCIA DE SAÍDA',value:count
-   ?single+' material(is) tiveram 1 operação de retirada; '+multiple+' tiveram 2 ou mais.'
-   :'Não há saídas para comparar nesta data.'},
-  {tag:'SALDOS DO DIA',value:zeroBalance
-   ?zeroBalance+' material(is) com retirada terminaram este dia com saldo histórico zerado.'
-   :'Nenhum material retirado terminou este dia com saldo histórico zerado nos registros disponíveis.'}
- ];
- const insights='<div class="nt-di-insights">'+diagnostics.map(x=>
-  '<div class="nt-di-insight"><small>'+x.tag+'</small><p>'+x.value+'</p></div>').join('')+'</div>';
- const html=
-  '<div class="nt-di-eyebrow">PAINEL EXECUTIVO · '+ntPlain(ntDate(date))+'</div>'+
-  metrics+
+ const diagnose='<div class="nt-di-insighthead">DIAGNÓSTICOS DO DIA</div>'+
+  '<div class="nt-di-insights">'+messages.map(([title,body])=>
+   '<div class="nt-di-insight"><small>'+plain(title)+'</small><p>'+plain(body)+'</p></div>').join('')+'</div>';
+ const overview=metrics([
+  ['RETIRADAS (OPERAÇÕES)',totalOperations],['MATERIAIS DISTINTOS',used.size],
+  ['ENTRADAS (OPERAÇÕES)',stockIn],['DEVOLUÇÕES (OPERAÇÕES)',returns]
+ ]);
+ const chartTitle=primary?'MAIORES RETIRADAS EM '+plain(primary.unit):'QUANTIDADES RETIRADAS';
+ const pageOne='<div class="nt-di-eyebrow">VISÃO EXECUTIVA · '+plain(ntDate(date))+'</div>'+overview+
   '<div class="nt-di-chartgrid">'+
-   '<div class="nt-di-panel"><h2>RANKING DE CONSUMO DO DIA</h2><p>Maiores quantidades retiradas · Top 6 por unidade de medida</p><div class="nt-di-bars">'+barChart+'</div></div>'+
-   '<div class="nt-di-panel"><h2>TIPOS DE MOVIMENTAÇÃO</h2><p>Participação das operações registradas na data</p><div class="nt-di-ringbox">'+donutSvg+'<div class="nt-di-legend">'+legends+'</div></div><div class="nt-di-usage"><span>1 retirada</span><b>'+single+' itens</b><span>2 ou mais</span><b>'+multiple+' itens</b></div></div>'+
-  '</div>'+
-  '<div class="nt-di-insighthead">DIAGNÓSTICOS AUTOMÁTICOS DO DIA</div>'+insights+
-  '<div class="nt-di-footnote">Fonte: movimentações operacionais da data selecionada, consultadas no Firebase. '+
-  'Barras representam quantidades retiradas, não número de pedidos. Cada barra é proporcional ao maior volume da mesma unidade; não comparar UN com KG, M ou L. '+
-  (unknownUnit?unknownUnit+' material(is) sem unidade definida não entraram no gráfico. ':'')+
-  'Análises de 7, 30 e 90 dias são exclusivas da Central de Inteligência do Estoque.</div>';
- return '<section class="page landscape nt-general-stock-intel">'+
-  ntTop('INTELIGÊNCIA DO ESTOQUE','Gráficos, indicadores e análises automáticas exclusivamente do dia.',date)+
-  html+marker+'</section>';
+   '<div class="nt-di-panel"><h2>'+chartTitle+'</h2>'+
+    '<p>Top 6 por quantidade. As barras usam somente '+plain(primary?.unit||'unidades cadastradas')+
+    '; maior barra = 100% nesta unidade.</p><div class="nt-di-bars">'+mainBars+'</div></div>'+
+   '<div class="nt-di-panel"><h2>TIPOS DE MOVIMENTAÇÃO</h2>'+
+    '<p>Número de operações registradas, não quantidades.</p>'+
+    '<div class="nt-di-ringbox">'+donut+'<div class="nt-di-legend">'+legend+'</div></div>'+
+    '<div class="nt-di-usage"><span>Uma retirada</span><b>'+onlyOnce+' materiais</b>'+
+    '<span>Duas ou mais</span><b>'+repeated+' materiais</b></div>'+
+    '<div class="nt-di-unitnote"><b>Leitura correta:</b> 1 retirada de 1.000 UN conta como uma operação.'+
+    ' As quantidades aparecem no ranking ao lado.</div></div></div>'+diagnose+
+  '<div class="nt-di-footnote">Fonte: retiradas confirmadas do dia no Firebase. Ranking por quantidade '+
+  'dentro de UMA unidade, sem somar UN, KG, M ou L. '+
+  (missing.length?missing.length+' material(is) sem unidade válida ficaram fora dos gráficos de quantidade. ':'')+
+  'Outras unidades e riscos de estoque constam na análise detalhada quando aplicável.</div>';
+ const pages=['<section class="page landscape nt-general-stock-intel">'+
+  ntTop('INTELIGÊNCIA DO ESTOQUE','Visão executiva diária · volumes, operações e sinais de atenção.',date)+
+  pageOne+marker+'</section>'];
+ // Quando ha movimento expressivo ou risco, a segunda pagina amplia a precisão sem compactar letras.
+ const detail=used.size>6||groups.length>1||zero.length>0||pressure.length>0||notReconciled>0||counted>0;
+ if(detail){
+  const groupRows=groups.slice(0,8).map(g=>
+   '<div class="nt-deep-unitrow"><b>'+plain(g.unit)+'</b><span>'+g.items.length+' materiais</span>'+
+   '<span>'+g.operations+' retiradas</span><strong>'+num(g.total)+' '+plain(g.unit)+'</strong></div>').join('');
+  const extraGroups=others.slice(0,3);
+  const otherCharts=extraGroups.map(g=>'<div class="nt-deep-section"><h3>MAIORES SAÍDAS EM '+plain(g.unit)+'</h3>'+
+   '<div class="nt-di-bars">'+g.items.slice(0,2).map(item=>bar(item,g.items[0].quantidade)).join('')+
+   '</div></div>').join('');
+  const moreMain=primary&&primary.items.length>6?'<div class="nt-deep-section"><h3>OUTRAS RETIRADAS EM '+plain(primary.unit)+'</h3>'+
+   '<div class="nt-di-bars">'+primary.items.slice(6,9).map(item=>bar(item,primary.items[0].quantidade)).join('')+
+   '</div></div>':'';
+  const zeroRows=zero.slice(0,5).map(x=>'<div class="nt-deep-alertline"><b>'+plain(x.nome)+'</b>'+
+   '<span>'+plain(x.codigo)+' · saldo final 0 '+plain(x.unidade)+'</span></div>').join('');
+  const pressureRows=pressure.slice(0,5).map(x=>'<div class="nt-deep-alertline"><b>'+plain(x.nome)+'</b>'+
+   '<span>'+plain(x.codigo)+' · '+plain(x.percent.toFixed(1).replace('.',','))+
+   '% do saldo inicial retirado · final '+num(x.fim)+' '+plain(x.unidade)+'</span></div>').join('');
+  const pageTwo='<div class="nt-di-eyebrow">ANÁLISE DETALHADA · '+plain(ntDate(date))+'</div>'+
+   metrics([
+    ['SALDOS ZERADOS APÓS SAÍDA',zero.length],
+    ['CONSUMO ≥ 50% DO INICIAL',pressure.length],
+    ['DIVERGÊNCIAS A CONFERIR',notReconciled],
+    ['AJUSTES FÍSICOS REGISTRADOS',counted]
+   ])+
+   '<div class="nt-deep-columns">'+
+    '<div class="nt-deep-panel"><h2>CONSUMO POR UNIDADE DE MEDIDA</h2>'+
+     '<p>Totais separados: não somar unidades incompatíveis.</p>'+
+     '<div class="nt-deep-unitlist">'+(groupRows||blank)+'</div>'+
+     '<h2 class="nt-deep-subhead">OUTRAS FAIXAS DE CONSUMO</h2>'+
+     (otherCharts||moreMain||'<p class="nt-deep-muted">Todas as retiradas com unidade conhecida foram da mesma medida.</p>')+
+     (otherCharts&&moreMain?moreMain:'')+
+     (missing.length?'<div class="nt-deep-muted">'+missing.length+
+      ' material(is) não classificados por ausência de unidade ou quantidade válida.</div>':'')+
+    '</div>'+
+    '<div class="nt-deep-panel"><h2>ALERTAS DE SALDO AO FINAL DO DIA</h2>'+
+     '<p>Somente materiais que tiveram saídas registradas.</p>'+
+     '<h3 class="nt-deep-subhead">ZERADOS ('+zero.length+')</h3>'+
+     (zeroRows||'<p class="nt-deep-muted">Nenhum saldo final zerado entre os materiais retirados.</p>')+
+     '<h3 class="nt-deep-subhead">RETIRADA ELEVADA EM RELAÇÃO AO INICIAL ('+pressure.length+')</h3>'+
+     (pressureRows||'<p class="nt-deep-muted">Sem consumo ≥ 50% com saldo inicial e histórico conciliados.</p>')+
+    '</div>'+
+   '</div>'+
+   '<div class="nt-di-footnote">Percentual = quantidade retirada / saldo inicial do dia, apenas em itens sem '+
+   'entradas, devoluções, ajustes ou divergência no período. As demais linhas não têm percentual calculado. '+
+   'Saldos históricos são do dia consultado; este resumo não altera o estoque.</div>';
+  pages.push('<section class="page landscape nt-general-stock-deep">'+
+   ntTop('INTELIGÊNCIA DO ESTOQUE','Análise detalhada do consumo e dos saldos históricos do dia.',date)+
+   pageTwo+marker+'</section>');
+ }
+ return pages;
 }
-
 
 /* Reposição: páginas equivalentes ao PDF individual; somente documentos
    efetivamente emitidos no histórico na data local do relatório. */
@@ -2474,7 +2571,7 @@ function ntGeneralDayPDF(model){
  }
  if(model.repos?.length)pages.push(...ntGeneralReposPages(model.repos,date,marker,model.materialCatalog,model.catalogConsultedAt));
  if(model.stockRows?.length)pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
- if(model.stockRows?.length||model.requests?.length)pages.push(ntGeneralDailyIntelligencePage(model,date,marker));
+ if(model.stockRows?.length||model.requests?.length)pages.push(...ntGeneralDailyIntelligencePages(model,date,marker));
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 
