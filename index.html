@@ -477,21 +477,11 @@ function ntReposBuild(){
  return picked.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
 }
 function ntReposReportHtml(snapshot){
- const rows=Array.isArray(snapshot.itens)?snapshot.itens:[];
- const iso=String(snapshot.criadoEmLocal||new Date().toISOString());const dt=new Date(iso);const date=Number.isFinite(dt.getTime())?[dt.getFullYear(),String(dt.getMonth()+1).padStart(2,'0'),String(dt.getDate()).padStart(2,'0')].join('-'):day();
- const quantity=x=>x===null||x===undefined||x===''?'':fmt(x);
- const pages=[];let chunks=[],group=[],used=0;
- for(const r of rows){const cost=1+Math.max(0,Math.ceil(String(r.nome||'').length/47)-1)*.7;
- if(group.length && used+cost>(rows.length<=14?16:12)){chunks.push(group);group=[];used=0}group.push(r);used+=cost}
- if(group.length)chunks.push(group);
- const total=chunks.length;
- chunks.forEach((items,idx)=>{
- const body=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO','QTD. A COMPRAR'],[18,42,9,12,19],items.map(r=>[r.codigo,r.nome,r.unidadeMedida||'—',r.saldoAtual==null?'—':fmt(r.saldoAtual),quantity(r.quantidadeComprar)]));
- const intro=idx===0?`<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO</span><span>${rows.length} ${rows.length===1?'ITEM':'ITENS'}</span></div>`:`<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO · CONTINUAÇÃO</span><span>${idx+1} / ${total}</span></div>`;
- const ending=idx===total-1?`<div style="margin-top:9mm"><div class="sectionline"><span>ENCAMINHAMENTO</span></div><p class="note">Solicita-se análise e providências para aquisição dos materiais relacionados. As quantidades em branco serão definidas pelo setor responsável pelas compras.</p></div>`:'';
- pages.push(`<section class="page portrait">${ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais para análise e aquisição pelo setor de compras.',date)}${intro}${body}${ending}${ntFooter(idx+1,total)}</section>`);
- });
- return ntHtml('Reposição de materiais · New Termisa',pages);
+ // Individual e Geral usam rigorosamente o mesmo gerador de páginas.
+ const date=ntRepoLocalDay(snapshot)||day(),marker='__NT_REPOS_INDIVIDUAL_RODAPE__';
+ const pages=ntGeneralReposPages([snapshot],date,marker);
+ if(!pages.length)pages.push('<section class="page landscape nt-general-repos">'+ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais para análise e aquisição.',date)+'<p class="note">Nenhum material selecionado para reposição.</p>'+marker+'</section>');
+ return ntHtml('Reposição de materiais · New Termisa',pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 function ntReposOpenPDF(snapshot,popup){
  if(!popup){notice('O navegador bloqueou a janela de relatório. Permita pop-ups.',true);return false}
@@ -2155,7 +2145,7 @@ function ntGeneralReposPages(repos,date,marker){
    const first=i===0,last=i===chunks.length-1;
    const meta=first?'<div class="nt-day-repos-meta"><div><small>DATA E HORA</small><strong>'+ntPlain(ntDate(date))+' · '+ntPlain(ntRepoLocalHour(doc))+'</strong></div>'+
 
-    '<div><small>EMITIDO POR</small><strong>'+ntPlain(String(doc.operador||'Não informado'))+'</strong></div></div>':'';
+    '<div><small>SOLICITADO POR</small><strong>Almoxarifado</strong></div></div>':'';
    const intro='<div class="sectionline"><span>MATERIAIS PARA AQUISIÇÃO'+(first?'':' · CONTINUAÇÃO')+'</span><span>'+rows.length+' '+(rows.length===1?'ITEM':'ITENS')+'</span></div>';
    const table=ntTable(['CÓDIGO','MATERIAL','UN.','SALDO','QTD. A COMPRAR'],[18,42,9,12,19],part.map(x=>[
     String(x.codigo||''),String(x.nome||''),String(x.unidadeMedida||'—'),
@@ -2208,8 +2198,8 @@ function ntGeneralDayPDF(model){
  page('RELATÓRIO GERAL DO DIA','Resumo executivo · Produção, saídas, recebimentos e reposições.',blocks+readout,true,'nt-general-summary');
 
  // A inteligência diária é incluída somente na última folha, após os saldos.
- pages.push(...ntGeneralProductionPages(model.machineRows,date,marker));
- pages.push(...ntGeneralRequestsPages(model,date,marker));
+ if(model.machineRows?.length)pages.push(...ntGeneralProductionPages(model.machineRows,date,marker));
+ if(model.requests?.length)pages.push(...ntGeneralRequestsPages(model,date,marker));
  // Uma única seção com o MESMO design do relatório próprio de Recebimento.
  // Dados documentais aparecem aqui; os saldos permanecem na seção de Estoque.
  // A conferência por código segue disponível no Excel, sem duplicar no PDF.
@@ -2228,8 +2218,8 @@ function ntGeneralDayPDF(model){
   pages.push(...receiptPages);
  }
  if(model.repos?.length)pages.push(...ntGeneralReposPages(model.repos,date,marker));
- pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
- pages.push(ntGeneralDailyIntelligencePage(model,date,marker));
+ if(model.stockRows?.length)pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
+ if(model.stockRows?.length||model.requests?.length)pages.push(ntGeneralDailyIntelligencePage(model,date,marker));
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 
