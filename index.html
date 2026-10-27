@@ -2331,7 +2331,7 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
   items.sort((a,b)=>b.quantidade-a.quantidade||a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
   return {unit,items,total:rnd(items.reduce((sum,x)=>sum+x.quantidade,0)),
    operations:items.reduce((sum,x)=>sum+x.operacoes,0)};
- }).sort((a,b)=>b.items.length-a.items.length||a.unit.localeCompare(b.unit));
+ }).sort((a,b)=>b.items.length-a.items.length||(['UN','KG','M','L','M2'].indexOf(a.unit)>>>0)-(['UN','KG','M','L','M2'].indexOf(b.unit)>>>0)||a.unit.localeCompare(b.unit));
  const primary=groups.find(g=>g.unit==='UN')||groups[0]||null;
  const others=groups.filter(g=>g!==primary);
  const totalOperations=requests.length;
