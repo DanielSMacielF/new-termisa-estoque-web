@@ -1245,7 +1245,6 @@ function ntProductionForm(){
  ntField('Código da máquina','npMachineCode','')+
  ntField('Produto (nome da máquina)','npName','')+
  ntField('Unidade de medida','npMachineUnit','UN')+
- ntField('Opção ou configuração (opcional)','npOption','')+
  ntField('Número do lote / OP','npOrder','')+
  ntField('Quantidade planejada','npRequested','','number')+
  ntField('Quantidade concluída','npFinished','','number')+
@@ -1258,7 +1257,7 @@ function ntProductionForm(){
 function ntProductionAdd(){
  ntProductionCapture();
  const code=$('npMachineCode').value.trim(),name=$('npName').value.trim(),
-  unit=$('npMachineUnit').value.trim().toUpperCase(),option=$('npOption').value.trim(),lot=$('npOrder').value.trim();
+  unit=$('npMachineUnit').value.trim().toUpperCase(),lot=$('npOrder').value.trim();
  const requested=Number($('npRequested').value),finished=Number($('npFinished').value);
  if(!/^[A-Za-z0-9-]{5,40}$/.test(code)||!name||!unit||unit.length>12||!lot||
     !$('npRequested').value.trim()||!$('npFinished').value.trim()||
@@ -1267,7 +1266,7 @@ function ntProductionAdd(){
  if(ntProductionItems.length>=40)throw Error('Limite de 40 linhas por registro.');
  // Mantém campos antigos por compatibilidade; para os registros novos, produto substitui nome/modelo duplicados.
  ntProductionItems.push({codigoMaquina:code,unidadeMedida:unit,nomeMaquina:name,modelo:name,
-  opcao:option,ordemProducao:lot,lote:lot,quantidadePedida:requested,quantidadeConcluida:finished});
+  ordemProducao:lot,lote:lot,quantidadePedida:requested,quantidadeConcluida:finished});
  ntProductionForm();
 }
 async function ntProductionSave(){
@@ -1315,92 +1314,23 @@ async function ntManualLoad(action){
   .sort((a,b)=>String(b.criadoEmLocal||'').localeCompare(String(a.criadoEmLocal||'')));
 }
 function ntReceiptReport(records,date){
- // Layout aprovado: várias entregas no mesmo A4 quando couber; nunca omite itens.
- const pages=[],sheets=[],allRecords=Array.isArray(records)?records:[];
- const divergences=allRecords.reduce((n,r)=>n+(r.itens||[]).filter(x=>Math.abs(rnd(Number(x.quantidadeRecebida||0)-Number(x.quantidadeNota||0)))>0.00001).length,0);
- const totalLines=allRecords.reduce((n,r)=>n+(r.itens||[]).length,0);
- const metrics='<div class="metrics nt-rx-metrics">'+[['DATA DE REFERÊNCIA',ntDate(date)],['ENTREGAS',allRecords.length],['LINHAS DE MATERIAL',totalLines],['DIVERGÊNCIAS',divergences]].map(x=>
-  '<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
- // Orçamento conservador de altura: reserva área para cabeçalho, métricas, rodapé e nota final.
- const budget=index=>index===0?162:198;
- const rowHeight=x=>{
-  const size=Math.max(String(x.nome||'').length/39,String(x.codigo||'').length/13);
-  const warning=x.semCadastro||!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada||''));
-  return 7.7+Math.max(0,Math.ceil(size)-1)*3.5+(warning?4:0);
- };
- const cost=items=>34+items.reduce((n,x)=>n+rowHeight(x),0);
- let current={parts:[],used:0};
- const nextPage=()=>{if(current.parts.length)sheets.push(current);current={parts:[],used:0}};
- for(let ri=0;ri<allRecords.length;ri++){
-  const r=allRecords[ri],all=Array.isArray(r.itens)?r.itens:[];
-  let offset=0;
-  do{
-   let chunk=all.length?all.slice(offset,offset+14):[];
-   // Mantém a entrega inteira na mesma página quando possível.
-   if(current.parts.length&&current.used+cost(chunk)>budget(sheets.length))nextPage();
-   // Nomes longos e avisos de pendência podem exigir mais espaço por linha.
-   while(chunk.length>1&&cost(chunk)>budget(sheets.length))chunk.pop();
-   if(current.parts.length&&current.used+cost(chunk)>budget(sheets.length))nextPage();
-   current.parts.push({r,ri,chunk,continuation:offset>0});
-   current.used+=cost(chunk);
-   offset+=chunk.length;
-  }while(offset<all.length);
+ // MESMO gerador A4 paisagem usado pela seção de Recebimento no Relatório Geral.
+ const marker='__NT_RECEBIMENTO_RODAPE__';
+ const pages=ntGeneralReceiptPages(records,date,marker);
+ if(!pages.length){
+  pages.push('<section class="page landscape nt-general-receipt">'+
+   ntTop('RECEBIMENTO DE MATERIAIS','Consolidado diário · entregas identificadas por fornecedor, nota e pedido.',date)+
+   '<p class="note">Nenhum recebimento registrado nesta data.</p>'+marker+'</section>');
  }
- nextPage();
- if(!sheets.length)sheets.push({parts:[],used:0});
- for(let pageIndex=0;pageIndex<sheets.length;pageIndex++){
-  const parts=sheets[pageIndex].parts;
-  const heading=ntTop('RECEBIMENTO DE MATERIAIS','Consolidado diário · entregas identificadas por fornecedor, nota e pedido.',date);
-  let content='';
-  for(const part of parts){
-   const r=part.r,items=part.chunk,ri=part.ri;
-   const banner='<div class="nt-rx-banner"><div class="nt-rx-badge">ENTREGA '+ntPlain(String(ri+1).padStart(2,'0'))+
-    (part.continuation?'<small>CONTINUAÇÃO</small>':'')+'</div><div class="nt-rx-body">'+
-    '<div class="nt-rx-vendor"><small>FORNECEDOR</small><strong>'+ntPlain(r.fornecedor||'Não informado')+'</strong>'+
-    '<em>RESP.: Almoxarifado</em></div><div class="nt-rx-side"><div class="nt-rx-refs">'+
-    '<span>PC: <b>'+ntPlain(r.pedidoCompra||'—')+'</b></span><i></i>'+
-    '<span>NF: <b>'+ntPlain(r.notaFiscal||'—')+'</b></span></div>'+
-    '<span class="nt-rx-when">'+ntPlain(ntDate(r.dataRecebimento))+'</span></div></div></div>';
-   const rows=items.map(x=>{
-    const diff=rnd(Number(x.quantidadeRecebida||0)-Number(x.quantidadeNota||0));
-    const warning=x.semCadastro||x.statusEntrada==='PENDENTE_CADASTRO'?'PENDENTE DE CADASTRO':
-     x.statusEntrada==='NAO_ENTROU'?'SEM ENTRADA NO ESTOQUE':
-     x.statusEntrada&&x.statusEntrada!=='ESTOQUE_ATUALIZADO'?'VÍNCULO DE ENTRADA NÃO CONFIRMADO':'';
-    return '<tr><td class="nt-rx-code">'+ntPlain(x.codigo||'SEM CÓD.')+'</td>'+
-     '<td class="nt-rx-name">'+ntPlain(x.nome||'—')+(warning?'<small class="nt-rx-warn">'+warning+'</small>':'')+'</td>'+
-     '<td>'+ntPlain(x.unidadeMedida||'—')+'</td>'+
-     '<td class="nt-rx-numeric">'+ntPlain(fmt(x.quantidadeNota))+'</td>'+
-     '<td class="nt-rx-numeric">'+ntPlain(fmt(x.quantidadeRecebida))+'</td>'+
-     '<td class="nt-rx-numeric'+(diff?' nt-rx-diff':'')+'">'+ntPlain(fmt(diff))+'</td></tr>';
-   }).join('');
-   content+=banner+'<table class="nt-rx-table"><colgroup><col style="width:16%"><col style="width:38%">'+
-    '<col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:13%"></colgroup>'+
-    '<thead><tr><th>CÓDIGO</th><th>MATERIAL</th><th>UN.</th><th>QTD. NF</th><th>RECEBIDO</th><th>DIF.</th></tr></thead>'+
-    '<tbody>'+(rows||'<tr><td colspan="6" class="empty">Nenhum material informado.</td></tr>')+'</tbody></table>';
-  }
-  if(!parts.length)content='<p class="note">Não foram registrados recebimentos nesta data.</p>';
-  if(pageIndex===sheets.length-1&&parts.length){
-   content+='<div class="nt-rx-note">'+(divergences?'Divergências encontradas: <b>'+divergences+'</b> linha(s). ':'Sem divergências entre quantidades de nota fiscal e recebidas. ')+
-    'A diferença corresponde à quantidade recebida menos a quantidade da NF. Entradas integradas de materiais cadastrados atualizam o estoque; itens sem cadastro ficam pendentes.</div>';
-  }
-  pages.push('<section class="page portrait">'+heading+(pageIndex===0?metrics:'')+content+ntFooter(pageIndex+1,sheets.length)+'</section>');
- }
- return ntHtml('Recebimento de materiais · '+ntDate(date),pages);
+ return ntHtml('Recebimento de materiais · '+ntDate(date),
+  pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 function ntProductionReport(records,date){
- const entries=records.flatMap(r=>r.itens.map(x=>({...x,observacao:r.observacao||''})));
- const chunks=[];for(let i=0;i<entries.length;i+=13)chunks.push(entries.slice(i,i+13));if(!chunks.length)chunks.push([]);
- const totalRequested=entries.reduce((t,x)=>t+Number(x.quantidadePedida||0),0),totalFinished=entries.reduce((t,x)=>t+Number(x.quantidadeConcluida||0),0);
- const openOrders=new Set(entries.filter(x=>Number(x.quantidadePedida)>Number(x.quantidadeConcluida)).map(x=>x.ordemProducao)).size;
- const pages=chunks.map((items,i)=>{
-  const overview=i===0?'<div class="metrics"><div class="metric"><small>OPs COM PENDÊNCIA</small><strong>'+openOrders+'</strong></div><div class="metric"><small>MÁQUINAS PEDIDAS</small><strong>'+fmt(totalRequested)+'</strong></div><div class="metric"><small>CONCLUÍDAS</small><strong>'+fmt(totalFinished)+'</strong></div><div class="metric"><small>PENDENTES</small><strong>'+fmt(totalRequested-totalFinished)+'</strong></div></div>':'';
-  const rows=items.map(x=>[x.ordemProducao,x.nomeMaquina,x.modelo,x.opcao||'—',fmt(x.quantidadePedida),fmt(x.quantidadeConcluida),fmt(x.quantidadePedida-x.quantidadeConcluida),x.quantidadeConcluida===0?'PENDENTE':x.quantidadeConcluida===x.quantidadePedida?'CONCLUÍDA':'EM PRODUÇÃO']);
-  return '<section class="page landscape">'+ntTop('PRODUÇÃO DE MÁQUINAS','Modelos, opções e quantidades registradas pela produção.',date)+overview+
-    '<div class="sectionline"><span>ORDENS DE PRODUÇÃO</span><span>'+ntDate(date)+'</span></div>'+
-    ntTable(['OP','MÁQUINA','MODELO','OPÇÃO','PEDIDAS','CONCLUÍDAS','PENDENTES','STATUS'],[12,18,15,17,9,10,9,10],rows)+
-    '<p class="note">Informações registradas manualmente; não representam baixa automática de materiais.</p>'+ntFooter(i+1,chunks.length)+'</section>';
- });
- return ntHtml('Produção de máquinas · '+ntDate(date),pages);
+ // MESMA fonte de layout utilizada na página Produção do Relatório Geral.
+ const rows=ntDayMachineRows(Array.isArray(records)?records:[]);
+ const marker='__NT_PRODUCAO_RODAPE__',pages=ntGeneralProductionPages(rows,date,marker);
+ return ntHtml('Produção de máquinas · '+ntDate(date),
+  pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 async function ntManualPDF(kind,single=null){
  const type=kind==='receipt'?'receipt':'production',action=type==='receipt'?NT_RECEIPT_ACTION:NT_PRODUCTION_ACTION;
@@ -1451,7 +1381,7 @@ function ntManualEditableData(type,record){
  return {itens:(record.itens||[]).map(x=>({
   codigoMaquina:String(x.codigoMaquina||''),nomeMaquina:String(x.nomeMaquina||x.modelo||''),
   unidadeMedida:String(x.unidadeMedida||''),lote:String(x.lote||x.ordemProducao||''),
-  opcao:String(x.opcao||''),quantidadePedida:Number(x.quantidadePedida||0),
+  quantidadePedida:Number(x.quantidadePedida||0),
   quantidadeConcluida:Number(x.quantidadeConcluida||0)
  }))};
 }
@@ -1473,7 +1403,6 @@ function ntManualEditPanel(type,record){
     ntField('Produto','neName'+i,item.nomeMaquina)+
     ntField('Unidade de medida','neUnit'+i,item.unidadeMedida)+
     ntField('Lote / OP','neLot'+i,item.lote)+
-    ntField('Opção / configuração','neOption'+i,item.opcao)+
     ntField('Quantidade planejada','nePlanned'+i,String(item.quantidadePedida),'number')+
     ntField('Quantidade produzida','neDone'+i,String(item.quantidadeConcluida),'number')+
     '</div>';
@@ -1512,16 +1441,16 @@ function ntManualNewData(type,old){
  const items=old.itens.map((x,i)=>{
   const code=String($('neCode'+i)?.value||'').trim(),name=String($('neName'+i)?.value||'').trim(),
    unit=String($('neUnit'+i)?.value||'').trim().toUpperCase(),
-   lot=String($('neLot'+i)?.value||'').trim(),option=String($('neOption'+i)?.value||'').trim(),
+   lot=String($('neLot'+i)?.value||'').trim(),
    pText=String($('nePlanned'+i)?.value||'').trim(),cText=String($('neDone'+i)?.value||'').trim(),
    planned=Number(pText),completed=Number(cText);
   if(!/^[A-Za-z0-9-]{5,40}$/.test(code)||name.length<3||name.length>160||
-     !/^[A-Z0-9²./ -]{1,12}$/.test(unit)||!lot||lot.length>90||option.length>120||
+     !/^[A-Z0-9²./ -]{1,12}$/.test(unit)||!lot||lot.length>90||
      !pText||!cText||!Number.isInteger(planned)||!Number.isInteger(completed)||
      planned<=0||completed<0||completed>planned)
     throw Error('Máquina '+(i+1)+': confira código, produto, unidade, lote e quantidades inteiras.');
   return {codigoMaquina:code,nomeMaquina:name,unidadeMedida:unit,
-   lote:lot,opcao:option,quantidadePedida:planned,quantidadeConcluida:completed};
+   lote:lot,quantidadePedida:planned,quantidadeConcluida:completed};
  });
  return {itens:items};
 }
@@ -1730,6 +1659,17 @@ function ntDaySortMovement(a,b){
  };
  return getTime(a)-getTime(b)||String(a.timeClient||'').localeCompare(String(b.timeClient||''))||String(a.id||'').localeCompare(String(b.id||''));
 }
+function ntDayMachineRows(production){
+ return (production||[]).flatMap(r=>(r.itens||[]).map(x=>({
+  codigoMaquina:String(x.codigoMaquina||'—'),
+  produto:String(x.nomeMaquina||x.modelo||'—'),
+  unidade:String(x.unidadeMedida||'—'),
+  lote:String(x.lote||x.ordemProducao||'—'),
+  pedida:ntDayNumber(x.quantidadePedida),concluida:ntDayNumber(x.quantidadeConcluida),
+  ordemProducao:String(x.ordemProducao||'—'),
+  observacao:String(r.observacao||'')
+ })));
+}
 function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
  const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE']);
@@ -1739,17 +1679,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
  const incoming=operating.filter(m=>m.tipo==='ENTRADA');
  const receipts=receiptDocs.filter(x=>x.dataRecebimento===date);
  const production=productionDocs.filter(x=>x.dataProducao===date);
- const machineRows=production.flatMap(r=>(r.itens||[]).map(x=>({
-  codigoMaquina:String(x.codigoMaquina||'—'),
-  produto:String(x.nomeMaquina||x.modelo||'—'),
-  unidade:String(x.unidadeMedida||'—'),
-  lote:String(x.lote||x.ordemProducao||'—'),
-  opcao:String(x.opcao||''),
-  pedida:ntDayNumber(x.quantidadePedida),concluida:ntDayNumber(x.quantidadeConcluida),
-  // Campos legados continuam disponíveis aos demais consumidores do modelo.
-  ordemProducao:String(x.ordemProducao||'—'),nome:String(x.nomeMaquina||'—'),modelo:String(x.modelo||'—'),
-  observacao:String(r.observacao||'')
- })));
+ const machineRows=ntDayMachineRows(production);
  const entranceById=new Map(operating.filter(m=>m.tipo==='ENTRADA'&&m.id).map(m=>[String(m.id),m]));
  const receiptRows=receipts.flatMap(r=>(r.itens||[]).map(x=>{
   const codigo=String(x.codigo||''),movimentacaoId=String(x.movimentacaoId||''),move=entranceById.get(movimentacaoId);
