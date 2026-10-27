@@ -122,7 +122,7 @@
 
 /* Logomarca original New Termisa: apenas a área da marca; interface preservada. */
 .mark{display:flex;align-items:center;justify-content:center;background:linear-gradient(120deg,#17416a,#102b48);border:1px solid #33536e;overflow:hidden;width:60px;height:60px;min-width:60px;flex:0 0 60px;padding:2px;border-radius:18px}
-.mark img{display:block;width:100%;height:100%;object-fit:contain;object-position:center;transform:translateX(-1px)}
+.mark img{display:block;width:100%;height:100%;object-fit:contain;object-position:center}
 header .brand{min-width:0}
 header .brand>div:last-child{min-width:0}
 /* Distância idêntica da borda aos três botões de movimentação. */
@@ -3027,6 +3027,25 @@ document.addEventListener('change',async e=>{if(e.target.id==='importMeasuresFil
 $('arquivoCatalogo').addEventListener('change',async e=>{try{isReady();await importCatalog(e.target.files?.[0])}catch(err){notice(err.message,true)}finally{e.target.value=''}});
 window.addEventListener('online',()=>{serverReady=false;status('● Revalidando Firebase');if(user){for(const f of unsubs)f();bindListeners()}});window.addEventListener('offline',()=>{serverReady=false;status('● Sem internet',false,true)});
 const ntHeaderLogo=document.getElementById('ntHeaderLogo');
-if(ntHeaderLogo)ntHeaderLogo.src=NT_LOGO;
+if(ntHeaderLogo){
+ // Mantém a logomarca OFICIAL do PDF; somente a organiza em duas linhas
+ // para ser legível dentro do quadrado original de 60x60.
+ const originalBrandImage=new Image();
+ originalBrandImage.onload=()=>{
+  try{
+   const c=document.createElement('canvas');
+   c.width=256;c.height=256;
+   const cx=c.getContext('2d');
+   if(!cx)throw Error('Canvas indisponível');
+   const w=originalBrandImage.naturalWidth,h=originalBrandImage.naturalHeight;
+   // "new" e "Termisa": recortes proporcionais da mesma marca, sem alterar cores ou tipografia.
+   cx.drawImage(originalBrandImage,0,0,w*0.342,h,15,36,226,106);
+   cx.drawImage(originalBrandImage,w*0.345,0,w*0.655,h,6,151,244,64);
+   ntHeaderLogo.src=c.toDataURL('image/png');
+  }catch(_){ntHeaderLogo.src=NT_LOGO}
+ };
+ originalBrandImage.onerror=()=>{ntHeaderLogo.src=NT_LOGO};
+ originalBrandImage.src=NT_LOGO;
+}
 load();
 </script><script defer src="./calculadora.js?v=20261027d"></script></body></html>
