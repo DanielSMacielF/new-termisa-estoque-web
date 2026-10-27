@@ -921,6 +921,7 @@ function ntReportCSS(){return `<style>
 .nt-general-stock-deep .nt-di-metric{border-left:.9mm solid #1fa1a6;background:#e8f3f4;border-radius:2.3mm;padding:2.5mm 3mm;min-height:17mm}
 .nt-general-stock-deep .nt-di-metric small{font-size:7.1pt;display:block;font-weight:700;color:#426573;line-height:1.2}
 .nt-general-stock-deep .nt-di-metric strong{font-size:17pt;display:block;font-weight:700;color:#106f7b;margin-top:1mm}
+.nt-general-stock-deep .nt-deep-auditnote{font-size:7.5pt;line-height:1.25;color:#3b6170;background:#edf6f6;border-left:.8mm solid #24a1a8;padding:1.8mm 2.7mm;border-radius:1.5mm;margin:-1mm 0 2.6mm}
 .nt-general-stock-deep .nt-deep-columns{display:grid;grid-template-columns:1fr 1fr;gap:3.4mm;align-items:stretch}
 .nt-general-stock-deep .nt-deep-panel{background:#f3f8f9;border:1px solid #cbdee2;border-radius:3mm;padding:3mm 3.8mm;min-height:108mm;min-width:0}
 .nt-general-stock-deep .nt-deep-panel h2{font-size:10pt;color:#194957;margin:0 0 1mm}
@@ -2085,7 +2086,16 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
    pendingCodes:receiptRows.filter(x=>!x.codigo).length,
    stockItems:stockRows.length,stockNotReconciled:stockRows.filter(x=>x.validar).length,
    stockEntries:incoming.length,returnLines:operating.filter(m=>m.tipo==='DEVOLUCAO').length,
+   // AJUSTE e uma conferência de estoque, com ou sem correção real de saldo.
    physicalCountEntries:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)).length,
+   physicalStockCorrections:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)&&
+    Number.isFinite(Number(m.delta))&&Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
+    Math.abs(rnd(Number(m.depois)-Number(m.antes)-Number(m.delta)))<0.0001&&
+    Math.abs(Number(m.delta))>0.0001).length,
+   physicalCountNoChange:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)&&
+    Number.isFinite(Number(m.delta))&&Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
+    Math.abs(rnd(Number(m.depois)-Number(m.antes)-Number(m.delta)))<0.0001&&
+    Math.abs(Number(m.delta))<=0.0001).length,
    notes:comparisons.filter(x=>Math.abs(x.diferenca)>.0001).length}
  };
 }
@@ -2352,6 +2362,9 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
   sort((a,b)=>b.percent-a.percent||a.nome.localeCompare(b.nome,'pt-BR'));
  const notReconciled=Number(model.totals?.stockNotReconciled)||0;
  const counted=Number(model.totals?.physicalCountEntries)||0;
+ const corrected=Number(model.totals?.physicalStockCorrections)||0;
+ const unchanged=Number(model.totals?.physicalCountNoChange)||0;
+ const countToCheck=Math.max(0,counted-corrected-unchanged);
  const plain=value=>ntPlain(String(value??''));
  const num=value=>plain(fmt(value));
  const blank='<p class="nt-di-empty">Sem registros suficientes para este indicador no dia.</p>';
@@ -2406,13 +2419,13 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
    '<div class="nt-di-panel"><h2>'+chartTitle+'</h2>'+
     '<p>Top 6 por quantidade. As barras usam somente '+plain(primary?.unit||'unidades cadastradas')+
     '; maior barra = 100% nesta unidade.</p><div class="nt-di-bars">'+mainBars+'</div></div>'+
-   '<div class="nt-di-panel"><h2>TIPOS DE MOVIMENTAÇÃO</h2>'+
-    '<p>Número de operações registradas, não quantidades.</p>'+
+   '<div class="nt-di-panel"><h2>MOVIMENTAÇÕES OPERACIONAIS</h2>'+
+    '<p>Entradas, retiradas e devoluções; sem conferências físicas.</p>'+
     '<div class="nt-di-ringbox">'+donut+'<div class="nt-di-legend">'+legend+'</div></div>'+
     '<div class="nt-di-usage"><span>Uma retirada</span><b>'+onlyOnce+' materiais</b>'+
     '<span>Duas ou mais</span><b>'+repeated+' materiais</b></div>'+
     '<div class="nt-di-unitnote"><b>Leitura correta:</b> 1 retirada de 1.000 UN conta como uma operação.'+
-    ' As quantidades aparecem no ranking ao lado.</div></div></div>'+diagnose+
+    ' As quantidades aparecem no ranking ao lado. Conferências e correções de saldo são registradas separadamente.</div></div></div>'+diagnose+
   '<div class="nt-di-footnote">Fonte: retiradas confirmadas do dia no Firebase. Ranking por quantidade '+
   'dentro de UMA unidade, sem somar UN, KG, M ou L. '+
   (missing.length?missing.length+' material(is) sem unidade válida ficaram fora dos gráficos de quantidade. ':'')+
@@ -2443,8 +2456,13 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
     ['SALDOS ZERADOS APÓS SAÍDA',zero.length],
     ['CONSUMO ≥ 50% DO INICIAL',pressure.length],
     ['DIVERGÊNCIAS A CONFERIR',notReconciled],
-    ['AJUSTES FÍSICOS REGISTRADOS',counted]
+    ['CONFERÊNCIAS DE ESTOQUE',counted]
    ])+
+   '<div class="nt-deep-auditnote"><b>Conferência e correção de estoque:</b> '+corrected+
+   ' registro(s) corrigiram o saldo após conferência física; '+unchanged+
+   ' confirmaram o saldo sem mudança.'+(countToCheck?' '+countToCheck+
+   ' registro(s) precisam de verificação no histórico.':'')+
+   ' Essas operações não representam entrada, retirada ou devolução de material.</div>'+
    '<div class="nt-deep-columns">'+
     '<div class="nt-deep-panel"><h2>CONSUMO POR UNIDADE DE MEDIDA</h2>'+
      '<p>Totais separados: não somar unidades incompatíveis.</p>'+
