@@ -2051,8 +2051,8 @@ function ntDayExcelExport(model,XLSX){
   ['Saldos a conferir',t.stockNotReconciled,'Variações fora de entradas, saídas e devoluções'],
   ['Observação','Somente entradas vinculadas a materiais cadastrados atualizam o saldo','Entradas integradas possuem identificador; documentos antigos podem não ter vínculo']
  ]);
- sheet('Produção',['DATA','OP','MÁQUINA','MODELO','OPÇÃO','QTD. PEDIDA','QTD. CONCLUÍDA','PENDENTE','OBSERVAÇÕES'],
-  model.machineRows.map(x=>[date,x.ordemProducao,x.nome,x.modelo,x.opcao,x.pedida,x.concluida,x.pedida-x.concluida,x.observacao]));
+ sheet('Produção',['DATA','CÓD. MÁQUINA','PRODUTO','UN.','QTDE. FEITA','LOTE / OP'],
+  model.machineRows.map(x=>[date,x.codigoMaquina,x.produto,x.unidade,x.concluida,x.lote]));
  const stockByCode=new Map(model.stockRows.map(x=>[x.codigo,x]));
  sheet('Comunicação Interna',['DATA','HORÁRIO','PEDIDO','SOLICITANTE','CÓDIGO','MATERIAL','UNIDADE','QTD. SAÍDA','SALDO ANTES','SALDO DEPOIS'],
   model.requests.map(x=>{const stock=stockByCode.get(String(x.codigo));return [date,ntTime(x),String(x.pedido||''),String(x.solicitante||''),String(x.codigo||''),String(x.nome||''),
