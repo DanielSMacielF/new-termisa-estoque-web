@@ -1279,10 +1279,39 @@ async function ntProductionSave(){
  const data={acao:NT_PRODUCTION_ACTION,formato:'NEW_TERMISA_PRODUCAO_V1',numero:ref.id,dataProducao:d.dataProducao,observacao:d.observacao,itens:ntProductionItems.map(x=>({...x})),operador:user.email||'',uid:user.uid,criadoEmLocal:new Date().toISOString(),criadoEm:serverTimestamp()};
  loader(true);try{await setDoc(ref,data);ntProductionItems=[];close();notice('Produção registrada no histórico sem alterar estoque.')}finally{loader(false)}
 }
+function ntManualApplyEdits(records,corrections){
+ const byId=new Map((records||[]).map(x=>[String(x.numero||''),{...x}]));
+ const changes=(corrections||[]).filter(x=>x.acao===NT_MANUAL_EDIT_ACTION&&x.documentoId&&x.depois)
+  .sort((a,b)=>String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||''))||
+    String(a.numero||'').localeCompare(String(b.numero||'')));
+ for(const edit of changes){
+  const id=String(edit.documentoId),record=byId.get(id);
+  if(!record)continue;
+  const type=record.acao===NT_RECEIPT_ACTION?'receipt':record.acao===NT_PRODUCTION_ACTION?'production':'';
+  if(type!==edit.documentoTipo)continue;
+  const next={...record};
+  if(type==='receipt'){
+   for(const k of ['fornecedor','pedidoCompra','notaFiscal']){
+    if(typeof edit.depois[k]!=='string')continue;
+    next[k]=edit.depois[k];
+   }
+  }else if(Array.isArray(edit.depois.itens)&&edit.depois.itens.length===record.itens.length){
+   next.itens=record.itens.map((x,i)=>({...x,...edit.depois.itens[i],
+    modelo:edit.depois.itens[i].nomeMaquina,ordemProducao:edit.depois.itens[i].lote}));
+  }else continue;
+  next.ultimaRetificacao=edit.criadoEmLocal;
+  byId.set(id,next);
+ }
+ return [...byId.values()];
+}
 async function ntManualLoad(action){
  if(!user||!serverReady||!navigator.onLine)throw Error('Aguarde a sincronização com o Firebase.');
- const snap=await getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',action)));
- return snap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens))
+ const [snap,corrections]=await Promise.all([
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',action))),
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
+ ]);
+ const original=snap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens));
+ return ntManualApplyEdits(original,corrections.docs.map(d=>({...d.data(),numero:d.id})))
   .sort((a,b)=>String(b.criadoEmLocal||'').localeCompare(String(a.criadoEmLocal||'')));
 }
 function ntReceiptReport(records,date){
@@ -1459,11 +1488,17 @@ async function ntManualEditStart(type,id){
  if(!['receipt','production'].includes(type)||!String(id||'').trim())throw Error('Registro de edição inválido.');
  isReady();loader(true);
  try{
-  const ref=doc(db,'nt_web_auditoria',id),snap=await getDocFromServer(ref);
+  const ref=doc(db,'nt_web_auditoria',id);
+  const [snap,corrections]=await Promise.all([
+   getDocFromServer(ref),
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
+  ]);
   const action=type==='receipt'?NT_RECEIPT_ACTION:NT_PRODUCTION_ACTION;
   if(!snap.exists()||snap.data().acao!==action||!Array.isArray(snap.data().itens))
    throw Error('Registro original não localizado para edição.');
-  ntManualEditPanel(type,{...snap.data(),numero:snap.id});
+  const latest=ntManualApplyEdits([{...snap.data(),numero:snap.id}],
+    corrections.docs.map(d=>({...d.data(),numero:d.id})))[0];
+  ntManualEditPanel(type,latest);
  }finally{loader(false)}
 }
 function ntManualNewData(type,old){
@@ -1496,42 +1531,36 @@ async function ntManualEditSave(){
  isReady();
  const proposed=ntManualNewData(draft.type,draft.original);
  if(JSON.stringify(proposed)===JSON.stringify(draft.original)){
-  notice('Nenhuma informação foi alterada.');
-  return;
+  notice('Nenhuma informação foi alterada.');return;
  }
- if(!confirm('Salvar esta retificação com histórico de antes e depois? O estoque não será modificado.'))return;
+ if(!confirm('Salvar retificação com histórico de antes e depois? Nenhum saldo será alterado.'))return;
  const target=doc(db,'nt_web_auditoria',draft.id),logRef=doc(collection(db,'nt_web_auditoria'));
  loader(true);
  try{
-  await runTransaction(db,async tx=>{
-   const snap=await tx.get(target);
-   const action=draft.type==='receipt'?NT_RECEIPT_ACTION:NT_PRODUCTION_ACTION;
-   if(!snap.exists()||snap.data().acao!==action||!Array.isArray(snap.data().itens))
-    throw Error('Registro original não encontrado.');
-   const existing=snap.data(),current=ntManualEditableData(draft.type,existing);
-   if(JSON.stringify(current)!==JSON.stringify(draft.original))
-    throw Error('Este documento foi alterado por outra pessoa. Reabra o histórico para evitar conflito.');
-   let patch;
-   if(draft.type==='receipt')patch={...proposed};
-   else patch={itens:existing.itens.map((x,i)=>({...x,...proposed.itens[i],
-     modelo:proposed.itens[i].nomeMaquina,ordemProducao:proposed.itens[i].lote}))};
-   const now=new Date().toISOString();
-   tx.update(target,{...patch,retificadoEm:serverTimestamp(),retificadoEmLocal:now,
-     retificadoPor:user.email||'',numeroRetificacoes:Number(existing.numeroRetificacoes||0)+1});
-   tx.set(logRef,{acao:NT_MANUAL_EDIT_ACTION,documentoId:draft.id,
-    documentoTipo:draft.type,antes:current,depois:proposed,
-    usuario:user.email||'',uid:user.uid,criadoEm:serverTimestamp(),
-    criadoEmLocal:now});
-  });
+  const [snap,corrections]=await Promise.all([
+   getDocFromServer(target),
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
+  ]);
+  const action=draft.type==='receipt'?NT_RECEIPT_ACTION:NT_PRODUCTION_ACTION;
+  if(!snap.exists()||snap.data().acao!==action||!Array.isArray(snap.data().itens))
+   throw Error('Registro original não encontrado.');
+  const effective=ntManualApplyEdits([{...snap.data(),numero:snap.id}],
+    corrections.docs.map(d=>({...d.data(),numero:d.id})))[0];
+  const current=ntManualEditableData(draft.type,effective);
+  if(JSON.stringify(current)!==JSON.stringify(draft.original))
+   throw Error('Documento retificado em outra sessão. Reabra o histórico antes de salvar.');
+  const now=new Date().toISOString();
+  await setDoc(logRef,{acao:NT_MANUAL_EDIT_ACTION,documentoId:draft.id,
+   documentoTipo:draft.type,antes:current,depois:proposed,
+   usuario:user.email||'',uid:user.uid,criadoEm:serverTimestamp(),
+   criadoEmLocal:now});
   ntManualEditDraft=null;
-  notice('Correção registrada com sucesso. Gere o PDF novamente para visualizar.');
+  notice('Retificação registrada no histórico. PDFs novos mostram os dados corrigidos.');
   await ntManualHistory(draft.type);
  }catch(err){
-  notice('Não foi possível salvar a correção no Firebase: '+String(err.message||err)+
-   '. O registro original permanece inalterado se a transação falhou.',true);
+  notice('Não foi possível salvar a retificação: '+String(err.message||err)+'. Confira suas permissões no Firebase.',true);
  }finally{loader(false)}
 }
-
 /* Resumo Gerencial: leitura de dados CONFIRMADOS do servidor no momento da emissão. */
 // Recebimentos apenas em leitura: auditados e vinculados a movimentações já contabilizadas.
 function ntManagerReceiptRows(receiptDocs,movements,from,to){
@@ -1663,13 +1692,15 @@ async function ntManagerOpen(mode){
   const movementQuery=mode==='month'
     ?query(collection(db,'nt_web_movimentos'),where('dia','>=',from),where('dia','<=',to))
     :query(collection(db,'nt_web_movimentos'),where('dia','==',date));
-  const [materialSnap,moveSnap,receiptSnap]=await Promise.all([
+  const [materialSnap,moveSnap,receiptSnap,correctionSnap]=await Promise.all([
    getDocsFromServer(collection(db,'nt_web_materiais')),
    getDocsFromServer(movementQuery),
-   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION)))
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
   ]);
   const materials=materialSnap.docs.map(d=>d.data()),moves=moveSnap.docs.map(d=>d.data());
-  const receipts=receiptSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens));
+  const receipts=ntManualApplyEdits(receiptSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens)),
+   correctionSnap.docs.map(d=>({...d.data(),numero:d.id})));
   const html=ntManagerReport(materials,moves,from,to,periodLabel,receipts);
   popup.document.open();popup.document.write(html);popup.document.close();
  }catch(e){
@@ -1812,15 +1843,17 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs){
 async function ntGeneralDayFetch(date){
  if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase. Não foi possível consultar o relatório.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))throw Error('Escolha uma data válida.');
- const [materialSnap,moveSnap,receiptSnap,productionSnap]=await Promise.all([
+ const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap]=await Promise.all([
   getDocsFromServer(collection(db,'nt_web_materiais')),
   getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
-  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_PRODUCTION_ACTION)))
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_PRODUCTION_ACTION))),
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
  ]);
  const materials=materialSnap.docs.map(x=>x.data()),moves=moveSnap.docs.map(x=>x.data());
- const receipts=receiptSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens));
- const production=productionSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens));
+ const corrections=correctionSnap.docs.map(x=>({...x.data(),numero:x.id}));
+ const receipts=ntManualApplyEdits(receiptSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
+ const production=ntManualApplyEdits(productionSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
  return ntGeneralDayModel(date,materials,moves,receipts,production);
 }
 function ntGeneralReceiptPages(records,date,marker){
