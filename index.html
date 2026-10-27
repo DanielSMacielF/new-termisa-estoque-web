@@ -121,12 +121,14 @@
 @media(max-width:560px){.nt-rc-grid{grid-template-columns:1fr}.nt-rc-card{padding:14px}.nt-rc-date{grid-template-columns:1fr}}
 
 /* Logomarca original New Termisa: apenas a área da marca; interface preservada. */
-.mark{display:flex;align-items:center;justify-content:center;background:linear-gradient(120deg,#17416a,#102b48);border:1px solid #33536e;overflow:hidden;width:176px;height:60px;min-width:176px;padding:7px;border-radius:18px}
+.mark{display:flex;align-items:center;justify-content:center;background:linear-gradient(120deg,#17416a,#102b48);border:1px solid #33536e;overflow:hidden;width:60px;height:60px;min-width:60px;flex:0 0 60px;padding:2px;border-radius:18px}
 .mark img{display:block;width:100%;height:100%;object-fit:contain}
+header .brand{min-width:0}
+header .brand>div:last-child{min-width:0}
 /* Distância idêntica da borda aos três botões de movimentação. */
 #moveForm.card,.nt-receipt-movement{margin-top:14px}
 </style></head>
-<body><div class="shell"><header><div class="brand"><div class="mark"><img id="ntHeaderLogo" alt="New Termisa" width="162" height="46"></div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento" aria-label="Central de Relatórios"><span>▣</span>Relatórios</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
+<body><div class="shell"><header><div class="brand"><div class="mark"><img id="ntHeaderLogo" alt="New Termisa" width="56" height="56"></div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento" aria-label="Central de Relatórios"><span>▣</span>Relatórios</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
 <script>
 // Diagnostic if the CDN cannot initialize: never mistake a frozen page for a working stock system.
 window.addEventListener('error',function(e){
