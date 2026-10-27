@@ -174,4 +174,4 @@ $('custom').addEventListener('click',()=>load($('start').value,$('end').value,'c
 $('refresh').addEventListener('click',()=>lastRange&&load(lastRange.from,lastRange.to,currentMode));
 $('print').addEventListener('click',()=>window.print());$('back').addEventListener('click',()=>location.href='./index.html');
 onAuthStateChanged(auth,u=>{if(!u){active=false;error('Faça login no sistema principal para acessar os dados do estoque.');return}active=true;const today=day(new Date());$('start').value=shift(today,-29);$('end').value=today;load($('start').value,today,30)});
-</script><script defer src="./calculadora.js?v=20261027b"></script></body></html>
+</script><script defer src="./calculadora.js?v=20261027c"></script></body></html>
