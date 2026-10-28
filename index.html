@@ -1420,7 +1420,7 @@ function ntMetaMoves(rows,edits){
  const map=new Map(rows.map(x=>[String(x.id||''),{...x}]));
  edits.filter(x=>x.acao===NT_META_ACTION&&x.documentoTipo==='movimento'&&x.documentoId&&x.depois)
  .sort((a,b)=>String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||''))||String(a.numero||'').localeCompare(String(b.numero||'')))
- .forEach(e=>{const m=map.get(String(e.documentoId));if(m&&['solicitante','pedido','observacao'].every(k=>typeof e.depois[k]==='string'))map.set(String(e.documentoId),{...m,...ntMetaFields(e.depois)})});
+ .forEach(e=>{const m=map.get(String(e.documentoId));if(!m||!['solicitante','pedido','observacao'].every(k=>typeof e.depois[k]==='string'))return;const voided=e.depois.excluido===true;map.set(String(e.documentoId),{...m,...ntMetaFields(e.depois),...(voided?{anulado:true,estornado:true,estornadoEm:e.criadoEmLocal||'',estornoId:String(e.movimentoEstornoId||'')}:{} )})});
  return [...map.values()];
 }
 async function ntMetaRead(){
@@ -1435,7 +1435,7 @@ async function ntMetaOpen(id){
   const m={...snap.data(),id:snap.id};
   if(!['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo)||m.anulado||m.reciboId||m.origem==='RECEBIMENTO_INTEGRADO')
    throw Error('Este lançamento é protegido; consulte o Histórico de Recebimentos, se for entrada vinculada.');
-  const v=ntMetaMoves([m],await ntMetaRead())[0];ntMetaDraft={id:m.id,old:ntMetaFields(v)};
+  const v=ntMetaMoves([m],await ntMetaRead())[0];if(v.anulado)throw Error('Movimentação já excluída/estornada. Não pode ser editada.');ntMetaDraft={id:m.id,old:ntMetaFields(v)};
   panel('<h2>Editar informações do lançamento</h2><p class="small">'+esc(m.tipo)+' · '+esc(m.codigo)+' · '+esc(m.nome||'')+'</p>'+
    '<p class="small">Esta correção com auditoria altera somente solicitante, pedido e observação. Não altera data, quantidade, saldo nem os lançamentos originais.</p>'+
    ntField('Solicitante','ntmPerson',v.solicitante)+ntField('Pedido / referência','ntmOrder',v.pedido)+ntField('Observação','ntmNotes',v.observacao)+
@@ -1456,13 +1456,119 @@ async function ntMetaSave(){
   if(!snap.exists())throw Error('Registro original não localizado.');
   const m={...snap.data(),id:snap.id};
   if(m.anulado||m.reciboId||m.origem==='RECEBIMENTO_INTEGRADO')throw Error('Lançamento protegido.');
-  const current=ntMetaFields(ntMetaMoves([m],await ntMetaRead())[0]);
+  const effective=ntMetaMoves([m],await ntMetaRead())[0];if(effective.anulado)throw Error('Movimentação estornada: edição bloqueada.');
+  const current=ntMetaFields(effective);
   if(JSON.stringify(current)!==JSON.stringify(draft.old))throw Error('Alteração em outra sessão. Reabra o histórico.');
   if(testeIdentificado(m)!==testeIdentificado({...m,...next}))throw Error('Não é permitido reclassificar um teste nesta edição.');
   await setDoc(doc(collection(db,'nt_web_auditoria')),{acao:NT_META_ACTION,documentoId:draft.id,documentoTipo:'movimento',
    antes:current,depois:next,usuario:user.email||'',uid:user.uid,criadoEmLocal:new Date().toISOString(),criadoEm:serverTimestamp()});
   ntMetaDraft=null;notice('Correção registrada para os relatórios. Nenhum saldo foi alterado.');
   await ntShowTodayMovements(ntMetaDate||day());
+ }finally{loader(false)}
+}
+
+
+/* Excluir movimento operacional = estorno ATÔMICO no estoque atual + trilha imutável.
+   Nunca apaga documentos originais e não altera retroativamente outros saldos históricos. */
+let ntCancelDraft=null;
+function ntCancelEligible(m,id){
+ const code=String(m.codigo||''),qty=Number(m.quantidade),delta=Number(m.delta);
+ if(!['SAIDA','ENTRADA','DEVOLUCAO'].includes(String(m.tipo))||m.anulado||m.reciboId||
+    m.origem==='RECEBIMENTO_INTEGRADO'||String(m.origem||'').startsWith('ESTORNO')||
+    String(id||'').startsWith('ESTORNO_')||String(id||'').startsWith('RETIFICACAO_'))
+  throw Error('Este movimento é protegido. Para entradas de fornecedor, corrija o registro no Histórico de Recebimentos.');
+ if(!/^\d{9}$/.test(code)||!Number.isFinite(qty)||qty<=0||
+    !Number.isFinite(delta)||Math.abs(Math.abs(delta)-qty)>0.0001||
+    (m.tipo==='SAIDA'&&delta>=0)||(m.tipo!=='SAIDA'&&delta<=0))
+  throw Error('Dados históricos do lançamento não estão íntegros para estorno automático. Não houve alteração.');
+ if(Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
+    Math.abs(rnd(Number(m.antes)+delta-Number(m.depois)))>0.0001)
+  throw Error('Lançamento histórico com saldo inicial/final inconsistente. Estorno bloqueado.');
+ return {code,qty,delta};
+}
+async function ntCancelMoveOpen(id){
+ isReady();
+ const moveId=String(id||'').trim();
+ if(!moveId||moveId.length>220)throw Error('Identificador do lançamento inválido.');
+ loader(true);
+ try{
+  const [snap,audit]=await Promise.all([
+   getDocFromServer(doc(db,'nt_web_movimentos',moveId)),
+   getDocFromServer(doc(db,'nt_web_auditoria','ESTORNO_'+moveId))
+  ]);
+  if(!snap.exists())throw Error('Movimentação não encontrada.');
+  if(audit.exists())throw Error('Este item já foi excluído e estornado. Atualize o histórico.');
+  const m={...snap.data(),id:snap.id},info=ntCancelEligible(m,moveId);
+  ntCancelDraft={id:moveId,codigo:info.code,dia:String(m.dia||'')};
+  const change=-info.delta;
+  panel('<h2>Excluir item do histórico operacional</h2>'+
+   '<p class="small" style="margin:7px 0 14px">A exclusão não apaga o registro original. Um estorno de estoque será criado na data de hoje e a retirada ou entrada deixará de contar nos novos relatórios do dia original.</p>'+
+   '<div class="card" style="margin:8px 0 14px">'+
+   '<strong>'+esc(m.nome||info.code)+'</strong>'+
+   '<p class="small">'+esc(info.code)+' · '+esc(m.tipo)+' · '+esc(ntDate(m.dia||day()))+'</p>'+
+   '<p style="margin-top:8px">Quantidade original: <b>'+esc(fmt(info.qty))+'</b></p>'+
+   '<p style="margin-top:5px">Correção no saldo atual: <b class="'+(change>=0?'green':'red')+'">'+(change>=0?'+':'')+esc(fmt(change))+'</b></p></div>'+
+   '<div class="field"><label for="ntCancelReason">Motivo da exclusão (obrigatório)</label>'+
+   '<textarea id="ntCancelReason" rows="3" maxlength="300" placeholder="Ex.: material lançado no pedido por engano"></textarea></div>'+
+   '<p class="small" style="margin:8px 0 12px">Se o saldo não permitir o estorno, a operação será bloqueada. Para uma entrega com nota fiscal vinculada, utilize o Histórico de Recebimentos.</p>'+
+   '<div class="buttons"><button class="btn danger" data-action="nt-cancel-confirm">Confirmar exclusão e estorno</button>'+
+   '<button class="btn ghost" data-action="nt-meta-history">Cancelar</button></div>');
+ }finally{loader(false)}
+}
+async function ntCancelMoveCommit(){
+ const draft=ntCancelDraft;
+ if(!draft)throw Error('Selecione um item no histórico antes de excluir.');
+ const reason=String($('ntCancelReason')?.value||'').trim();
+ if(reason.length<8||reason.length>300)throw Error('Informe um motivo com 8 a 300 caracteres para a auditoria.');
+ isReady();
+ const id=draft.id,originalRef=doc(db,'nt_web_movimentos',id),
+  auditRef=doc(db,'nt_web_auditoria','ESTORNO_'+id),
+  reversalRef=doc(db,'nt_web_movimentos','ESTORNO_'+id),
+  stockRef=itemRef(draft.codigo),stamp=new Date().toISOString();
+ loader(true);
+ let confirmed=false;
+ try{
+  const result=await runTransaction(db,async tx=>{
+   // Todas as leituras ocorrem antes de qualquer gravação.
+   const [originalSnap,stockSnap,auditSnap,reversalSnap]=await Promise.all([
+    tx.get(originalRef),tx.get(stockRef),tx.get(auditRef),tx.get(reversalRef)
+   ]);
+   if(auditSnap.exists()||reversalSnap.exists())throw Error('Já existe um estorno para este lançamento. Nenhuma operação duplicada.');
+   if(!originalSnap.exists()||!stockSnap.exists())throw Error('Movimento ou material não encontrado no servidor.');
+   const m=originalSnap.data(),stock=stockSnap.data(),info=ntCancelEligible(m,id);
+   if(info.code!==draft.codigo||String(m.dia||'')!==draft.dia||
+      String(stock.codigo||'')!==info.code)throw Error('Dados alterados desde a seleção. Reabra o histórico.');
+   const before=Number(stock.quantidade),delta=rnd(-info.delta),after=rnd(before+delta);
+   if(!Number.isFinite(before)||before<0||!Number.isFinite(after)||after<0)
+    throw Error('Saldo insuficiente ou inválido para estornar. Nenhuma quantidade foi alterada.');
+   const effectiveFields=ntMetaFields(m);
+   const entry={id:reversalRef.id,codigo:info.code,nome:String(stock.nome||m.nome||info.code),
+    unidade:String(stock.unidade||m.unidade||''),tipo:'AJUSTE',
+    quantidade:Math.abs(delta),delta,antes:before,depois:after,
+    solicitante:user.email||'Almoxarifado',pedido:'ESTORNO OPERACIONAL',
+    observacao:'Estorno do lançamento '+id+'. Motivo: '+reason,
+    origem:'ESTORNO_MOVIMENTO',movimentoOriginalId:id,
+    operador:user.email||'',uid:user.uid,dia:day(),timeClient:stamp,criadoEm:serverTimestamp()};
+   const log={acao:NT_META_ACTION,documentoTipo:'movimento',documentoId:id,
+    antes:{...effectiveFields,excluido:false},depois:{...effectiveFields,excluido:true},
+    tipoRetificacao:'EXCLUSAO_COM_ESTORNO',motivo:reason,movimentoEstornoId:reversalRef.id,
+    codigo:info.code,quantidadeOriginal:info.qty,deltaEstorno:delta,
+    diaOriginal:String(m.dia||''),diaEstorno:day(),usuario:user.email||'',uid:user.uid,
+    criadoEmLocal:stamp,criadoEm:serverTimestamp()};
+   tx.update(stockRef,{quantidade:after,ultimoMovimentoId:reversalRef.id,atualizadoEm:serverTimestamp()});
+   tx.set(reversalRef,entry);
+   tx.set(auditRef,log);
+   return {code:info.code,delta,after};
+  });
+  confirmed=true;
+  ntCancelDraft=null;
+  await consultarSaldosServidor([result.code],{[result.code]:{quantidade:result.after}});
+  notice('Item excluído do relatório e estorno de '+fmt(result.delta)+' registrado com auditoria.');
+  await ntShowTodayMovements(ntMetaDate||draft.dia||day());
+ }catch(err){
+  notice((confirmed?'Estorno gravado, mas a tela não confirmou os novos dados. ':
+   'Não foi possível confirmar o estorno. ')+
+   'NÃO repita sem consultar o histórico. '+String(err.message||err),true);
  }finally{loader(false)}
 }
 
@@ -3501,7 +3607,7 @@ if(a==='nt-manual-edit-add-machine'){ntManualEditAddMachine();return}
 if(a==='nt-manual-edit-undo-machine'){ntManualEditUndoMachine();return}
 if(a==='nt-manual-edit-save'){await ntManualEditSave();return}
 if(a==='nt-manual-edit-cancel'){await ntManualHistory(ntManualEditDraft?.type||'receipt');return}
-if(a==='nt-meta-edit'){await ntMetaOpen(act.dataset.code);return}if(a==='nt-meta-save'){await ntMetaSave();return}if(a==='nt-meta-history'){await ntShowTodayMovements(ntMetaDate||dateFilter);return}if(a==='nt-today-movements'){await ntShowTodayMovements();return}if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
+if(a==='nt-cancel-move'){await ntCancelMoveOpen(act.dataset.code);return}if(a==='nt-cancel-confirm'){await ntCancelMoveCommit();return}if(a==='nt-meta-edit'){await ntMetaOpen(act.dataset.code);return}if(a==='nt-meta-save'){await ntMetaSave();return}if(a==='nt-meta-history'){await ntShowTodayMovements(ntMetaDate||dateFilter);return}if(a==='nt-today-movements'){await ntShowTodayMovements();return}if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
 if(a==='nt-manager-month'){await ntManagerOpen('month');return}
 if(a==='nt-repos-new'){await ntReposNew();return}if(a==='nt-repos-all'){ntReposBatch('all');return}if(a==='nt-repos-visible'){ntReposBatch('visible');return}if(a==='nt-repos-clear'){ntReposBatch('clear');return}if(a==='nt-repos-preview'){ntReposPreview();return}if(a==='nt-repos-issue'){await ntReposIssue();return}if(a==='nt-repos-history'){await ntReposHistory();return}if(a==='nt-repos-open-history'){ntReposOpenHistory(act.dataset.code);return}
 if(a==='nt-repos-edit'){ntReposEdit(act.dataset.code);return}
