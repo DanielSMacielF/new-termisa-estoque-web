@@ -3335,6 +3335,227 @@ async function ntDayEnsureExcel(){
  }).catch(err=>{ntDayExcelLoader=null;throw err});
  return ntDayExcelLoader;
 }
+
+/* Exportação de Excel visual: imagens fiéis às páginas do PDF, mais tabelas editáveis. */
+let ntVisualExcelPromise=null;
+function ntVisualExcelLibraries(){
+ if(window.ExcelJS?.Workbook&&window.html2canvas)return Promise.resolve(window.ExcelJS);
+ if(ntVisualExcelPromise)return ntVisualExcelPromise;
+ const load=(url,check)=>new Promise((resolve,reject)=>{
+  if(check()){resolve();return}
+  const script=document.createElement('script');script.src=url;script.async=true;
+  script.onload=()=>check()?resolve():reject(Error('Biblioteca Excel incompatível.'));
+  script.onerror=()=>reject(Error('Biblioteca Excel não pôde ser carregada. Verifique a conexão.'));
+  document.head.appendChild(script);
+ });
+ ntVisualExcelPromise=Promise.all([
+  load('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js',()=>!!window.ExcelJS?.Workbook),
+  load('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',()=>!!window.html2canvas)
+ ]).then(()=>window.ExcelJS).catch(e=>{ntVisualExcelPromise=null;throw e});
+ return ntVisualExcelPromise;
+}
+async function ntExcelVisualPages(model,book){
+ const frame=document.createElement('iframe');frame.setAttribute('aria-hidden','true');
+ Object.assign(frame.style,{position:'fixed',left:'-15000px',top:'0',width:'1140px',
+  height:'910px',border:'0',pointerEvents:'none'});
+ document.body.appendChild(frame);
+ try{
+  const d=frame.contentDocument;
+  if(!d)throw Error('Navegador não disponibilizou a área de renderização do Excel.');
+  d.open();d.write(ntGeneralDayPDF(model));d.close();
+  const style=d.createElement('style');
+  style.textContent=[
+   'html,body{background:white!important;margin:0!important;padding:0!important;width:1140px!important}',
+   '.toolbar{display:none!important}',
+   '.page{width:297mm!important;height:196mm!important;min-height:196mm!important;',
+   'padding:7mm 15mm 13mm!important;margin:0!important;box-shadow:none!important;',
+   'overflow:hidden!important;break-after:auto!important;page-break-after:auto!important}',
+   '.page.landscape .footer{bottom:6mm!important}',
+   '.nt-general-requests td{padding:.75mm 1.4mm!important;line-height:1.17!important}',
+   '.nt-general-requests th{padding:1.6mm 1.4mm!important}',
+   '.nt-general-stock td{padding:1.25mm 1.5mm!important;line-height:1.25!important}',
+   '.nt-general-requests .note,.nt-general-stock .note{margin-top:2mm!important}',
+   '.nt-general-stock-deep .nt-deep-panel{min-height:0!important;padding:2mm 3mm!important}',
+   '.nt-general-stock-deep .nt-deep-unitrow{padding:.55mm 0!important}',
+   '.nt-general-stock-deep .nt-di-barrow{min-height:4.9mm!important}',
+   '.nt-general-stock-deep .nt-di-bars{gap:.7mm!important}',
+   '.nt-general-stock-deep .nt-deep-subhead{margin:1.5mm 0 1mm!important}',
+   '.nt-general-stock-deep .nt-deep-alertline{padding:1.1mm 1.7mm!important;margin:.8mm 0!important}',
+   '.nt-general-stock-deep .nt-deep-rx{margin-top:1.3mm!important;padding:1.4mm 2.3mm!important}',
+   '.nt-general-stock-deep .nt-deep-rx-row{padding:.65mm 0!important}',
+   '.nt-general-stock-deep .nt-deep-rx-help{margin-top:.6mm!important}',
+   '.nt-general-stock-deep .nt-di-footnote{margin-top:1mm!important;padding-top:.8mm!important}',
+   '.nt-general-stock-intel .nt-di-panel{min-height:60mm!important}',
+   '.nt-general-stock-intel .nt-di-donut{width:42mm!important;height:42mm!important}',
+   '.nt-general-stock-intel .nt-di-insight{min-height:0!important;padding:1.6mm 2.6mm!important}',
+   '.nt-general-stock-intel .nt-di-insighthead{margin:2mm 0 1mm!important}',
+   '.nt-general-stock-intel .nt-di-footnote{font-size:7pt!important;line-height:1.16!important;margin-top:1.2mm!important;padding-top:1mm!important}',
+   '.nt-general-stock-intel,.nt-general-stock-deep{padding-top:6mm!important;padding-bottom:18mm!important}',
+   '.nt-general-stock-deep .nt-di-eyebrow{margin:1mm 0 1mm!important}',
+   '.nt-general-stock-deep .nt-di-metrics{margin-bottom:2mm!important}',
+   '.nt-general-stock-deep .nt-deep-rx-desc{margin-bottom:1mm!important}',
+   '.nt-general-stock-deep .nt-deep-rx-metric{padding:.6mm 1.4mm!important}',
+   '.nt-general-stock-deep .nt-deep-rx-metrics{gap:.6mm!important}',
+   '.nt-general-stock-deep .nt-di-footnote{font-size:7pt!important;line-height:1.17!important}',
+   '.nt-general-stock-intel .footer,.nt-general-stock-deep .footer{bottom:6mm!important;background:white!important}'
+  ].join('');
+  d.head.appendChild(style);
+  const imgs=[...d.images];
+  await Promise.all(imgs.map(img=>img.complete?Promise.resolve():new Promise(resolve=>{
+   img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});
+  })));
+  await (d.fonts?.ready||Promise.resolve());
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  const pages=[...d.querySelectorAll('.page')];
+  if(!pages.length||pages.length>60)throw Error('Quantidade de páginas inválida para exportar.');
+  const types=[
+   ['nt-general-summary','Resumo'],['nt-general-production','Produção'],
+   ['nt-general-requests','Entregues'],['nt-general-receipt','Recebimentos'],
+   ['nt-general-repos','Reposição'],['nt-general-stock-intel','Inteligência'],
+   ['nt-general-stock-deep','Inteligência'],['nt-general-stock','Saldos']
+  ];
+  for(let i=0;i<pages.length;i++){
+   const page=pages[i];
+   const image=await window.html2canvas(page,{backgroundColor:'#ffffff',scale:1.5,
+    logging:false,useCORS:true,allowTaint:false,scrollX:0,scrollY:0,
+    windowWidth:1140,windowHeight:910,width:page.offsetWidth,height:page.offsetHeight});
+   if(image.width<500||image.height<300)throw Error('Página '+(i+1)+' não renderizada.');
+   const id=book.addImage({base64:image.toDataURL('image/png'),extension:'png'});
+   const type=types.find(x=>page.classList.contains(x[0]))?.[1]||'Relatório';
+   const ws=book.addWorksheet(String(i+1).padStart(2,'0')+' - '+type,{
+    views:[{showGridLines:false}],
+    pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,
+     fitToWidth:1,fitToHeight:1,horizontalCentered:true,
+     margins:{left:.08,right:.08,top:.08,bottom:.08,header:0,footer:0}}
+   });
+   for(let c=1;c<=16;c++)ws.getColumn(c).width=9.3;
+   for(let row=1;row<=39;row++)ws.getRow(row).height=14.45;
+   ws.addImage(id,{tl:{col:0,row:0},ext:{width:image.width/1.5,height:image.height/1.5}});
+   ws.getCell('A39').value=' ';
+   ws.pageSetup.printArea='A1:P39';
+   if(i%3===2)await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  return pages.length;
+ }finally{frame.remove()}
+}
+function ntExcelDataTabs(model,book){
+ const date=ntDate(model.date),t=model.totals;
+ const palette={navy:'194957',teal:'189DA3',light:'E8F2F3',ink:'173E4E',muted:'587483'};
+ const imageId=book.addImage({base64:NT_LOGO,extension:'png'});
+ function tab(name,headers,rows,subtitle){
+  const ws=book.addWorksheet(name,{views:[{state:'frozen',ySplit:8,showGridLines:false}],
+   pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,
+    fitToWidth:1,fitToHeight:0,margins:{left:.25,right:.25,top:.35,bottom:.35,header:0,footer:.15}}});
+  const n=headers.length,final=String.fromCharCode(64+n);
+  ws.getRow(2).height=40;ws.getRow(3).height=20;ws.getRow(4).height=20;
+  if(n>3)ws.mergeCells('C2:'+final+'2');const heading=ws.getCell('C2');
+  heading.value=name.toUpperCase();heading.font={name:'Arial',size:16,bold:true,
+   color:{argb:'FF'+palette.navy}};
+  heading.alignment={horizontal:'right',vertical:'middle'};
+  ws.addImage(imageId,{tl:{col:0.05,row:1.05},ext:{width:150,height:38}});
+  ws.mergeCells('A4:'+final+'4');
+  ws.getCell('A4').value=date+' · '+subtitle;
+  ws.getCell('A4').font={name:'Arial',size:10,color:{argb:'FF'+palette.muted}};
+  ws.getRow(5).height=5;
+  ws.getRow(5).border={bottom:{style:'medium',color:{argb:'FF'+palette.teal}}};
+  ws.mergeCells('A6:'+final+'6');
+  ws.getCell('A6').value='DADOS EM CÉLULAS EDITÁVEIS · As páginas visuais acima são uma cópia do PDF';
+  ws.getCell('A6').font={name:'Arial',size:9,color:{argb:'FF'+palette.teal}};
+  ws.getRow(8).height=28;
+  headers.forEach((h,j)=>{
+   const x=ws.getCell(8,j+1);x.value=h;
+   x.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+palette.navy}};
+   x.font={name:'Arial',size:9,bold:true,color:{argb:'FFFFFFFF'}};
+   x.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+   const width=Math.max(String(h).length,...rows.slice(0,70).map(r=>String(r[j]??'').length));
+   ws.getColumn(j+1).width=Math.min(45,Math.max(13,width*.84+3));
+  });
+  rows.forEach((data,i)=>{
+   const rr=ws.getRow(9+i);rr.height=22;
+   for(let j=0;j<n;j++){
+    const v=data[j]??'',c=rr.getCell(j+1);
+    c.value=typeof v==='number'&&Number.isFinite(v)?v:String(v);
+    c.font={name:'Arial',size:9,color:{argb:'FF'+palette.ink}};
+    c.alignment={horizontal:typeof v==='number'?'right':'left',
+     vertical:'middle',wrapText:true};
+    if(i%2)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+palette.light}};
+    if(typeof v==='number')c.numFmt='#,##0.####;[Red](#,##0.####)';
+    c.border={bottom:{style:'hair',color:{argb:'FFDDE9EA'}}};
+   }
+  });
+  if(rows.length)ws.autoFilter={from:{row:8,column:1},to:{row:8+rows.length,column:n}};
+  ws.pageSetup.printTitlesRow='1:8';
+  ws.headerFooter.oddFooter='NEW TERMISA  |  ALMOXARIFADO  -  &P / &N';
+  return ws;
+ }
+ const stockMap=new Map((model.stockRows||[]).map(x=>[String(x.codigo),x]));
+ tab('Dados - Resumo',['INDICADOR','VALOR','REFERÊNCIA'],[
+  ['Máquinas concluídas',t.machines,'Produção'],['Retiradas',t.requestsLines,'Operações'],
+  ['Materiais distintos retirados',t.requestsMaterials,'Códigos únicos'],
+  ['Recebimentos',t.receipts,'Documentos'],['Linhas recebidas',t.receiptLines,'Itens'],
+  ['Reposições solicitadas',t.reposReports||0,'Documentos'],['Itens para reposição',t.reposLines||0,'Itens'],
+  ['Entradas no estoque',t.stockEntries,'Operações'],['Devoluções',t.returnLines,'Operações'],
+  ['Movimentações totais',t.requestsLines+t.stockEntries+t.returnLines,'Saídas + entradas + devoluções'],
+  ['Materiais distintos',t.stockItems,'Códigos únicos'],
+  ['Divergências de NF',t.receiptDifferences,'Linhas'],['Saldos a conferir',t.stockNotReconciled,'Histórico']
+ ],'Panorama do Dia');
+ if(model.machineRows?.length)tab('Dados - Produção',
+  ['DATA','CÓD. MÁQUINA','PRODUTO','UN.','QTDE.','LOTE / OPÇÃO'],
+  model.machineRows.map(x=>[date,x.codigoMaquina,x.produto,x.unidade,Number(x.concluida)||0,x.lote]),
+  'Produção de Máquinas');
+ tab('Dados - Entregues',
+  ['HORA','CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE.','SOLICITANTE','PEDIDO'],
+  (model.requests||[]).map(x=>[ntTime(x),String(x.codigo||''),x.nome||'',
+   stockMap.get(String(x.codigo))?.unidade||'—',ntQty(x),x.solicitante||'',x.pedido||'']),
+  'Materiais Entregues / Comunicação Interna');
+ tab('Dados - Recebimentos',
+  ['FORNECEDOR','PEDIDO COMPRA','NOTA FISCAL','CÓDIGO','MATERIAL','UN.','QTD. NF','RECEBIDO','DIF.'],
+  (model.receiptRows||[]).map(x=>[x.fornecedor,x.pedidoCompra,x.notaFiscal,
+    String(x.codigo||''),x.nome,x.unidade,x.prevista,x.recebida,rnd(x.recebida-x.prevista)]),
+  'Recebimentos por fornecedor');
+ if(model.repos?.length){
+  const byCode=new Map((model.materialCatalog||[]).map(x=>[String(x.codigo??''),x]));
+  tab('Dados - Reposição',['DATA','HORA','CÓDIGO','MATERIAL','UN.','SALDO ATUAL'],
+   model.repos.flatMap(r=>(r.itens||[]).map(x=>{
+    const item=ntReposActualByCode(x.codigo,byCode);
+    return [date,ntRepoLocalHour(r),String(x.codigo||''),x.nome||'',
+      item.unidade,item.saldo??''];
+   })),'Solicitações de Reposição');
+ }
+ tab('Dados - Saldos',['CÓDIGO','MATERIAL','UN.','INICIAL','SAÍDAS','DEVOL.','ENTRADAS','FINAL'],
+  (model.stockRows||[]).map(x=>[String(x.codigo||''),x.nome,x.unidade,
+    x.inicialCalculado??'',x.saida,x.devolucao,x.entrada,x.fim??'']),
+  'Saldos do Almoxarifado');
+ const consumption=new Map();
+ for(const move of model.requests||[]){
+  const code=String(move.codigo||'');
+  const item=consumption.get(code)||{code,nome:move.nome,
+   unidade:stockMap.get(code)?.unidade||'—',qty:0,n:0};
+  item.qty=rnd(item.qty+(Number(ntQty(move))||0));item.n++;
+  consumption.set(code,item);
+ }
+ tab('Dados - Inteligência',['CÓDIGO','MATERIAL','UN.','CONSUMO','RETIRADAS'],
+  [...consumption.values()].sort((a,b)=>b.qty-a.qty||String(a.nome).localeCompare(String(b.nome)))
+   .map(x=>[x.code,x.nome,x.unidade,x.qty,x.n]),
+  'Consumo por Material');
+}
+async function ntDayExportVisualExcel(model){
+ const ExcelJS=await ntVisualExcelLibraries(),book=new ExcelJS.Workbook();
+ book.creator='New Termisa Almoxarifado';
+ book.title='Relatório Geral do Dia - '+ntDate(model.date);
+ book.subject='Espelho do PDF e dados editáveis';
+ book.created=new Date();
+ const count=await ntExcelVisualPages(model,book);
+ ntExcelDataTabs(model,book);
+ const data=await book.xlsx.writeBuffer();
+ const blob=new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+ const uri=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=uri;link.download='NewTermisa_Relatorio_Geral_Visual_'+model.date+'.xlsx';
+ document.body.appendChild(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(uri),30000);
+ return {pages:count,sheets:book.worksheets.length};
+}
+
 function ntDayExcelExport(model,XLSX){
  const book=XLSX.utils.book_new(),date=model.date,t=model.totals;
  function sheet(name,headings,rows){
@@ -3462,10 +3683,10 @@ async function ntGeneralDayOpenExcel(){
  try{
   loader(true);
   const date=dateFilter;
-  const [model,XLSX]=await Promise.all([ntGeneralDayFetch(date),ntDayEnsureExcel()]);
+  const model=await ntGeneralDayFetch(date);
   if(!ntReportConfirm(model,'general')){notice('Exportação cancelada: '+ntReportWarnings(model,'general').slice(0,2).join(' '),true);return}
-  ntDayExcelExport(model,XLSX);
-  notice('Planilha Excel do dia '+ntDate(date)+' preparada. Nenhum saldo foi alterado.');
+  const result=await ntDayExportVisualExcel(model);
+  notice('Excel completo: '+result.pages+' páginas iguais ao PDF e '+(result.sheets-result.pages)+' abas de dados. Nenhum saldo foi alterado.');
  }catch(err){notice('Não foi possível exportar Excel: '+String(err.message||err),true)}
  finally{loader(false)}
 }
