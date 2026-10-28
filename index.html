@@ -2271,7 +2271,7 @@ function ntManagerReceiptPages(data,periodLabel,date){
 function ntManagerReport(materials,movements,from,to,periodLabel,receiptDocs=[]){
  const byCode=new Map(materials.map(m=>[String(m.codigo),m]));
  const receiptData=ntManagerReceiptRows(receiptDocs,movements,from,to);
- const used=new Map(),kinds={SAIDA:0,ENTRADA:0,DEVOLUCAO:0,AJUSTE:0},people=new Set();
+ const used=new Map(),kinds={SAIDA:0,ENTRADA:0,DEVOLUCAO:0},people=new Set();
  let ignored=0,valueOfOutbound=0;
  for(const mv of movements){
   if(testeIdentificado(mv)){ignored++;continue}
@@ -2302,7 +2302,7 @@ function ntManagerReport(materials,movements,from,to,periodLabel,receiptDocs=[])
  const metrics=[['MATERIAIS CADASTRADOS',String(materials.length)],['SAÍDAS NO PERÍODO',String(kinds.SAIDA)],['ESTOQUE NO MÍNIMO',String(lows.length)],['VALOR DO ESTOQUE',money(valueStock)]];
  const parts='<div class="metrics">'+metrics.map(r=>'<div class="metric"><small>'+ntPlain(r[0])+'</small><strong style="font-size:'+(r[0]==='VALOR DO ESTOQUE'?'12pt':'18pt')+'">'+ntPlain(r[1])+'</strong></div>').join('')+'</div>'+
  '<div class="sectionline"><span>RESUMO DAS MOVIMENTAÇÕES</span><span>'+ntPlain(periodLabel)+'</span></div>'+
- '<p class="note" style="margin-top:1mm">Entradas: <b>'+kinds.ENTRADA+'</b> &nbsp;·&nbsp; Devoluções: <b>'+kinds.DEVOLUCAO+'</b> &nbsp;·&nbsp; Ajustes: <b>'+kinds.AJUSTE+'</b> &nbsp;·&nbsp; Solicitantes: <b>'+people.size+'</b> &nbsp;·&nbsp; Testes identificados: <b>'+ignored+'</b></p>'+
+ '<p class="note" style="margin-top:1mm">Entradas: <b>'+kinds.ENTRADA+'</b> &nbsp;·&nbsp; Devoluções: <b>'+kinds.DEVOLUCAO+'</b> &nbsp;·&nbsp; Solicitantes: <b>'+people.size+'</b></p>'+
  (most.length?'<div class="sectionline"><span>MAIOR FREQUÊNCIA DE SAÍDA</span><span>Por número de retiradas</span></div>'+
  ntTable(['CÓDIGO','MATERIAL','UN.','RETIRADAS','QTDE. SAÍDA'],[18,46,8,12,16],mRows(most)):
  '<div class="sectionline"><span>SAÍDAS NO PERÍODO</span></div><p class="note">Nenhuma saída registrada neste período. Os rankings aparecerão quando houver retiradas reais.</p>')+
@@ -2428,7 +2428,7 @@ function ntReposDailyVersions(records){
 
 function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,reposDocs=[]){
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
- const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE']);
+ const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO']);
  const cancelledMovements=(movements||[]).filter(m=>m.estornado);
  const all=ntArmEffectiveMovements(movements).filter(m=>!m.anulado&&recognized.has(String(m.tipo))).sort(ntDaySortMovement);
  const operating=all.filter(m=>!testeIdentificado(m)&&['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo));
@@ -2471,12 +2471,6 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
    if(mv.tipo==='SAIDA')row.saida=rnd(row.saida+ntQty(mv));
    if(mv.tipo==='ENTRADA')row.entrada=rnd(row.entrada+ntQty(mv));
    if(mv.tipo==='DEVOLUCAO')row.devolucao=rnd(row.devolucao+ntQty(mv));
-   if(mv.tipo==='AJUSTE'){
-    const d=Number(mv.delta),before=Number(mv.antes),after=Number(mv.depois);
-    if(Number.isFinite(d)&&Number.isFinite(before)&&Number.isFinite(after)&&Math.abs(rnd(after-before-d))<.0001)
-     row.ajustes=rnd(row.ajustes+d);
-    else row.ajusteInvalido=true;
-   }
   }
  }
  const stockRows=[...stockMap.values()].map(row=>{
@@ -2485,9 +2479,9 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
   if(row.inicio!==null&&row.fim!==null){
    const movementDelta=rnd(row.entrada+row.devolucao-row.saida);
    row.outras=rnd(row.fim-row.inicio-movementDelta);
-   row.residual=rnd(row.outras-row.ajustes);
-   // Ajustes com antes/depois e delta coerentes não são divergências pendentes.
-   row.validar=row.ajusteInvalido||Math.abs(row.residual)>0.0001;
+   row.residual=row.outras;
+   // Diferencas entre a posicao historica e movimentos operacionais exigem conciliacao.
+   row.validar=Math.abs(row.residual)>0.0001;
   }else{
    // Dados antigos sem saldo antes/depois não podem parecer conciliados.
    row.validar=true;
@@ -2525,18 +2519,8 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
    receipts:receipts.length,receiptLines:receiptRows.length,
    receiptDifferences:receiptRows.filter(x=>Math.abs(x.prevista-x.recebida)>.0001).length,
    pendingCodes:receiptRows.filter(x=>!x.codigo).length,
-   stockItems:stockRows.length,stockNotReconciled:stockRows.filter(x=>x.validar).length,
+   stockItems:new Set(operating.map(m=>String(m.codigo)).filter(Boolean)).size,stockNotReconciled:stockRows.filter(x=>x.validar).length,
    stockEntries:incoming.length,returnLines:operating.filter(m=>m.tipo==='DEVOLUCAO').length,
-   // AJUSTE e uma conferência de estoque, com ou sem correção real de saldo.
-   physicalCountEntries:all.filter(m=>m.tipo==='AJUSTE'&&m.origem!=='ESTORNO_MOVIMENTO'&&!testeIdentificado(m)).length,
-   physicalStockCorrections:all.filter(m=>m.tipo==='AJUSTE'&&m.origem!=='ESTORNO_MOVIMENTO'&&!testeIdentificado(m)&&
-    Number.isFinite(Number(m.delta))&&Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
-    Math.abs(rnd(Number(m.depois)-Number(m.antes)-Number(m.delta)))<0.0001&&
-    Math.abs(Number(m.delta))>0.0001).length,
-   physicalCountNoChange:all.filter(m=>m.tipo==='AJUSTE'&&m.origem!=='ESTORNO_MOVIMENTO'&&!testeIdentificado(m)&&
-    Number.isFinite(Number(m.delta))&&Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
-    Math.abs(rnd(Number(m.depois)-Number(m.antes)-Number(m.delta)))<0.0001&&
-    Math.abs(Number(m.delta))<=0.0001).length,
    notes:comparisons.filter(x=>Math.abs(x.diferenca)>.0001).length}
  };
 }
@@ -2706,12 +2690,12 @@ function ntGeneralStockPages(stock,date,marker){
   const outliers=part.filter(x=>x.validar&&x.residual!==null);
   const unconfirmed=part.filter(x=>x.outras===null);
   const audit=(outliers.length?'<p class="note" style="color:#8b5435"><b>Diferenças para conferência (fora dos movimentos listados):</b> '+
-   outliers.map(x=>ntPlain(x.codigo)+' ('+ntPlain(x.nome)+'): '+(x.ajusteInvalido?'lançamento de ajuste inconsistente':ntPlain(fmt(x.residual))+' '+ntPlain(x.unidade))).join(' · ')+
+   outliers.map(x=>ntPlain(x.codigo)+' ('+ntPlain(x.nome)+'): '+ntPlain(fmt(x.residual))+' '+ntPlain(x.unidade)).join(' · ')+
    '. Consulte o histórico das contagens e ajustes.</p>':'')+
    (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
   const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    table+audit+
-   '<p class="note">Os saldos inicial e final são históricos e refletem os registros do sistema. As colunas mostram entradas, saídas e devoluções; os detalhes completos permanecem no histórico do estoque.</p>';
+   '<p class="note">As colunas mostram somente entradas, saídas e devoluções. Os saldos refletem a posição registrada, e diferenças entre saldos e operações exigem conciliação antes do envio.</p>';
   pages.push('<section class="page landscape nt-general-stock">'+ntTop('SALDOS DO ALMOXARIFADO','Saldos históricos antes e depois dos lançamentos do dia.',date)+body+marker+'</section>');
  }
  return pages;
@@ -3033,10 +3017,6 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
   filter(x=>x.percent>=50&&x.percent<=100.0001).
   sort((a,b)=>b.percent-a.percent||a.nome.localeCompare(b.nome,'pt-BR'));
  const notReconciled=Number(model.totals?.stockNotReconciled)||0;
- const counted=Number(model.totals?.physicalCountEntries)||0;
- const corrected=Number(model.totals?.physicalStockCorrections)||0;
- const unchanged=Number(model.totals?.physicalCountNoChange)||0;
- const countToCheck=Math.max(0,counted-corrected-unchanged);
  const plain=value=>ntPlain(String(value??''));
  const num=value=>plain(fmt(value));
  const blank='<p class="nt-di-empty">Sem registros suficientes para este indicador no dia.</p>';
