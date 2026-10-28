@@ -2489,12 +2489,25 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
   const events=balanceHistoryByCode.get(String(row.codigo))||row.historico;
   const first=events[0],last=events[events.length-1];
   row.inicio=ntDayValidSaldo(first.antes);row.fim=ntDayValidSaldo(last.depois);
+  // Conferências não são operações de entrada/saída e não entram nas contagens
+  // nem nos rankings. São usadas somente para conciliar saldos históricos.
+  const counts=events.filter(m=>m.tipo==='AJUSTE');
+  let reconciled=0;
+  for(const event of counts){
+   const before=ntDayValidSaldo(event.antes),after=ntDayValidSaldo(event.depois),
+    delta=Number(event.delta);
+   if(before===null||after===null||!Number.isFinite(delta)||
+      Math.abs(rnd(after-before-delta))>0.0001){
+    row.ajusteInvalido=true;
+   }else reconciled=rnd(reconciled+delta);
+  }
+  row.ajustes=reconciled;
   if(row.inicio!==null&&row.fim!==null){
    const movementDelta=rnd(row.entrada+row.devolucao-row.saida);
    row.outras=rnd(row.fim-row.inicio-movementDelta);
-   row.residual=row.outras;
-   // Diferencas entre a posicao historica e movimentos operacionais exigem conciliacao.
-   row.validar=Math.abs(row.residual)>0.0001;
+   row.residual=rnd(row.outras-reconciled);
+   // Só a diferença não explicada por registros válidos exige revisão.
+   row.validar=row.ajusteInvalido||Math.abs(row.residual)>0.0001;
   }else{
    // Dados antigos sem saldo antes/depois não podem parecer conciliados.
    row.validar=true;
@@ -2708,7 +2721,7 @@ function ntGeneralStockPages(stock,date,marker){
    (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
   const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    table+audit+
-   '<p class="note">As colunas mostram somente entradas, saídas e devoluções. Os saldos refletem a posição registrada, e diferenças entre saldos e operações exigem conciliação antes do envio.</p>';
+   '<p class="note">As colunas mostram somente entradas, saídas e devoluções. Os saldos históricos refletem a posição registrada, que pode incluir conferências físicas já conciliadas. Essas conferências não são contabilizadas como movimentações.</p>';
   pages.push('<section class="page landscape nt-general-stock">'+ntTop('SALDOS DO ALMOXARIFADO','Saldos históricos antes e depois dos lançamentos do dia.',date)+body+marker+'</section>');
  }
  return pages;
@@ -3339,6 +3352,7 @@ function ntDayExcelExport(model,XLSX){
   ['Fornecedores',t.suppliers,'Fornecedores com recebimento documentado'],
   ['Linhas divergentes de NF',t.receiptDifferences,'Previsto na NF diferente do recebido'],
   ['Materiais movimentados',t.stockItems,'Somente códigos com entrada, retirada ou devolução operacional'],
+  ['Critério dos saldos','Posição histórica real','Conferências físicas devidamente registradas podem alterar o saldo sem representar movimentação operacional'],
   ['Movimentações de entrada',t.stockEntries,'Entradas operacionais registradas no estoque'],
   ['Saldos a conferir',t.stockNotReconciled,'Diferenças entre saldos históricos e movimentos operacionais exigem conciliação'],
   ['Observação','Somente entradas vinculadas a materiais cadastrados atualizam o saldo','Entradas integradas possuem identificador; documentos antigos podem não ter vínculo']
