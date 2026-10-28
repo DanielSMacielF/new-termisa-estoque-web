@@ -3269,7 +3269,7 @@ function ntGeneralDayPDF(model){
   ['RETIRADAS',String(totals.requestsLines)],
   ['RECEBIMENTOS',String(totals.receipts)],
   ['REPOSIÇÕES SOLICITADAS',String(totals.reposReports||0)],
-  ['MATERIAIS MOVIMENTADOS',String(totals.stockItems)]
+  ['MATERIAIS DISTINTOS',String(totals.stockItems)]
  ];
  const blocks='<div class="metrics">'+highlights.map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
  const lines=[
@@ -3279,7 +3279,7 @@ function ntGeneralDayPDF(model){
   ['REPOSIÇÕES',(totals.reposReports||0)
     ?totals.reposReports+' solicitação(ões) de reposição emitida(s), com '+totals.reposLines+' linha(s) de material. Confira os documentos após o recebimento.'
     :'Nenhuma solicitação de reposição emitida nesta data. Isso não significa que não haja materiais precisando de compra.'],
-  ['MOVIMENTAÇÕES DO ESTOQUE',totals.stockItems+' material(is) tiveram registro de movimentação no dia.']
+  ['MOVIMENTAÇÕES DO ESTOQUE',(totals.requestsLines+totals.stockEntries+totals.returnLines)+' operações confirmadas: '+totals.requestsLines+' retirada(s), '+totals.stockEntries+' entrada(s) e '+totals.returnLines+' devolução(ões), envolvendo '+totals.stockItems+' material(is) distinto(s).']
  ];
  if(totals.cancelledMoves)lines.push(['RETIFICAÇÕES OPERACIONAIS',totals.cancelledMoves+' movimentação(ões) excluída(s) das contagens após estorno de estoque auditado. Os saldos históricos das demais operações permanecem registrados como eram no dia.']);
  const executive='<div class="nt-day-summary-rows">'+lines.map(([label,message])=>
@@ -3351,7 +3351,8 @@ function ntDayExcelExport(model,XLSX){
   ['Produtos sem código',t.pendingCodes,'Documentados e pendentes, sem atualização de estoque'],
   ['Fornecedores',t.suppliers,'Fornecedores com recebimento documentado'],
   ['Linhas divergentes de NF',t.receiptDifferences,'Previsto na NF diferente do recebido'],
-  ['Materiais movimentados',t.stockItems,'Somente códigos com entrada, retirada ou devolução operacional'],
+  ['Movimentações operacionais',t.requestsLines+t.stockEntries+t.returnLines,'Total de retiradas, entradas e devoluções confirmadas'],
+  ['Materiais distintos movimentados',t.stockItems,'Códigos únicos com entrada, retirada ou devolução operacional'],
   ['Critério dos saldos','Posição histórica real','Conferências físicas devidamente registradas podem alterar o saldo sem representar movimentação operacional'],
   ['Movimentações de entrada',t.stockEntries,'Entradas operacionais registradas no estoque'],
   ['Saldos a conferir',t.stockNotReconciled,'Diferenças entre saldos históricos e movimentos operacionais exigem conciliação'],
