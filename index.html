@@ -3195,6 +3195,38 @@ function ntDayExcelExport(model,XLSX){
   model.comparisons.map(x=>[date,x.codigo,x.nome,x.unidade,x.recebido,x.entradas,x.diferenca,x.situacao]));
  XLSX.writeFile(book,'NewTermisa_Relatorio_Geral_'+date+'.xlsx');
 }
+/* Conferência preventiva antes de emitir: não altera estoque nem esconde problemas. */
+function ntReportWarnings(model,scope='general'){
+ const warnings=[];
+ if(scope==='general'||scope==='production'){
+  const seen=new Set(),duplicates=new Set();
+  for(const row of model.machineRows||[]){
+   const code=String(row.codigoMaquina||'').trim().toUpperCase();
+   const lot=String(row.lote||'').trim().toUpperCase();
+   if(!code||code==='—'||!lot||lot==='—'){warnings.push('Há produção sem código ou lote informado.');continue}
+   const key=code+'|'+lot;
+   if(seen.has(key))duplicates.add(code+' / '+lot);
+   seen.add(key);
+  }
+  if(duplicates.size)warnings.push('Produção com código e lote repetidos: '+[...duplicates].slice(0,4).join(', ')+'.');
+ }
+ if(scope==='general'||scope==='receipt'){
+  const unlinked=(model.receiptRows||[]).filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO'&&!x.entradaConfirmada).length;
+  if(unlinked)warnings.push(unlinked+' linha(s) de recebimento com entrada no estoque sem vínculo individual confirmado.');
+ }
+ if(scope==='general'||scope==='stock'){
+  const mismatched=(model.stockRows||[]).filter(x=>x.validar).length;
+  if(mismatched)warnings.push(mismatched+' material(is) com saldo histórico a conferir.');
+ }
+ return [...new Set(warnings)];
+}
+function ntReportConfirm(model,scope='general'){
+ const warnings=ntReportWarnings(model,scope);
+ if(!warnings.length)return true;
+ return confirm('ATENÇÃO: conferência antes de enviar o relatório de '+ntDate(model.date)+
+  '\n\n'+warnings.map((x,i)=>(i+1)+'. '+x).join('\n')+
+  '\n\nO documento pode conter dados que precisam de conferência. Deseja gerar mesmo assim?');
+}
 function ntGeneralDayOpenPDF(){
  if(!user||!serverReady||!navigator.onLine){notice('Aguarde a sincronização para gerar o relatório geral.',true);return}
  const date=dateFilter;
@@ -3204,6 +3236,7 @@ function ntGeneralDayOpenPDF(){
  (async()=>{
   try{
    const model=await ntGeneralDayFetch(date);
+   if(!ntReportConfirm(model,'general')){popup.close();notice('Relatório não emitido. Confira as divergências no histórico.');return}
    popup.document.open();popup.document.write(ntGeneralDayPDF(model));popup.document.close();
   }catch(err){
    popup.document.open();
@@ -3219,6 +3252,7 @@ async function ntGeneralDayOpenExcel(){
   loader(true);
   const date=dateFilter;
   const [model,XLSX]=await Promise.all([ntGeneralDayFetch(date),ntDayEnsureExcel()]);
+  if(!ntReportConfirm(model,'general')){notice('Exportação cancelada até conferir as divergências.');return}
   ntDayExcelExport(model,XLSX);
   notice('Planilha Excel do dia '+ntDate(date)+' preparada. Nenhum saldo foi alterado.');
  }catch(err){notice('Não foi possível exportar Excel: '+String(err.message||err),true)}
