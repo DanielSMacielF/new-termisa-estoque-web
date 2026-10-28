@@ -2500,12 +2500,12 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
    stockItems:stockRows.length,stockNotReconciled:stockRows.filter(x=>x.validar).length,
    stockEntries:incoming.length,returnLines:operating.filter(m=>m.tipo==='DEVOLUCAO').length,
    // AJUSTE e uma conferência de estoque, com ou sem correção real de saldo.
-   physicalCountEntries:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)).length,
-   physicalStockCorrections:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)&&
+   physicalCountEntries:all.filter(m=>m.tipo==='AJUSTE'&&m.origem!=='ESTORNO_MOVIMENTO'&&!testeIdentificado(m)).length,
+   physicalStockCorrections:all.filter(m=>m.tipo==='AJUSTE'&&m.origem!=='ESTORNO_MOVIMENTO'&&!testeIdentificado(m)&&
     Number.isFinite(Number(m.delta))&&Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
     Math.abs(rnd(Number(m.depois)-Number(m.antes)-Number(m.delta)))<0.0001&&
     Math.abs(Number(m.delta))>0.0001).length,
-   physicalCountNoChange:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)&&
+   physicalCountNoChange:all.filter(m=>m.tipo==='AJUSTE'&&m.origem!=='ESTORNO_MOVIMENTO'&&!testeIdentificado(m)&&
     Number.isFinite(Number(m.delta))&&Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
     Math.abs(rnd(Number(m.depois)-Number(m.antes)-Number(m.delta)))<0.0001&&
     Math.abs(Number(m.delta))<=0.0001).length,
