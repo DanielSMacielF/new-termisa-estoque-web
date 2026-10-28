@@ -1631,9 +1631,12 @@ function ntManualApplyEdits(records,corrections){
     next.totalItens=next.itens.length;
    }
    if(typeof edit.depois.excluidoDoGeral==='boolean')next.excluidoDoGeral=edit.depois.excluidoDoGeral;
-  }else if(Array.isArray(edit.depois.itens)&&edit.depois.itens.length===record.itens.length){
-   next.itens=record.itens.map((x,i)=>({...x,...edit.depois.itens[i],
-    modelo:edit.depois.itens[i].nomeMaquina,ordemProducao:edit.depois.itens[i].lote}));
+  }else if(type==='production'&&Array.isArray(edit.depois.itens)&&
+   edit.depois.itens.length>=next.itens.length&&edit.depois.itens.length<=40){
+   // Preserva as linhas efetivas e aceita APENAS acréscimo, nunca exclusão do histórico.
+   // Aplica correções consecutivas sobre o estado mais recente, não sobre o original.
+   next.itens=edit.depois.itens.map((x,i)=>({...next.itens[i],...x,
+    modelo:x.nomeMaquina,ordemProducao:x.lote}));
   }else continue;
   next.ultimaRetificacao=edit.criadoEmLocal;
   byId.set(id,next);
@@ -1725,7 +1728,7 @@ function ntManualEditableData(type,record){
 }
 function ntManualEditPanel(type,record){
  const id=String(record.numero||'');
- ntManualEditDraft={type,id,original:ntManualEditableData(type,record)};
+ ntManualEditDraft={type,id,original:ntManualEditableData(type,record),addedCount:0};
  const hint='<p class="small">Correção administrativa com trilha de auditoria. Os saldos de estoque, quantidades da NF, data e movimentos oficiais não serão alterados.</p>';
  let fields='';
  if(type==='receipt'){
@@ -1745,11 +1748,49 @@ function ntManualEditPanel(type,record){
     ntField('Quantidade produzida','neDone'+i,String(item.quantidadeConcluida),'number')+
     '</div>';
   }).join('');
+  fields+='<div id="neExtraRows"></div>'+
+   '<div class="buttons"><button class="btn alt" type="button" data-action="nt-manual-edit-add-machine">Acrescentar máquina</button>'+
+   '<button class="btn ghost" type="button" id="neUndoMachine" style="display:none" data-action="nt-manual-edit-undo-machine">Desfazer última inclusão</button></div>'+
+   '<p class="small">Máquinas acrescentadas pertencem à data deste registro e serão incluídas nos próximos PDFs. Não altera o estoque.</p>';
  }
  panel('<h2>Editar '+(type==='receipt'?'recebimento':'produção de máquinas')+'</h2>'+
   '<p class="small">Registro '+esc(id)+' · '+esc(ntDate(type==='receipt'?record.dataRecebimento:record.dataProducao))+'</p>'+
   hint+fields+'<div class="buttons"><button type="button" class="btn" data-action="nt-manual-edit-save">Salvar correção</button>'+
   '<button type="button" class="btn ghost" data-action="nt-manual-edit-cancel">Voltar ao histórico</button></div>');
+}
+function ntManualExtraProductionRow(i){
+ return '<div class="nt-rc-lines" id="neAdded'+i+'"><h3>Nova máquina '+(i+1)+'</h3>'+
+  ntField('Código da máquina','neCode'+i,'')+
+  ntField('Produto','neName'+i,'')+
+  ntField('Unidade de medida','neUnit'+i,'UN')+
+  ntField('Lote / OP','neLot'+i,'')+
+  ntField('Quantidade planejada','nePlanned'+i,'1','number')+
+  ntField('Quantidade produzida','neDone'+i,'','number')+
+  '</div>';
+}
+function ntManualEditAddMachine(){
+ const draft=ntManualEditDraft;
+ if(!draft||draft.type!=='production')throw Error('Abra Editar dados em um registro de produção.');
+ const next=draft.original.itens.length+draft.addedCount;
+ if(next>=40)throw Error('Limite de 40 máquinas por registro. Registre uma nova produção para outras máquinas.');
+ const area=$('neExtraRows');
+ if(!area)throw Error('Formulário de produção não disponível.');
+ area.insertAdjacentHTML('beforeend',ntManualExtraProductionRow(next));
+ draft.addedCount++;
+ const undo=$('neUndoMachine');
+ if(undo)undo.style.display='';
+ const planned=$('nePlanned'+next),done=$('neDone'+next);
+ for(const field of [planned,done])if(field){field.min='0';field.step='1';field.inputMode='numeric'}
+ if(planned)planned.min='1';
+ $('neCode'+next)?.focus();
+}
+function ntManualEditUndoMachine(){
+ const draft=ntManualEditDraft;
+ if(!draft||draft.type!=='production'||draft.addedCount<=0)return;
+ const last=draft.original.itens.length+draft.addedCount-1;
+ $('neAdded'+last)?.remove();
+ draft.addedCount--;
+ if(!draft.addedCount&&$('neUndoMachine'))$('neUndoMachine').style.display='none';
 }
 async function ntManualEditStart(type,id){
  if(!['receipt','production'].includes(type)||!String(id||'').trim())throw Error('Registro de edição inválido.');
@@ -1776,7 +1817,9 @@ function ntManualNewData(type,old){
    throw Error('Preencha fornecedor, pedido de compra e nota fiscal (limites: 160, 90 e 90 caracteres).');
   return {fornecedor:supplier,pedidoCompra:pc,notaFiscal:invoice};
  }
- const items=old.itens.map((x,i)=>{
+ const count=old.itens.length+(ntManualEditDraft?.type==='production'?(ntManualEditDraft.addedCount||0):0);
+ if(count>40)throw Error('Limite de 40 máquinas por registro.');
+ const items=Array.from({length:count},(_,i)=>{
   const code=String($('neCode'+i)?.value||'').trim(),name=String($('neName'+i)?.value||'').trim(),
    unit=String($('neUnit'+i)?.value||'').trim().toUpperCase(),
    lot=String($('neLot'+i)?.value||'').trim(),
@@ -1800,7 +1843,8 @@ async function ntManualEditSave(){
  if(JSON.stringify(proposed)===JSON.stringify(draft.original)){
   notice('Nenhuma informação foi alterada.');return;
  }
- if(!confirm('Salvar retificação com histórico de antes e depois? Nenhum saldo será alterado.'))return;
+ if(!confirm('Salvar '+(draft.addedCount?'as '+draft.addedCount+' nova(s) máquina(s) e ':'')+
+  'a retificação com histórico de antes e depois? Nenhum saldo será alterado.'))return;
  const target=doc(db,'nt_web_auditoria',draft.id),logRef=doc(collection(db,'nt_web_auditoria'));
  loader(true);
  try{
@@ -3218,6 +3262,8 @@ if(a==='nt-production-pdf'){await ntManualPDF('production');return}
 if(a==='nt-production-history'){await ntManualHistory('production');return}
 if(a==='nt-manual-record'){await ntManualRecord(act.dataset.kind,act.dataset.code);return}
 if(a==='nt-manual-edit'){await ntManualEditStart(act.dataset.kind,act.dataset.code);return}
+if(a==='nt-manual-edit-add-machine'){ntManualEditAddMachine();return}
+if(a==='nt-manual-edit-undo-machine'){ntManualEditUndoMachine();return}
 if(a==='nt-manual-edit-save'){await ntManualEditSave();return}
 if(a==='nt-manual-edit-cancel'){await ntManualHistory(ntManualEditDraft?.type||'receipt');return}
 if(a==='nt-today-movements'){await ntShowTodayMovements();return}if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
