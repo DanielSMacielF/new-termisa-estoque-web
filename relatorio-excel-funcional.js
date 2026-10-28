@@ -187,7 +187,7 @@ function makeData(book,model,logo){
  });
  const all=[...used.values()],mainUnit=all.some(x=>x.unit==='UN')?'UN':all.find(x=>x.unit!=='—')?.unit||'UN';
  const main=all.filter(x=>x.unit===mainUnit).sort((a,b)=>b.qty-a.qty||a.name.localeCompare(b.name,'pt-BR'));
- const other=all.filter(x=>x.unit!==mainUnit).sort((a,b)=>x=>0||a.unit.localeCompare(b.unit)||b.qty-a.qty);
+ const other=all.filter(x=>x.unit!==mainUnit).sort((a,b)=>String(a.unit).localeCompare(String(b.unit))||b.qty-a.qty);
  const rows=[...main,...other];
  tab('Inteligência','Inteligência de Estoque','Consumo separado por unidade',
   [18,46,14,19,20,25],
