@@ -1775,8 +1775,8 @@ function ntManualEditToggleMachine(index){
  if(!draft.removedRows.has(i)){
   const descriptor='Código '+original.codigoMaquina+' · Lote / OP '+original.lote+
    ' · '+original.nomeMaquina;
-  if(!confirm('Marcar para exclusão do relatório esta máquina?\\n'+descriptor+
-   '\\n\\nO registro original permanecerá no histórico de auditoria. A exclusão só será efetivada ao salvar.'))return;
+  if(!confirm('Marcar para exclusão do relatório esta máquina?\n'+descriptor+
+   '\n\nO registro original permanecerá no histórico de auditoria. A exclusão só será efetivada ao salvar.'))return;
   draft.removedRows.add(i);
  }else draft.removedRows.delete(i);
  const removed=draft.removedRows.has(i),row=$('neRow'+i),button=$('neRemoveBtn'+i),label=$('neRemovedLabel'+i);
