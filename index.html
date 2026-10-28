@@ -2430,8 +2430,20 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
  const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO']);
  const cancelledMovements=(movements||[]).filter(m=>m.estornado);
- const all=ntArmEffectiveMovements(movements).filter(m=>!m.anulado&&recognized.has(String(m.tipo))&&!testeIdentificado(m)).sort(ntDaySortMovement);
+ // Historico completo serve somente para conferir a posicao real do saldo.
+ // Apenas movimentos operacionais entram nos indicadores e tabelas.
+ const history=ntArmEffectiveMovements(movements)
+  .filter(m=>!m.anulado&&!testeIdentificado(m)&&['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE'].includes(String(m.tipo)))
+  .sort(ntDaySortMovement);
+ const all=history.filter(m=>recognized.has(String(m.tipo)));
  const operating=all;
+ const balanceHistoryByCode=new Map();
+ for(const event of history){
+  const code=String(event.codigo||'');
+  if(!code)continue;
+  if(!balanceHistoryByCode.has(code))balanceHistoryByCode.set(code,[]);
+  balanceHistoryByCode.get(code).push(event);
+ }
  const requested=operating.filter(m=>m.tipo==='SAIDA');
  const incoming=operating.filter(m=>m.tipo==='ENTRADA');
  const receipts=receiptDocs.filter(x=>x.dataRecebimento===date);
@@ -2474,7 +2486,8 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
   }
  }
  const stockRows=[...stockMap.values()].map(row=>{
-  const first=row.historico[0],last=row.historico[row.historico.length-1];
+  const events=balanceHistoryByCode.get(String(row.codigo))||row.historico;
+  const first=events[0],last=events[events.length-1];
   row.inicio=ntDayValidSaldo(first.antes);row.fim=ntDayValidSaldo(last.depois);
   if(row.inicio!==null&&row.fim!==null){
    const movementDelta=rnd(row.entrada+row.devolucao-row.saida);
