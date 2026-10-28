@@ -2430,8 +2430,8 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
  const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO']);
  const cancelledMovements=(movements||[]).filter(m=>m.estornado);
- const all=ntArmEffectiveMovements(movements).filter(m=>!m.anulado&&recognized.has(String(m.tipo))).sort(ntDaySortMovement);
- const operating=all.filter(m=>!testeIdentificado(m)&&['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo));
+ const all=ntArmEffectiveMovements(movements).filter(m=>!m.anulado&&recognized.has(String(m.tipo))&&!testeIdentificado(m)).sort(ntDaySortMovement);
+ const operating=all;
  const requested=operating.filter(m=>m.tipo==='SAIDA');
  const incoming=operating.filter(m=>m.tipo==='ENTRADA');
  const receipts=receiptDocs.filter(x=>x.dataRecebimento===date);
