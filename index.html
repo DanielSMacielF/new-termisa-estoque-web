@@ -126,6 +126,30 @@ header .brand{min-width:0}
 header .brand>div:last-child{min-width:0}
 /* Distância idêntica da borda aos três botões de movimentação. */
 #moveForm.card,.nt-receipt-movement{margin-top:14px}
+
+/* Histórico de movimentações: seletor de data e menu compacto por lançamento. */
+.nt-history-controls{display:flex;align-items:flex-end;gap:10px;margin:14px 0 12px;flex-wrap:wrap}
+.nt-history-controls label{display:block;color:#bad0e4;font-size:.81rem;font-weight:650;margin-bottom:5px}
+.nt-history-controls input[type=date]{color:#f4faff;background:#0a223a;border:1px solid #406381;border-radius:12px;padding:11px 13px;min-height:45px;max-width:230px;color-scheme:dark;width:100%}
+.nt-history-controls .nt-hint{color:#b2cbe2;font-size:.78rem;line-height:1.45;flex:1;min-width:130px}
+.nt-hist-row{align-items:center!important;gap:8px!important;padding:12px 13px!important;overflow:visible}
+.nt-hist-info{flex:1;min-width:0}
+.nt-hist-info strong{font-size:.91rem;line-height:1.4}
+.nt-hist-info .small{overflow-wrap:anywhere;font-size:.78rem;margin-top:3px}
+.nt-hist-right{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:7px;flex-shrink:0;min-width:46px}
+.nt-hist-qty{font-weight:800;font-size:1.01rem}
+.nt-hist-actions{position:relative}
+.nt-hist-actions>summary{list-style:none;display:flex;align-items:center;justify-content:center;height:34px;width:38px;border:1px solid #466987;border-radius:11px;background:#1a4262;color:#dfefff;cursor:pointer;font-size:22px;line-height:1;transition:background .2s ease,border-color .2s ease}
+.nt-hist-actions>summary::-webkit-details-marker{display:none}
+.nt-hist-actions[open]>summary,.nt-hist-actions>summary:hover{background:#28618b;border-color:#69a3d4}
+.nt-hist-menu{position:absolute;right:0;top:39px;z-index:40;min-width:174px;background:#0c2944;border:1px solid #497da7;box-shadow:0 13px 28px #00172fbb;border-radius:12px;padding:5px}
+.nt-hist-menu button{display:block;width:100%;padding:10px 12px;border:0;border-radius:8px;background:transparent;color:#f2f8ff;text-align:left;font-size:.83rem;font-weight:650}
+.nt-hist-menu button:hover,.nt-hist-menu button:focus{background:#214d70}
+.nt-hist-row:nth-last-child(-n+2) .nt-hist-menu{top:auto;bottom:39px}
+.nt-hist-menu .nt-hist-delete{color:#ffc1c5}
+.nt-hist-cancelled{opacity:.72}
+.nt-hist-cancelled .nt-hist-state{display:inline-block;margin-top:6px;color:#ffd59a;font-size:.76rem;font-weight:750}
+@media(max-width:450px){.nt-history-controls input[type=date]{max-width:100%}.nt-hist-menu{right:0}.nt-hist-right{min-width:42px}}
 </style></head>
 <body><div class="shell"><header><div class="brand"><div class="mark"><img id="ntHeaderLogo" alt="New Termisa" width="56" height="56"></div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento" aria-label="Central de Relatórios"><span>▣</span>Relatórios</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
 <script>
@@ -210,22 +234,41 @@ function filterMaterialSelect(id){
 }
 function panelHome(){let pending=mats.filter(x=>!x.conferido).length;return `${mainNotice()}<div class="grid"><div class="card"><div class="label">Materiais cadastrados</div><div class="value">${mats.length}</div><div class="small">Códigos únicos</div></div><div class="card"><div class="label">Aguardando conferência</div><div class="value warn">${pending}</div><div class="small">Saldos a validar</div></div><div class="card"><div class="label">Sem localização</div><div class="value">${mats.filter(x=>!x.rua||!x.posicao).length}</div><div class="small">Preencher cadastro</div></div><div class="card"><div class="label">No mínimo ou abaixo</div><div class="value">${mats.filter(x=>x.quantidade<=x.minimo).length}</div><div class="small">Ponto de reposição</div></div></div><div class="section"><h2>Acesso rápido</h2></div><div class="buttons"><button class="btn" data-go="movimentar">+ Movimentar</button><button class="btn alt" data-go="pedidos">Separar pedido</button></div><div class="gap"></div><div class="card"><h2>Últimas movimentações</h2>${recent.length?recent.slice(0,6).map(m=>`<div class="item"><div><strong>${esc(m.nome)}</strong><p class="small">${esc(m.tipo)} · ${esc(m.operador||'')} · ${formatDate(m)}</p></div><b class="${m.delta<0?'red':'green'}">${m.delta>0?'+':''}${fmt(m.delta)}</b></div>`).join(''):'<div class="small">Nenhum movimento ainda.</div>'}<div class="gap"></div><button class="btn alt" type="button" style="width:100%" data-action="nt-today-movements">Ver Mais</button></div>${mats.length===0?`<div class="notice"><b>Importe o catálogo privado de 218 materiais</b><div class="small">Abra a aba Segurança → Importar cadastro. Mantenha o arquivo JSON somente em local seguro da empresa.</div></div>`:''}`}
 
-/* Histórico por data: edição administrativa com auditoria, sem alterar o estoque. */
-async function ntShowTodayMovements(selected=day()){
+/* Histórico por data, consultando o Firebase; ações discretas no fim de cada linha. */
+let ntHistoryRequest=0;
+async function ntShowTodayMovements(selected=ntMetaDate||dateFilter||day()){
  if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase.');
- const date=/^\d{4}-\d{2}-\d{2}$/.test(String(selected))?selected:day();ntMetaDate=date;
- panel('<h2>Movimentações · '+esc(ntDate(date))+'</h2><p class="small">Consultando o Firebase...</p>');
- const [snap,edits]=await Promise.all([getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),ntMetaRead()]);
- const entries=ntMetaMoves(snap.docs.map(d=>({...d.data(),id:d.id})),edits).filter(m=>!m.anulado).sort((a,b)=>ntDaySortMovement(b,a));
+ const date=/^\d{4}-\d{2}-\d{2}$/.test(String(selected))&&selected<=day()?selected:day();
+ ntMetaDate=date;
+ const request=++ntHistoryRequest;
+ const controls='<div class="nt-history-controls"><div><label for="ntHistoryDate">Selecionar o dia</label>'+
+  '<input id="ntHistoryDate" aria-label="Escolher data do histórico" type="date" max="'+esc(day())+'" value="'+esc(date)+'"></div>'+
+  '<p class="nt-hint">Escolha uma data no calendário para ver apenas os lançamentos daquele dia.</p></div>';
+ panel('<h2>Histórico de movimentações</h2>'+controls+'<p class="small">Consultando registros do Firebase...</p>');
+ const [snap,edits]=await Promise.all([
+  getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),ntMetaRead()
+ ]);
+ if(request!==ntHistoryRequest)return;
+ const entries=ntMetaMoves(snap.docs.map(d=>({...d.data(),id:d.id})),edits)
+  .filter(m=>!m.anulado||m.estornado).sort((a,b)=>ntDaySortMovement(b,a));
  const list=entries.map(m=>{
-  const editable=['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo)&&!m.reciboId&&m.origem!=='RECEBIMENTO_INTEGRADO';
-  return '<div class="item"><div><strong>'+esc(m.nome||m.codigo||'Material')+'</strong>'+
-   '<p class="small">'+esc(m.tipo||'')+' · '+esc(m.codigo||'—')+' · '+esc(m.solicitante||'')+' · '+esc(m.pedido||'')+' · '+esc(formatDate(m))+'</p>'+
-   (editable?'<button class="btn ghost" data-action="nt-meta-edit" data-code="'+esc(m.id)+'">Editar informações</button>':'<p class="small">Lançamento vinculado ou protegido</p>')+
-   '</div><b class="'+(Number(m.delta)<0?'red':'green')+'">'+(Number(m.delta)>0?'+':'')+esc(fmt(m.delta))+'</b></div>';
+  const voided=!!m.estornado;
+  const editable=!voided&&['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo)&&!m.reciboId&&m.origem!=='RECEBIMENTO_INTEGRADO';
+  const linked=!voided&&m.tipo==='ENTRADA'&&(m.reciboId||m.origem==='RECEBIMENTO_INTEGRADO');
+  const actions=editable?'<details class="nt-hist-actions"><summary aria-label="Opções de '+esc(m.nome||m.codigo)+'" title="Editar ou excluir">⋮</summary>'+
+   '<div class="nt-hist-menu"><button type="button" data-action="nt-meta-edit" data-code="'+esc(m.id)+'">✎ Editar</button>'+
+   '<button type="button" class="nt-hist-delete" data-action="nt-cancel-move" data-code="'+esc(m.id)+'">Excluir item</button></div></details>':
+   (linked?'<span class="small" title="Corrija esta entrada no Histórico de Recebimentos">NF</span>':'');
+  return '<div class="item nt-hist-row'+(voided?' nt-hist-cancelled':'')+'"><div class="nt-hist-info"><strong>'+esc(m.nome||m.codigo||'Material')+'</strong>'+
+   '<p class="small">'+esc(m.tipo||'')+' · '+esc(m.codigo||'—')+' · '+esc(m.solicitante||m.operador||'')+
+   (m.pedido?' · '+esc(m.pedido):'')+' · '+esc(formatDate(m))+'</p>'+
+   (voided?'<span class="nt-hist-state">Excluído e estornado · histórico preservado</span>':'')+
+   '</div><div class="nt-hist-right"><b class="nt-hist-qty '+(Number(m.delta)<0?'red':'green')+'">'+
+   (Number(m.delta)>0?'+':'')+esc(fmt(Number(m.delta)||0))+'</b>'+actions+'</div></div>';
  }).join('');
- panel('<h2>Movimentações · '+esc(ntDate(date))+'</h2><p class="small" style="margin-bottom:12px">'+entries.length+' registro(s) do Firebase. Informações editáveis sem mexer no saldo.</p>'+
-  '<div class="list" style="max-height:60vh;overflow-y:auto">'+(list||'<p class="small">Nenhum lançamento nesta data.</p>')+'</div>'+
+ panel('<h2>Histórico de movimentações</h2>'+controls+
+  '<p class="small" style="margin-bottom:12px"><strong>'+entries.length+' lançamento(s)</strong> em '+esc(ntDate(date))+'. As exclusões exigem estorno auditado.</p>'+
+  '<div class="list" style="max-height:56vh;overflow-y:auto;padding-right:3px">'+(list||'<div class="small">Nenhum lançamento encontrado neste dia.</div>')+'</div>'+
   '<div class="buttons" style="margin-top:12px"><button class="btn ghost" data-action="close">Fechar</button></div>');
 }
 function inventoryPct(conferidos,total){return total?Math.round(conferidos*1000/total)/10:0}
@@ -1378,7 +1421,7 @@ function ntMetaMoves(rows,edits){
  const map=new Map(rows.map(x=>[String(x.id||''),{...x}]));
  edits.filter(x=>x.acao===NT_META_ACTION&&x.documentoTipo==='movimento'&&x.documentoId&&x.depois)
  .sort((a,b)=>String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||''))||String(a.numero||'').localeCompare(String(b.numero||'')))
- .forEach(e=>{const m=map.get(String(e.documentoId));if(m&&['solicitante','pedido','observacao'].every(k=>typeof e.depois[k]==='string'))map.set(String(e.documentoId),{...m,...ntMetaFields(e.depois)})});
+ .forEach(e=>{const m=map.get(String(e.documentoId));if(!m||!['solicitante','pedido','observacao'].every(k=>typeof e.depois[k]==='string'))return;const voided=e.depois.excluido===true;map.set(String(e.documentoId),{...m,...ntMetaFields(e.depois),...(voided?{anulado:true,estornado:true,estornadoEm:e.criadoEmLocal||'',estornoId:String(e.movimentoEstornoId||'')}:{} )})});
  return [...map.values()];
 }
 async function ntMetaRead(){
@@ -1393,7 +1436,7 @@ async function ntMetaOpen(id){
   const m={...snap.data(),id:snap.id};
   if(!['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo)||m.anulado||m.reciboId||m.origem==='RECEBIMENTO_INTEGRADO')
    throw Error('Este lançamento é protegido; consulte o Histórico de Recebimentos, se for entrada vinculada.');
-  const v=ntMetaMoves([m],await ntMetaRead())[0];ntMetaDraft={id:m.id,old:ntMetaFields(v)};
+  const v=ntMetaMoves([m],await ntMetaRead())[0];if(v.anulado)throw Error('Movimentação já excluída/estornada. Não pode ser editada.');ntMetaDraft={id:m.id,old:ntMetaFields(v)};
   panel('<h2>Editar informações do lançamento</h2><p class="small">'+esc(m.tipo)+' · '+esc(m.codigo)+' · '+esc(m.nome||'')+'</p>'+
    '<p class="small">Esta correção com auditoria altera somente solicitante, pedido e observação. Não altera data, quantidade, saldo nem os lançamentos originais.</p>'+
    ntField('Solicitante','ntmPerson',v.solicitante)+ntField('Pedido / referência','ntmOrder',v.pedido)+ntField('Observação','ntmNotes',v.observacao)+
@@ -1414,13 +1457,119 @@ async function ntMetaSave(){
   if(!snap.exists())throw Error('Registro original não localizado.');
   const m={...snap.data(),id:snap.id};
   if(m.anulado||m.reciboId||m.origem==='RECEBIMENTO_INTEGRADO')throw Error('Lançamento protegido.');
-  const current=ntMetaFields(ntMetaMoves([m],await ntMetaRead())[0]);
+  const effective=ntMetaMoves([m],await ntMetaRead())[0];if(effective.anulado)throw Error('Movimentação estornada: edição bloqueada.');
+  const current=ntMetaFields(effective);
   if(JSON.stringify(current)!==JSON.stringify(draft.old))throw Error('Alteração em outra sessão. Reabra o histórico.');
   if(testeIdentificado(m)!==testeIdentificado({...m,...next}))throw Error('Não é permitido reclassificar um teste nesta edição.');
   await setDoc(doc(collection(db,'nt_web_auditoria')),{acao:NT_META_ACTION,documentoId:draft.id,documentoTipo:'movimento',
    antes:current,depois:next,usuario:user.email||'',uid:user.uid,criadoEmLocal:new Date().toISOString(),criadoEm:serverTimestamp()});
   ntMetaDraft=null;notice('Correção registrada para os relatórios. Nenhum saldo foi alterado.');
   await ntShowTodayMovements(ntMetaDate||day());
+ }finally{loader(false)}
+}
+
+
+/* Excluir movimento operacional = estorno ATÔMICO no estoque atual + trilha imutável.
+   Nunca apaga documentos originais e não altera retroativamente outros saldos históricos. */
+let ntCancelDraft=null;
+function ntCancelEligible(m,id){
+ const code=String(m.codigo||''),qty=Number(m.quantidade),delta=Number(m.delta);
+ if(!['SAIDA','ENTRADA','DEVOLUCAO'].includes(String(m.tipo))||m.anulado||m.reciboId||
+    m.origem==='RECEBIMENTO_INTEGRADO'||String(m.origem||'').startsWith('ESTORNO')||
+    String(id||'').startsWith('ESTORNO_')||String(id||'').startsWith('RETIFICACAO_'))
+  throw Error('Este movimento é protegido. Para entradas de fornecedor, corrija o registro no Histórico de Recebimentos.');
+ if(!/^\d{9}$/.test(code)||!Number.isFinite(qty)||qty<=0||
+    !Number.isFinite(delta)||Math.abs(Math.abs(delta)-qty)>0.0001||
+    (m.tipo==='SAIDA'&&delta>=0)||(m.tipo!=='SAIDA'&&delta<=0))
+  throw Error('Dados históricos do lançamento não estão íntegros para estorno automático. Não houve alteração.');
+ if(Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
+    Math.abs(rnd(Number(m.antes)+delta-Number(m.depois)))>0.0001)
+  throw Error('Lançamento histórico com saldo inicial/final inconsistente. Estorno bloqueado.');
+ return {code,qty,delta};
+}
+async function ntCancelMoveOpen(id){
+ isReady();
+ const moveId=String(id||'').trim();
+ if(!moveId||moveId.length>220)throw Error('Identificador do lançamento inválido.');
+ loader(true);
+ try{
+  const [snap,audit]=await Promise.all([
+   getDocFromServer(doc(db,'nt_web_movimentos',moveId)),
+   getDocFromServer(doc(db,'nt_web_auditoria','ESTORNO_'+moveId))
+  ]);
+  if(!snap.exists())throw Error('Movimentação não encontrada.');
+  if(audit.exists())throw Error('Este item já foi excluído e estornado. Atualize o histórico.');
+  const m={...snap.data(),id:snap.id},info=ntCancelEligible(m,moveId);
+  ntCancelDraft={id:moveId,codigo:info.code,dia:String(m.dia||'')};
+  const change=-info.delta;
+  panel('<h2>Excluir item do histórico operacional</h2>'+
+   '<p class="small" style="margin:7px 0 14px">A exclusão não apaga o registro original. Um estorno de estoque será criado na data de hoje e a retirada ou entrada deixará de contar nos novos relatórios do dia original.</p>'+
+   '<div class="card" style="margin:8px 0 14px">'+
+   '<strong>'+esc(m.nome||info.code)+'</strong>'+
+   '<p class="small">'+esc(info.code)+' · '+esc(m.tipo)+' · '+esc(ntDate(m.dia||day()))+'</p>'+
+   '<p style="margin-top:8px">Quantidade original: <b>'+esc(fmt(info.qty))+'</b></p>'+
+   '<p style="margin-top:5px">Correção no saldo atual: <b class="'+(change>=0?'green':'red')+'">'+(change>=0?'+':'')+esc(fmt(change))+'</b></p></div>'+
+   '<div class="field"><label for="ntCancelReason">Motivo da exclusão (obrigatório)</label>'+
+   '<textarea id="ntCancelReason" rows="3" maxlength="300" placeholder="Ex.: material lançado no pedido por engano"></textarea></div>'+
+   '<p class="small" style="margin:8px 0 12px">Se o saldo não permitir o estorno, a operação será bloqueada. Para uma entrega com nota fiscal vinculada, utilize o Histórico de Recebimentos.</p>'+
+   '<div class="buttons"><button class="btn danger" data-action="nt-cancel-confirm">Confirmar exclusão e estorno</button>'+
+   '<button class="btn ghost" data-action="nt-meta-history">Cancelar</button></div>');
+ }finally{loader(false)}
+}
+async function ntCancelMoveCommit(){
+ const draft=ntCancelDraft;
+ if(!draft)throw Error('Selecione um item no histórico antes de excluir.');
+ const reason=String($('ntCancelReason')?.value||'').trim();
+ if(reason.length<8||reason.length>300)throw Error('Informe um motivo com 8 a 300 caracteres para a auditoria.');
+ isReady();
+ const id=draft.id,originalRef=doc(db,'nt_web_movimentos',id),
+  auditRef=doc(db,'nt_web_auditoria','ESTORNO_'+id),
+  reversalRef=doc(db,'nt_web_movimentos','ESTORNO_'+id),
+  stockRef=itemRef(draft.codigo),stamp=new Date().toISOString();
+ loader(true);
+ let confirmed=false;
+ try{
+  const result=await runTransaction(db,async tx=>{
+   // Todas as leituras ocorrem antes de qualquer gravação.
+   const [originalSnap,stockSnap,auditSnap,reversalSnap]=await Promise.all([
+    tx.get(originalRef),tx.get(stockRef),tx.get(auditRef),tx.get(reversalRef)
+   ]);
+   if(auditSnap.exists()||reversalSnap.exists())throw Error('Já existe um estorno para este lançamento. Nenhuma operação duplicada.');
+   if(!originalSnap.exists()||!stockSnap.exists())throw Error('Movimento ou material não encontrado no servidor.');
+   const m=originalSnap.data(),stock=stockSnap.data(),info=ntCancelEligible(m,id);
+   if(info.code!==draft.codigo||String(m.dia||'')!==draft.dia||
+      String(stock.codigo||'')!==info.code)throw Error('Dados alterados desde a seleção. Reabra o histórico.');
+   const before=Number(stock.quantidade),delta=rnd(-info.delta),after=rnd(before+delta);
+   if(!Number.isFinite(before)||before<0||!Number.isFinite(after)||after<0)
+    throw Error('Saldo insuficiente ou inválido para estornar. Nenhuma quantidade foi alterada.');
+   const effectiveFields=ntMetaFields(m);
+   const entry={id:reversalRef.id,codigo:info.code,nome:String(stock.nome||m.nome||info.code),
+    unidade:String(stock.unidade||m.unidade||''),tipo:'AJUSTE',
+    quantidade:Math.abs(delta),delta,antes:before,depois:after,
+    solicitante:user.email||'Almoxarifado',pedido:'ESTORNO OPERACIONAL',
+    observacao:'Estorno do lançamento '+id+'. Motivo: '+reason,
+    origem:'ESTORNO_MOVIMENTO',movimentoOriginalId:id,
+    operador:user.email||'',uid:user.uid,dia:day(),timeClient:stamp,criadoEm:serverTimestamp()};
+   const log={acao:NT_META_ACTION,documentoTipo:'movimento',documentoId:id,
+    antes:{...effectiveFields,excluido:false},depois:{...effectiveFields,excluido:true},
+    tipoRetificacao:'EXCLUSAO_COM_ESTORNO',motivo:reason,movimentoEstornoId:reversalRef.id,
+    codigo:info.code,quantidadeOriginal:info.qty,deltaEstorno:delta,
+    diaOriginal:String(m.dia||''),diaEstorno:day(),usuario:user.email||'',uid:user.uid,
+    criadoEmLocal:stamp,criadoEm:serverTimestamp()};
+   tx.update(stockRef,{quantidade:after,ultimoMovimentoId:reversalRef.id,atualizadoEm:serverTimestamp()});
+   tx.set(reversalRef,entry);
+   tx.set(auditRef,log);
+   return {code:info.code,delta,after};
+  });
+  confirmed=true;
+  ntCancelDraft=null;
+  await consultarSaldosServidor([result.code],{[result.code]:{quantidade:result.after}});
+  notice('Item excluído do relatório e estorno de '+fmt(result.delta)+' registrado com auditoria.');
+  await ntShowTodayMovements(ntMetaDate||draft.dia||day());
+ }catch(err){
+  notice((confirmed?'Estorno gravado, mas a tela não confirmou os novos dados. ':
+   'Não foi possível confirmar o estorno. ')+
+   'NÃO repita sem consultar o histórico. '+String(err.message||err),true);
  }finally{loader(false)}
 }
 
@@ -2252,6 +2401,7 @@ function ntReposDailyVersions(records){
 function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,reposDocs=[]){
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
  const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE']);
+ const cancelledMovements=(movements||[]).filter(m=>m.estornado);
  const all=ntArmEffectiveMovements(movements).filter(m=>!m.anulado&&recognized.has(String(m.tipo))).sort(ntDaySortMovement);
  const operating=all.filter(m=>!testeIdentificado(m)&&['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo));
  const requested=operating.filter(m=>m.tipo==='SAIDA');
@@ -2340,7 +2490,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
  return {date,materialsCount:materials.length,materialCatalog:materials,machineRows,receiptRows,receipts,repos,
   requests:[...requested].sort(ntDaySortMovement),
   stockRows,comparisons,production,
-  totals:{machines:totalMachines,machinesRequested:totalAsked,orders:requests.size,
+  totals:{machines:totalMachines,machinesRequested:totalAsked,orders:requests.size,cancelledMoves:cancelledMovements.length,
    reposReports:repos.length,reposLines:repos.reduce((sum,r)=>sum+r.itens.length,0),
    requestsLines:requested.length,requestsMaterials:new Set(requested.map(x=>String(x.codigo))).size,
    suppliers:new Set(receipts.map(r=>String(r.fornecedor||'').trim()).filter(Boolean)).size,
@@ -2350,12 +2500,12 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
    stockItems:stockRows.length,stockNotReconciled:stockRows.filter(x=>x.validar).length,
    stockEntries:incoming.length,returnLines:operating.filter(m=>m.tipo==='DEVOLUCAO').length,
    // AJUSTE e uma conferência de estoque, com ou sem correção real de saldo.
-   physicalCountEntries:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)).length,
-   physicalStockCorrections:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)&&
+   physicalCountEntries:all.filter(m=>m.tipo==='AJUSTE'&&m.origem!=='ESTORNO_MOVIMENTO'&&!testeIdentificado(m)).length,
+   physicalStockCorrections:all.filter(m=>m.tipo==='AJUSTE'&&m.origem!=='ESTORNO_MOVIMENTO'&&!testeIdentificado(m)&&
     Number.isFinite(Number(m.delta))&&Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
     Math.abs(rnd(Number(m.depois)-Number(m.antes)-Number(m.delta)))<0.0001&&
     Math.abs(Number(m.delta))>0.0001).length,
-   physicalCountNoChange:all.filter(m=>m.tipo==='AJUSTE'&&!testeIdentificado(m)&&
+   physicalCountNoChange:all.filter(m=>m.tipo==='AJUSTE'&&m.origem!=='ESTORNO_MOVIMENTO'&&!testeIdentificado(m)&&
     Number.isFinite(Number(m.delta))&&Number.isFinite(Number(m.antes))&&Number.isFinite(Number(m.depois))&&
     Math.abs(rnd(Number(m.depois)-Number(m.antes)-Number(m.delta)))<0.0001&&
     Math.abs(Number(m.delta))<=0.0001).length,
@@ -3097,6 +3247,7 @@ function ntGeneralDayPDF(model){
     :'Nenhuma solicitação de reposição emitida nesta data. Isso não significa que não haja materiais precisando de compra.'],
   ['MOVIMENTAÇÕES DO ESTOQUE',totals.stockItems+' material(is) tiveram registro de movimentação no dia.']
  ];
+ if(totals.cancelledMoves)lines.push(['RETIFICAÇÕES OPERACIONAIS',totals.cancelledMoves+' movimentação(ões) excluída(s) das contagens após estorno de estoque auditado. Os saldos históricos das demais operações permanecem registrados como eram no dia.']);
  const executive='<div class="nt-day-summary-rows">'+lines.map(([label,message])=>
   '<div class="nt-day-summary-row"><strong>'+ntPlain(label)+'</strong><span>'+ntPlain(message)+'</span></div>').join('')+'</div>';
  const alarms=[];
@@ -3216,6 +3367,8 @@ function ntReportWarnings(model,scope='general'){
   const unlinked=(model.receiptRows||[]).filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO'&&!x.entradaConfirmada).length;
   if(unlinked)warnings.push(unlinked+' linha(s) de recebimento com entrada no estoque sem vínculo individual confirmado.');
  }
+ if((scope==='general'||scope==='stock')&&Number(model.totals?.cancelledMoves||0)>0)
+  warnings.push(model.totals.cancelledMoves+' movimento(s) estornado(s) nesta data. As contagens foram retificadas, mas os saldos históricos antes/depois dos outros lançamentos não foram reescritos.');
  if(scope==='general'||scope==='stock'){
   const mismatched=(model.stockRows||[]).filter(x=>x.validar).length;
   if(mismatched)warnings.push(mismatched+' material(is) com saldo histórico a conferir.');
@@ -3459,7 +3612,7 @@ if(a==='nt-manual-edit-add-machine'){ntManualEditAddMachine();return}
 if(a==='nt-manual-edit-undo-machine'){ntManualEditUndoMachine();return}
 if(a==='nt-manual-edit-save'){await ntManualEditSave();return}
 if(a==='nt-manual-edit-cancel'){await ntManualHistory(ntManualEditDraft?.type||'receipt');return}
-if(a==='nt-meta-edit'){await ntMetaOpen(act.dataset.code);return}if(a==='nt-meta-save'){await ntMetaSave();return}if(a==='nt-meta-history'){await ntShowTodayMovements(ntMetaDate||dateFilter);return}if(a==='nt-today-movements'){await ntShowTodayMovements();return}if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
+if(a==='nt-cancel-move'){await ntCancelMoveOpen(act.dataset.code);return}if(a==='nt-cancel-confirm'){await ntCancelMoveCommit();return}if(a==='nt-meta-edit'){await ntMetaOpen(act.dataset.code);return}if(a==='nt-meta-save'){await ntMetaSave();return}if(a==='nt-meta-history'){await ntShowTodayMovements(ntMetaDate||dateFilter);return}if(a==='nt-today-movements'){await ntShowTodayMovements();return}if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
 if(a==='nt-manager-month'){await ntManagerOpen('month');return}
 if(a==='nt-repos-new'){await ntReposNew();return}if(a==='nt-repos-all'){ntReposBatch('all');return}if(a==='nt-repos-visible'){ntReposBatch('visible');return}if(a==='nt-repos-clear'){ntReposBatch('clear');return}if(a==='nt-repos-preview'){ntReposPreview();return}if(a==='nt-repos-issue'){await ntReposIssue();return}if(a==='nt-repos-history'){await ntReposHistory();return}if(a==='nt-repos-open-history'){ntReposOpenHistory(act.dataset.code);return}
 if(a==='nt-repos-edit'){ntReposEdit(act.dataset.code);return}
@@ -3479,7 +3632,7 @@ document.addEventListener('input',e=>{if(e.target.id==='ntReposSearch'){ntReposR
     draw();const renewed=$('searchInput');if(renewed){renewed.focus({preventScroll:true});if(pos!==null&&end!==null)renewed.setSelectionRange(pos,end)}
   },320);
 }});
-document.addEventListener('change',async e=>{if(e.target.id==='importMeasuresFile'){const file=e.target.files?.[0];try{await importOnlyMeasures(file)}catch(err){notice(err.message||'Falha ao importar unidades.',true)}finally{e.target.value=''}return}if(e.target.matches('[data-repos-check]')){ntReposToggle(e.target.dataset.reposCheck,e.target.checked);return}if(e.target.matches('[data-label-toggle]')){const code=e.target.dataset.labelToggle;if(e.target.checked)ntLabelCodes.add(code);else ntLabelCodes.delete(code);ntRefreshLabelPanel();return}if(e.target.id==='statusSelect'){filterPanelOpen=true;const v=e.target.value;if(['todos','pendentes','conferidos','sem-localizacao','estoque-baixo'].includes(v)){materialStatus=v;visibleMaterials=100;draw()}return}if(e.target.id==='streetSelect'){filterPanelOpen=true;const v=e.target.value;if(['todas','sem',...'ABCDEFGH'].includes(v)){materialStreet=v;visibleMaterials=100;draw()}return}if(e.target.id==='sortSelect'){filterPanelOpen=true;const v=e.target.value;if(['nome','localizacao'].includes(v)){materialSort=v;visibleMaterials=100;draw()}return}if(e.target.id==='moveCode'){const m=material(e.target.value);if($('stockHint'))$('stockHint').textContent=m?`Saldo: ${fmt(m.quantidade)} ${m.unidade} | ${m.rua||'Sem rua'}-${m.posicao||'?'} | ${m.conferido?'Conferido':'PENDENTE DE CONFERÊNCIA'}`:'Selecione o material.'}if(e.target.id==='ntManagerMonth'){if(/^\d{4}-\d{2}$/.test(e.target.value))ntManagerMonth=e.target.value;return}if(e.target.id==='dateInput'){dateFilter=e.target.value;bindDay();draw()}});
+document.addEventListener('change',async e=>{if(e.target.id==='ntHistoryDate'){const value=e.target.value;if(/^\d{4}-\d{2}-\d{2}$/.test(value)&&value<=day()){try{await ntShowTodayMovements(value)}catch(err){notice('Não foi possível consultar a data: '+String(err.message||err),true)}}else notice('Escolha uma data válida até hoje.',true);return}if(e.target.id==='importMeasuresFile'){const file=e.target.files?.[0];try{await importOnlyMeasures(file)}catch(err){notice(err.message||'Falha ao importar unidades.',true)}finally{e.target.value=''}return}if(e.target.matches('[data-repos-check]')){ntReposToggle(e.target.dataset.reposCheck,e.target.checked);return}if(e.target.matches('[data-label-toggle]')){const code=e.target.dataset.labelToggle;if(e.target.checked)ntLabelCodes.add(code);else ntLabelCodes.delete(code);ntRefreshLabelPanel();return}if(e.target.id==='statusSelect'){filterPanelOpen=true;const v=e.target.value;if(['todos','pendentes','conferidos','sem-localizacao','estoque-baixo'].includes(v)){materialStatus=v;visibleMaterials=100;draw()}return}if(e.target.id==='streetSelect'){filterPanelOpen=true;const v=e.target.value;if(['todas','sem',...'ABCDEFGH'].includes(v)){materialStreet=v;visibleMaterials=100;draw()}return}if(e.target.id==='sortSelect'){filterPanelOpen=true;const v=e.target.value;if(['nome','localizacao'].includes(v)){materialSort=v;visibleMaterials=100;draw()}return}if(e.target.id==='moveCode'){const m=material(e.target.value);if($('stockHint'))$('stockHint').textContent=m?`Saldo: ${fmt(m.quantidade)} ${m.unidade} | ${m.rua||'Sem rua'}-${m.posicao||'?'} | ${m.conferido?'Conferido':'PENDENTE DE CONFERÊNCIA'}`:'Selecione o material.'}if(e.target.id==='ntManagerMonth'){if(/^\d{4}-\d{2}$/.test(e.target.value))ntManagerMonth=e.target.value;return}if(e.target.id==='dateInput'){dateFilter=e.target.value;bindDay();draw()}});
 $('arquivoCatalogo').addEventListener('change',async e=>{try{isReady();await importCatalog(e.target.files?.[0])}catch(err){notice(err.message,true)}finally{e.target.value=''}});
 window.addEventListener('online',()=>{serverReady=false;status('● Revalidando Firebase');if(user){for(const f of unsubs)f();bindListeners()}});window.addEventListener('offline',()=>{serverReady=false;status('● Sem internet',false,true)});
 const ntHeaderLogo=document.getElementById('ntHeaderLogo');
