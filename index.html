@@ -145,6 +145,7 @@ header .brand>div:last-child{min-width:0}
 .nt-hist-menu{position:absolute;right:0;top:39px;z-index:40;min-width:174px;background:#0c2944;border:1px solid #497da7;box-shadow:0 13px 28px #00172fbb;border-radius:12px;padding:5px}
 .nt-hist-menu button{display:block;width:100%;padding:10px 12px;border:0;border-radius:8px;background:transparent;color:#f2f8ff;text-align:left;font-size:.83rem;font-weight:650}
 .nt-hist-menu button:hover,.nt-hist-menu button:focus{background:#214d70}
+.nt-hist-row:nth-last-child(-n+2) .nt-hist-menu{top:auto;bottom:39px}
 .nt-hist-menu .nt-hist-delete{color:#ffc1c5}
 .nt-hist-cancelled{opacity:.72}
 .nt-hist-cancelled .nt-hist-state{display:inline-block;margin-top:6px;color:#ffd59a;font-size:.76rem;font-weight:750}
@@ -2400,6 +2401,7 @@ function ntReposDailyVersions(records){
 function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,reposDocs=[]){
  const byCode=new Map(materials.map(x=>[String(x.codigo),x]));
  const recognized=new Set(['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE']);
+ const cancelledMovements=(movements||[]).filter(m=>m.estornado);
  const all=ntArmEffectiveMovements(movements).filter(m=>!m.anulado&&recognized.has(String(m.tipo))).sort(ntDaySortMovement);
  const operating=all.filter(m=>!testeIdentificado(m)&&['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo));
  const requested=operating.filter(m=>m.tipo==='SAIDA');
@@ -2488,7 +2490,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
  return {date,materialsCount:materials.length,materialCatalog:materials,machineRows,receiptRows,receipts,repos,
   requests:[...requested].sort(ntDaySortMovement),
   stockRows,comparisons,production,
-  totals:{machines:totalMachines,machinesRequested:totalAsked,orders:requests.size,
+  totals:{machines:totalMachines,machinesRequested:totalAsked,orders:requests.size,cancelledMoves:cancelledMovements.length,
    reposReports:repos.length,reposLines:repos.reduce((sum,r)=>sum+r.itens.length,0),
    requestsLines:requested.length,requestsMaterials:new Set(requested.map(x=>String(x.codigo))).size,
    suppliers:new Set(receipts.map(r=>String(r.fornecedor||'').trim()).filter(Boolean)).size,
@@ -3245,6 +3247,7 @@ function ntGeneralDayPDF(model){
     :'Nenhuma solicitação de reposição emitida nesta data. Isso não significa que não haja materiais precisando de compra.'],
   ['MOVIMENTAÇÕES DO ESTOQUE',totals.stockItems+' material(is) tiveram registro de movimentação no dia.']
  ];
+ if(totals.cancelledMoves)lines.push(['RETIFICAÇÕES OPERACIONAIS',totals.cancelledMoves+' movimentação(ões) excluída(s) das contagens após estorno de estoque auditado. Os saldos históricos das demais operações permanecem registrados como eram no dia.']);
  const executive='<div class="nt-day-summary-rows">'+lines.map(([label,message])=>
   '<div class="nt-day-summary-row"><strong>'+ntPlain(label)+'</strong><span>'+ntPlain(message)+'</span></div>').join('')+'</div>';
  const alarms=[];
@@ -3364,6 +3367,8 @@ function ntReportWarnings(model,scope='general'){
   const unlinked=(model.receiptRows||[]).filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO'&&!x.entradaConfirmada).length;
   if(unlinked)warnings.push(unlinked+' linha(s) de recebimento com entrada no estoque sem vínculo individual confirmado.');
  }
+ if((scope==='general'||scope==='stock')&&Number(model.totals?.cancelledMoves||0)>0)
+  warnings.push(model.totals.cancelledMoves+' movimento(s) estornado(s) nesta data. As contagens foram retificadas, mas os saldos históricos antes/depois dos outros lançamentos não foram reescritos.');
  if(scope==='general'||scope==='stock'){
   const mismatched=(model.stockRows||[]).filter(x=>x.validar).length;
   if(mismatched)warnings.push(mismatched+' material(is) com saldo histórico a conferir.');
