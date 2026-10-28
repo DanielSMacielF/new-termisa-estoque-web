@@ -3428,7 +3428,7 @@ async function ntExcelVisualPages(model,book){
      fitToWidth:1,fitToHeight:1,horizontalCentered:true,
      margins:{left:.08,right:.08,top:.08,bottom:.08,header:0,footer:0}}
    });
-   for(let c=1;c<=16;c++)ws.getColumn(c).width=10.4;
+   for(let c=1;c<=16;c++)ws.getColumn(c).width=9.3;
    for(let row=1;row<=39;row++)ws.getRow(row).height=14.45;
    ws.addImage(id,{tl:{col:0,row:0},ext:{width:image.width/1.5,height:image.height/1.5}});
    ws.getCell('A39').value=' ';
@@ -3448,7 +3448,7 @@ function ntExcelDataTabs(model,book){
     fitToWidth:1,fitToHeight:0,margins:{left:.25,right:.25,top:.35,bottom:.35,header:0,footer:.15}}});
   const n=headers.length,final=String.fromCharCode(64+n);
   ws.getRow(2).height=40;ws.getRow(3).height=20;ws.getRow(4).height=20;
-  ws.mergeCells('C2:'+final+'2');const heading=ws.getCell('C2');
+  if(n>3)ws.mergeCells('C2:'+final+'2');const heading=ws.getCell('C2');
   heading.value=name.toUpperCase();heading.font={name:'Arial',size:16,bold:true,
    color:{argb:'FF'+palette.navy}};
   heading.alignment={horizontal:'right',vertical:'middle'};
