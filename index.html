@@ -3325,10 +3325,9 @@ function ntDayExcelExport(model,XLSX){
   ['Produtos sem código',t.pendingCodes,'Documentados e pendentes, sem atualização de estoque'],
   ['Fornecedores',t.suppliers,'Fornecedores com recebimento documentado'],
   ['Linhas divergentes de NF',t.receiptDifferences,'Previsto na NF diferente do recebido'],
-  ['Materiais movimentados',t.stockItems,'Inclui eventos de conferência no histórico'],
-  ['Ajustes de conferência física',t.physicalCountEntries||0,'Operações de ajuste registradas no histórico da data'],
+  ['Materiais movimentados',t.stockItems,'Somente códigos com entrada, retirada ou devolução operacional'],
   ['Movimentações de entrada',t.stockEntries,'Entradas operacionais registradas no estoque'],
-  ['Saldos a conferir',t.stockNotReconciled,'Diferenças ainda não conciliadas após considerar ajustes confirmados'],
+  ['Saldos a conferir',t.stockNotReconciled,'Diferenças entre saldos históricos e movimentos operacionais exigem conciliação'],
   ['Observação','Somente entradas vinculadas a materiais cadastrados atualizam o saldo','Entradas integradas possuem identificador; documentos antigos podem não ter vínculo']
  ]);
  sheet('Produção',['DATA','CÓD. MÁQUINA','PRODUTO','UN.','QTDE. FEITA','LOTE / OP'],
@@ -3350,8 +3349,8 @@ function ntDayExcelExport(model,XLSX){
      'SOLICITADO PARA ANÁLISE DE COMPRA',ntReposQueryDate(model.catalogConsultedAt)];
    })));
  }
- sheet('Estoque Movimentado',['DATA','CÓDIGO','MATERIAL','UNIDADE','SALDO INICIAL','SAÍDAS','DEVOLUÇÕES','ENTRADAS','AJUSTES VALIDADOS','OUTRAS VARIAÇÕES','DIFERENÇA A CONFERIR','SALDO FINAL','CONFERÊNCIA'],
-  model.stockRows.map(x=>[date,x.codigo,x.nome,x.unidade,x.inicio??'',x.saida,x.devolucao,x.entrada,x.ajustes,x.outras??'',x.residual??'',x.fim??'',x.validar?'Conferir histórico':'']));
+ sheet('Estoque Movimentado',['DATA','CÓDIGO','MATERIAL','UNIDADE','SALDO INICIAL','SAÍDAS','DEVOLUÇÕES','ENTRADAS','SALDO FINAL','DIFERENÇA A CONFERIR'],
+  model.stockRows.map(x=>[date,x.codigo,x.nome,x.unidade,x.inicio??'',x.saida,x.devolucao,x.entrada,x.fim??'',x.residual??'']));
  sheet('Conferência de Entradas',['DATA','CÓDIGO','MATERIAL','UNIDADE','RECEBIDO NO DOCUMENTO','ENTRADAS NO ESTOQUE','DIFERENÇA','SITUAÇÃO'],
   model.comparisons.map(x=>[date,x.codigo,x.nome,x.unidade,x.recebido,x.entradas,x.diferenca,x.situacao]));
  XLSX.writeFile(book,'NewTermisa_Relatorio_Geral_'+date+'.xlsx');
