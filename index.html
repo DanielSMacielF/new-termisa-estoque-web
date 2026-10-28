@@ -126,6 +126,29 @@ header .brand{min-width:0}
 header .brand>div:last-child{min-width:0}
 /* Distância idêntica da borda aos três botões de movimentação. */
 #moveForm.card,.nt-receipt-movement{margin-top:14px}
+
+/* Histórico de movimentações: seletor de data e menu compacto por lançamento. */
+.nt-history-controls{display:flex;align-items:flex-end;gap:10px;margin:14px 0 12px;flex-wrap:wrap}
+.nt-history-controls label{display:block;color:#bad0e4;font-size:.81rem;font-weight:650;margin-bottom:5px}
+.nt-history-controls input[type=date]{color:#f4faff;background:#0a223a;border:1px solid #406381;border-radius:12px;padding:11px 13px;min-height:45px;max-width:230px;color-scheme:dark;width:100%}
+.nt-history-controls .nt-hint{color:#b2cbe2;font-size:.78rem;line-height:1.45;flex:1;min-width:130px}
+.nt-hist-row{align-items:center!important;gap:8px!important;padding:12px 13px!important;overflow:visible}
+.nt-hist-info{flex:1;min-width:0}
+.nt-hist-info strong{font-size:.91rem;line-height:1.4}
+.nt-hist-info .small{overflow-wrap:anywhere;font-size:.78rem;margin-top:3px}
+.nt-hist-right{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:7px;flex-shrink:0;min-width:46px}
+.nt-hist-qty{font-weight:800;font-size:1.01rem}
+.nt-hist-actions{position:relative}
+.nt-hist-actions>summary{list-style:none;display:flex;align-items:center;justify-content:center;height:34px;width:38px;border:1px solid #466987;border-radius:11px;background:#1a4262;color:#dfefff;cursor:pointer;font-size:22px;line-height:1;transition:background .2s ease,border-color .2s ease}
+.nt-hist-actions>summary::-webkit-details-marker{display:none}
+.nt-hist-actions[open]>summary,.nt-hist-actions>summary:hover{background:#28618b;border-color:#69a3d4}
+.nt-hist-menu{position:absolute;right:0;top:39px;z-index:40;min-width:174px;background:#0c2944;border:1px solid #497da7;box-shadow:0 13px 28px #00172fbb;border-radius:12px;padding:5px}
+.nt-hist-menu button{display:block;width:100%;padding:10px 12px;border:0;border-radius:8px;background:transparent;color:#f2f8ff;text-align:left;font-size:.83rem;font-weight:650}
+.nt-hist-menu button:hover,.nt-hist-menu button:focus{background:#214d70}
+.nt-hist-menu .nt-hist-delete{color:#ffc1c5}
+.nt-hist-cancelled{opacity:.72}
+.nt-hist-cancelled .nt-hist-state{display:inline-block;margin-top:6px;color:#ffd59a;font-size:.76rem;font-weight:750}
+@media(max-width:450px){.nt-history-controls input[type=date]{max-width:100%}.nt-hist-menu{right:0}.nt-hist-right{min-width:42px}}
 </style></head>
 <body><div class="shell"><header><div class="brand"><div class="mark"><img id="ntHeaderLogo" alt="New Termisa" width="56" height="56"></div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento" aria-label="Central de Relatórios"><span>▣</span>Relatórios</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
 <script>
@@ -210,22 +233,41 @@ function filterMaterialSelect(id){
 }
 function panelHome(){let pending=mats.filter(x=>!x.conferido).length;return `${mainNotice()}<div class="grid"><div class="card"><div class="label">Materiais cadastrados</div><div class="value">${mats.length}</div><div class="small">Códigos únicos</div></div><div class="card"><div class="label">Aguardando conferência</div><div class="value warn">${pending}</div><div class="small">Saldos a validar</div></div><div class="card"><div class="label">Sem localização</div><div class="value">${mats.filter(x=>!x.rua||!x.posicao).length}</div><div class="small">Preencher cadastro</div></div><div class="card"><div class="label">No mínimo ou abaixo</div><div class="value">${mats.filter(x=>x.quantidade<=x.minimo).length}</div><div class="small">Ponto de reposição</div></div></div><div class="section"><h2>Acesso rápido</h2></div><div class="buttons"><button class="btn" data-go="movimentar">+ Movimentar</button><button class="btn alt" data-go="pedidos">Separar pedido</button></div><div class="gap"></div><div class="card"><h2>Últimas movimentações</h2>${recent.length?recent.slice(0,6).map(m=>`<div class="item"><div><strong>${esc(m.nome)}</strong><p class="small">${esc(m.tipo)} · ${esc(m.operador||'')} · ${formatDate(m)}</p></div><b class="${m.delta<0?'red':'green'}">${m.delta>0?'+':''}${fmt(m.delta)}</b></div>`).join(''):'<div class="small">Nenhum movimento ainda.</div>'}<div class="gap"></div><button class="btn alt" type="button" style="width:100%" data-action="nt-today-movements">Ver Mais</button></div>${mats.length===0?`<div class="notice"><b>Importe o catálogo privado de 218 materiais</b><div class="small">Abra a aba Segurança → Importar cadastro. Mantenha o arquivo JSON somente em local seguro da empresa.</div></div>`:''}`}
 
-/* Histórico por data: edição administrativa com auditoria, sem alterar o estoque. */
-async function ntShowTodayMovements(selected=day()){
+/* Histórico por data, consultando o Firebase; ações discretas no fim de cada linha. */
+let ntHistoryRequest=0;
+async function ntShowTodayMovements(selected=ntMetaDate||dateFilter||day()){
  if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase.');
- const date=/^\d{4}-\d{2}-\d{2}$/.test(String(selected))?selected:day();ntMetaDate=date;
- panel('<h2>Movimentações · '+esc(ntDate(date))+'</h2><p class="small">Consultando o Firebase...</p>');
- const [snap,edits]=await Promise.all([getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),ntMetaRead()]);
- const entries=ntMetaMoves(snap.docs.map(d=>({...d.data(),id:d.id})),edits).filter(m=>!m.anulado).sort((a,b)=>ntDaySortMovement(b,a));
+ const date=/^\d{4}-\d{2}-\d{2}$/.test(String(selected))&&selected<=day()?selected:day();
+ ntMetaDate=date;
+ const request=++ntHistoryRequest;
+ const controls='<div class="nt-history-controls"><div><label for="ntHistoryDate">Selecionar o dia</label>'+
+  '<input id="ntHistoryDate" aria-label="Escolher data do histórico" type="date" max="'+esc(day())+'" value="'+esc(date)+'"></div>'+
+  '<p class="nt-hint">Escolha uma data no calendário para ver apenas os lançamentos daquele dia.</p></div>';
+ panel('<h2>Histórico de movimentações</h2>'+controls+'<p class="small">Consultando registros do Firebase...</p>');
+ const [snap,edits]=await Promise.all([
+  getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),ntMetaRead()
+ ]);
+ if(request!==ntHistoryRequest)return;
+ const entries=ntMetaMoves(snap.docs.map(d=>({...d.data(),id:d.id})),edits)
+  .filter(m=>!m.anulado||m.estornado).sort((a,b)=>ntDaySortMovement(b,a));
  const list=entries.map(m=>{
-  const editable=['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo)&&!m.reciboId&&m.origem!=='RECEBIMENTO_INTEGRADO';
-  return '<div class="item"><div><strong>'+esc(m.nome||m.codigo||'Material')+'</strong>'+
-   '<p class="small">'+esc(m.tipo||'')+' · '+esc(m.codigo||'—')+' · '+esc(m.solicitante||'')+' · '+esc(m.pedido||'')+' · '+esc(formatDate(m))+'</p>'+
-   (editable?'<button class="btn ghost" data-action="nt-meta-edit" data-code="'+esc(m.id)+'">Editar informações</button>':'<p class="small">Lançamento vinculado ou protegido</p>')+
-   '</div><b class="'+(Number(m.delta)<0?'red':'green')+'">'+(Number(m.delta)>0?'+':'')+esc(fmt(m.delta))+'</b></div>';
+  const voided=!!m.estornado;
+  const editable=!voided&&['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo)&&!m.reciboId&&m.origem!=='RECEBIMENTO_INTEGRADO';
+  const linked=!voided&&m.tipo==='ENTRADA'&&(m.reciboId||m.origem==='RECEBIMENTO_INTEGRADO');
+  const actions=editable?'<details class="nt-hist-actions"><summary aria-label="Opções de '+esc(m.nome||m.codigo)+'" title="Editar ou excluir">⋮</summary>'+
+   '<div class="nt-hist-menu"><button type="button" data-action="nt-meta-edit" data-code="'+esc(m.id)+'">✎ Editar</button>'+
+   '<button type="button" class="nt-hist-delete" data-action="nt-cancel-move" data-code="'+esc(m.id)+'">Excluir item</button></div></details>':
+   (linked?'<span class="small" title="Corrija esta entrada no Histórico de Recebimentos">NF</span>':'');
+  return '<div class="item nt-hist-row'+(voided?' nt-hist-cancelled':'')+'"><div class="nt-hist-info"><strong>'+esc(m.nome||m.codigo||'Material')+'</strong>'+
+   '<p class="small">'+esc(m.tipo||'')+' · '+esc(m.codigo||'—')+' · '+esc(m.solicitante||m.operador||'')+
+   (m.pedido?' · '+esc(m.pedido):'')+' · '+esc(formatDate(m))+'</p>'+
+   (voided?'<span class="nt-hist-state">Excluído e estornado · histórico preservado</span>':'')+
+   '</div><div class="nt-hist-right"><b class="nt-hist-qty '+(Number(m.delta)<0?'red':'green')+'">'+
+   (Number(m.delta)>0?'+':'')+esc(fmt(Number(m.delta)||0))+'</b>'+actions+'</div></div>';
  }).join('');
- panel('<h2>Movimentações · '+esc(ntDate(date))+'</h2><p class="small" style="margin-bottom:12px">'+entries.length+' registro(s) do Firebase. Informações editáveis sem mexer no saldo.</p>'+
-  '<div class="list" style="max-height:60vh;overflow-y:auto">'+(list||'<p class="small">Nenhum lançamento nesta data.</p>')+'</div>'+
+ panel('<h2>Histórico de movimentações</h2>'+controls+
+  '<p class="small" style="margin-bottom:12px"><strong>'+entries.length+' lançamento(s)</strong> em '+esc(ntDate(date))+'. As exclusões exigem estorno auditado.</p>'+
+  '<div class="list" style="max-height:56vh;overflow-y:auto;padding-right:3px">'+(list||'<div class="small">Nenhum lançamento encontrado neste dia.</div>')+'</div>'+
   '<div class="buttons" style="margin-top:12px"><button class="btn ghost" data-action="close">Fechar</button></div>');
 }
 function inventoryPct(conferidos,total){return total?Math.round(conferidos*1000/total)/10:0}
@@ -3479,7 +3521,7 @@ document.addEventListener('input',e=>{if(e.target.id==='ntReposSearch'){ntReposR
     draw();const renewed=$('searchInput');if(renewed){renewed.focus({preventScroll:true});if(pos!==null&&end!==null)renewed.setSelectionRange(pos,end)}
   },320);
 }});
-document.addEventListener('change',async e=>{if(e.target.id==='importMeasuresFile'){const file=e.target.files?.[0];try{await importOnlyMeasures(file)}catch(err){notice(err.message||'Falha ao importar unidades.',true)}finally{e.target.value=''}return}if(e.target.matches('[data-repos-check]')){ntReposToggle(e.target.dataset.reposCheck,e.target.checked);return}if(e.target.matches('[data-label-toggle]')){const code=e.target.dataset.labelToggle;if(e.target.checked)ntLabelCodes.add(code);else ntLabelCodes.delete(code);ntRefreshLabelPanel();return}if(e.target.id==='statusSelect'){filterPanelOpen=true;const v=e.target.value;if(['todos','pendentes','conferidos','sem-localizacao','estoque-baixo'].includes(v)){materialStatus=v;visibleMaterials=100;draw()}return}if(e.target.id==='streetSelect'){filterPanelOpen=true;const v=e.target.value;if(['todas','sem',...'ABCDEFGH'].includes(v)){materialStreet=v;visibleMaterials=100;draw()}return}if(e.target.id==='sortSelect'){filterPanelOpen=true;const v=e.target.value;if(['nome','localizacao'].includes(v)){materialSort=v;visibleMaterials=100;draw()}return}if(e.target.id==='moveCode'){const m=material(e.target.value);if($('stockHint'))$('stockHint').textContent=m?`Saldo: ${fmt(m.quantidade)} ${m.unidade} | ${m.rua||'Sem rua'}-${m.posicao||'?'} | ${m.conferido?'Conferido':'PENDENTE DE CONFERÊNCIA'}`:'Selecione o material.'}if(e.target.id==='ntManagerMonth'){if(/^\d{4}-\d{2}$/.test(e.target.value))ntManagerMonth=e.target.value;return}if(e.target.id==='dateInput'){dateFilter=e.target.value;bindDay();draw()}});
+document.addEventListener('change',async e=>{if(e.target.id==='ntHistoryDate'){const value=e.target.value;if(/^\d{4}-\d{2}-\d{2}$/.test(value)&&value<=day()){try{await ntShowTodayMovements(value)}catch(err){notice('Não foi possível consultar a data: '+String(err.message||err),true)}}else notice('Escolha uma data válida até hoje.',true);return}if(e.target.id==='importMeasuresFile'){const file=e.target.files?.[0];try{await importOnlyMeasures(file)}catch(err){notice(err.message||'Falha ao importar unidades.',true)}finally{e.target.value=''}return}if(e.target.matches('[data-repos-check]')){ntReposToggle(e.target.dataset.reposCheck,e.target.checked);return}if(e.target.matches('[data-label-toggle]')){const code=e.target.dataset.labelToggle;if(e.target.checked)ntLabelCodes.add(code);else ntLabelCodes.delete(code);ntRefreshLabelPanel();return}if(e.target.id==='statusSelect'){filterPanelOpen=true;const v=e.target.value;if(['todos','pendentes','conferidos','sem-localizacao','estoque-baixo'].includes(v)){materialStatus=v;visibleMaterials=100;draw()}return}if(e.target.id==='streetSelect'){filterPanelOpen=true;const v=e.target.value;if(['todas','sem',...'ABCDEFGH'].includes(v)){materialStreet=v;visibleMaterials=100;draw()}return}if(e.target.id==='sortSelect'){filterPanelOpen=true;const v=e.target.value;if(['nome','localizacao'].includes(v)){materialSort=v;visibleMaterials=100;draw()}return}if(e.target.id==='moveCode'){const m=material(e.target.value);if($('stockHint'))$('stockHint').textContent=m?`Saldo: ${fmt(m.quantidade)} ${m.unidade} | ${m.rua||'Sem rua'}-${m.posicao||'?'} | ${m.conferido?'Conferido':'PENDENTE DE CONFERÊNCIA'}`:'Selecione o material.'}if(e.target.id==='ntManagerMonth'){if(/^\d{4}-\d{2}$/.test(e.target.value))ntManagerMonth=e.target.value;return}if(e.target.id==='dateInput'){dateFilter=e.target.value;bindDay();draw()}});
 $('arquivoCatalogo').addEventListener('change',async e=>{try{isReady();await importCatalog(e.target.files?.[0])}catch(err){notice(err.message,true)}finally{e.target.value=''}});
 window.addEventListener('online',()=>{serverReady=false;status('● Revalidando Firebase');if(user){for(const f of unsubs)f();bindListeners()}});window.addEventListener('offline',()=>{serverReady=false;status('● Sem internet',false,true)});
 const ntHeaderLogo=document.getElementById('ntHeaderLogo');
