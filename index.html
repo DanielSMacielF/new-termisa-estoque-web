@@ -2382,7 +2382,7 @@ function ntGeneralProductionPages(machineRows,date,marker){
   const unknown=part.filter(x=>x.codigoMaquina==='—'||x.unidade==='—').length;
   const observation=unknown?'<p class="note">Há '+unknown+' registro(s) antigos sem código da máquina ou unidade cadastrados. Os campos não foram preenchidos automaticamente para evitar informações incorretas.</p>':'';
   const body=summaries+
-   '<div class="sectionline"><span>RELAÇÃO DE PRODUTOS FABRICADOS</span><span>'+part.length+' produto(s) nesta página</span></div>'+
+   '<div class="sectionline"><span>RELAÇÃO DE PRODUTOS FABRICADOS</span><span>'+part.length+' máquina(s) nesta página</span></div>'+
    table+observation+
    '<p class="note">Produção informada pelo setor responsável. Este relatório não realiza movimentações de estoque.</p>';
   pages.push('<section class="page landscape nt-general-production">'+ntTop('PRODUÇÃO DE MÁQUINAS','Produção concluída, identificada por produto, código e lote.',date)+body+marker+'</section>');
@@ -2411,7 +2411,7 @@ function ntGeneralStockPages(stock,date,marker){
    (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
   const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    table+audit+
-   '<p class="note">Os saldos inicial e final são históricos e consideram também as conferências físicas registradas. Quando existir diferença não conciliada, ela será destacada acima; os detalhes permanecem no histórico e na exportação Excel.</p>';
+   '<p class="note">Os saldos inicial e final são históricos e refletem os registros do sistema. As colunas mostram entradas, saídas e devoluções; os detalhes completos permanecem no histórico do estoque.</p>';
   pages.push('<section class="page landscape nt-general-stock">'+ntTop('SALDOS DO ALMOXARIFADO','Saldos históricos antes e depois dos lançamentos do dia.',date)+body+marker+'</section>');
  }
  return pages;
@@ -2450,7 +2450,7 @@ function ntGeneralRequestsPages(model,date,marker){
      part.map(m=>[ntTime(m),String(m.codigo||''),String(m.nome||'—'),ntReportMeasure(m.codigo,measureByCode),
       fmt(ntQty(m)),String(m.solicitante||'—'),String(m.pedido||'—')])):
      empty('Nenhuma saída operacional registrada para esta data.'))+
-   '<p class="note">Cada linha representa uma saída real confirmada. Simulações e conferências físicas não são contadas como pedido atendido.</p>';
+   '<p class="note">Cada linha representa uma saída real confirmada do almoxarifado.</p>';
   pages.push('<section class="page landscape nt-general-requests">'+ntTop('MATERIAIS ENTREGUES','Pedidos atendidos e materiais retirados do almoxarifado.',date)+body+marker+'</section>');
  }
  return pages;
@@ -2791,14 +2791,14 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
     '<p>Top 6 por quantidade. As barras usam somente '+plain(primary?.unit||'unidades cadastradas')+
     '; maior barra = 100% nesta unidade.</p><div class="nt-di-bars">'+mainBars+'</div></div>'+
    '<div class="nt-di-panel"><h2>MOVIMENTAÇÕES OPERACIONAIS</h2>'+
-    '<p>Entradas, retiradas e devoluções; sem conferências físicas.</p>'+
+    '<p>Entradas, retiradas e devoluções registradas no período.</p>'+
     '<div class="nt-di-ringbox">'+donut+'<div class="nt-di-legend">'+legend+'</div></div>'+
     '<div class="nt-di-usage"><span>Uma retirada</span><b>'+onlyOnce+' materiais</b>'+
     '<span>Duas ou mais</span><b>'+repeated+' materiais</b></div>'+
     '<div class="nt-di-unitnote"><b>Leitura correta:</b> 1 retirada de 1.000 UN conta como uma operação.'+
-    ' As quantidades aparecem no ranking ao lado. Conferências e correções de saldo são registradas separadamente.</div></div></div>'+diagnose+
+    ' As quantidades aparecem no ranking ao lado.</div></div></div>'+diagnose+
   '<div class="nt-di-footnote">Fonte: retiradas confirmadas do dia no Firebase. Ranking por quantidade '+
-  'dentro de UMA unidade, sem somar UN, KG, M ou L. '+
+  'dentro de cada unidade de medida, sem somar UN, KG, M ou L. '+
   (missing.length?missing.length+' material(is) sem unidade válida ficaram fora dos gráficos de quantidade. ':'')+
   'Outras unidades e riscos de estoque constam na análise detalhada quando aplicável.</div>';
  const pages=['<section class="page landscape nt-general-stock-intel">'+
@@ -2861,14 +2861,9 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
    metrics([
     ['SALDOS ZERADOS APÓS SAÍDA',zero.length],
     ['CONSUMO ≥ 50% DO INICIAL',pressure.length],
-    ['DIVERGÊNCIAS A CONFERIR',notReconciled],
-    ['CONFERÊNCIAS DE ESTOQUE',counted]
+    ['DIVERGÊNCIAS DE SALDO',notReconciled],
+    ['LINHAS RECEBIDAS',Number(model.totals?.receiptLines)||0]
    ])+
-   '<div class="nt-deep-auditnote"><b>Conferência e correção de estoque:</b> '+corrected+
-   ' registro(s) corrigiram o saldo após conferência física; '+unchanged+
-   ' confirmaram o saldo sem mudança.'+(countToCheck?' '+countToCheck+
-   ' registro(s) precisam de verificação no histórico.':'')+
-   ' Essas operações não representam entrada, retirada ou devolução de material.</div>'+
    '<div class="nt-deep-columns">'+
     '<div class="nt-deep-panel"><h2>CONSUMO POR UNIDADE DE MEDIDA</h2>'+
      '<p>Totais separados: não somar unidades incompatíveis.</p>'+
@@ -2892,8 +2887,7 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
     '</div>'+
    '</div>'+
    receiptBox+
-   '<div class="nt-di-footnote">Percentual = quantidade retirada / saldo inicial do dia, apenas em itens sem '+
-   'entradas, devoluções, ajustes ou divergência no período. As demais linhas não têm percentual calculado. '+
+   '<div class="nt-di-footnote">Percentuais de consumo são exibidos somente quando os registros permitem uma comparação confiável entre saídas e saldo inicial. '+
    'Saldos históricos são do dia consultado; este resumo não altera o estoque.</div>';
   pages.push('<section class="page landscape nt-general-stock-deep">'+
    ntTop('INTELIGÊNCIA DO ESTOQUE','Consumo, saldos históricos e controle de recebimentos do dia.',date)+
@@ -2980,8 +2974,7 @@ function ntGeneralDayPDF(model){
   ['REPOSIÇÕES',(totals.reposReports||0)
     ?totals.reposReports+' solicitação(ões) de reposição emitida(s), com '+totals.reposLines+' linha(s) de material. Confira os documentos após o recebimento.'
     :'Nenhuma solicitação de reposição emitida nesta data. Isso não significa que não haja materiais precisando de compra.'],
-  ['MOVIMENTAÇÕES DO ESTOQUE',totals.stockItems+' material(is) tiveram registro de movimentação no dia.'+
-    ((totals.physicalCountEntries||0)>0?' Inclui '+totals.physicalCountEntries+' ajuste(s) de conferência física.':'')]
+  ['MOVIMENTAÇÕES DO ESTOQUE',totals.stockItems+' material(is) tiveram registro de movimentação no dia.']
  ];
  const executive='<div class="nt-day-summary-rows">'+lines.map(([label,message])=>
   '<div class="nt-day-summary-row"><strong>'+ntPlain(label)+'</strong><span>'+ntPlain(message)+'</span></div>').join('')+'</div>';
