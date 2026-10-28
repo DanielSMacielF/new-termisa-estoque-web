@@ -1756,6 +1756,7 @@ async function ntManualPDF(kind,single=null){
  popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:26px">Consultando registros no Firebase...</body></html>');popup.document.close();
  try{
   const model=single?null:await ntGeneralDayFetch(selected);
+  if(model&&!ntReportConfirm(model,type==='receipt'?'receipt':'production')){popup.close();notice('Emissão cancelada para conferência.');return}
   const found=single?[single]:(type==='receipt'?model.receipts:model.production);
   const records=single?found:found.filter(r=>(type==='receipt'?r.dataRecebimento:r.dataProducao)===selected);
   const date=single?(type==='receipt'?single.dataRecebimento:single.dataProducao):selected;
@@ -2549,6 +2550,7 @@ async function ntSaldosIndividualOpen(){
  popup.document.close();
  try{
   const model=await ntGeneralDayFetch(selected);
+   if(!ntReportConfirm(model,'stock')){popup.close();notice('Confira os saldos antes de emitir.');return}
   popup.document.open();popup.document.write(ntSaldosIndividualPDF(model));popup.document.close();
  }catch(e){
   popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body><h2>Consulta indisponível</h2><p>Não foi possível obter os saldos atuais do servidor.</p></body></html>');popup.document.close();
