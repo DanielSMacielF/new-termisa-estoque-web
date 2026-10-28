@@ -2738,7 +2738,7 @@ async function ntSaldosIndividualOpen(){
  popup.document.close();
  try{
   const model=await ntGeneralDayFetch(selected);
-   if(!ntReportConfirm(model,'stock')){popup.close();notice('Confira os saldos antes de emitir.');return}
+   if(!ntReportConfirm(model,'stock')){popup.document.open();popup.document.write(ntReportPendingHtml(model,'stock'));popup.document.close();notice('Saldos: motivos exibidos na aba de conferência.',true);return}
   popup.document.open();popup.document.write(ntSaldosIndividualPDF(model));popup.document.close();
  }catch(e){
   popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body><h2>Consulta indisponível</h2><p>Não foi possível obter os saldos atuais do servidor.</p></body></html>');popup.document.close();
@@ -3409,6 +3409,19 @@ function ntReportWarnings(model,scope='general'){
  }
  return [...new Set(warnings)];
 }
+function ntReportPendingHtml(model,scope='general'){
+ const messages=ntReportWarnings(model,scope);
+ const safe=x=>ntPlain(String(x??''));
+ return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
+  '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório aguardando conferência</title>'+
+  '<style>body{font-family:Arial,sans-serif;max-width:780px;margin:35px auto;padding:0 20px;color:#16374b;line-height:1.5}'+
+  'h1{font-size:25px}li{padding:9px 0}small{color:#527180}</style></head><body>'+
+  '<h1>Relatório aguardando conferência</h1><p>Data: <b>'+safe(ntDate(model.date))+'</b></p>'+
+  '<p>O documento não foi emitido porque foi solicitada uma conferência dos registros abaixo. Os saldos do Firebase não foram modificados.</p>'+
+  '<ol>'+messages.map(x=>'<li>'+safe(x)+'</li>').join('')+'</ol>'+
+  '<p>Volte ao almoxarifado e confira os registros correspondentes antes de enviar o documento.</p>'+
+  '<small>O histórico original permanece preservado para auditoria.</small></body></html>';
+}
 function ntReportConfirm(model,scope='general'){
  const warnings=ntReportWarnings(model,scope);
  if(!warnings.length)return true;
@@ -3425,7 +3438,7 @@ function ntGeneralDayOpenPDF(){
  (async()=>{
   try{
    const model=await ntGeneralDayFetch(date);
-   if(!ntReportConfirm(model,'general')){popup.close();notice('Relatório não emitido. Confira as divergências no histórico.');return}
+   if(!ntReportConfirm(model,'general')){popup.document.open();popup.document.write(ntReportPendingHtml(model,'general'));popup.document.close();notice('Relatório não emitido: motivos exibidos na aba de conferência.',true);return}
    popup.document.open();popup.document.write(ntGeneralDayPDF(model));popup.document.close();
   }catch(err){
    popup.document.open();
@@ -3441,7 +3454,7 @@ async function ntGeneralDayOpenExcel(){
   loader(true);
   const date=dateFilter;
   const [model,XLSX]=await Promise.all([ntGeneralDayFetch(date),ntDayEnsureExcel()]);
-  if(!ntReportConfirm(model,'general')){notice('Exportação cancelada até conferir as divergências.');return}
+  if(!ntReportConfirm(model,'general')){notice('Exportação cancelada: '+ntReportWarnings(model,'general').slice(0,2).join(' '),true);return}
   ntDayExcelExport(model,XLSX);
   notice('Planilha Excel do dia '+ntDate(date)+' preparada. Nenhum saldo foi alterado.');
  }catch(err){notice('Não foi possível exportar Excel: '+String(err.message||err),true)}
