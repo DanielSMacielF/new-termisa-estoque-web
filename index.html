@@ -1371,12 +1371,12 @@ const NT_RECEIPT_ACTION='RELATORIO_RECEBIMENTO_REGISTRADO';
 const NT_PRODUCTION_ACTION='RELATORIO_PRODUCAO_REGISTRADO';
 const NT_MANUAL_EDIT_ACTION='RETIFICACAO_DOCUMENTAL_NEW_TERMISA';
 /* Retificação documental de movimentos: preserva quantidade e saldo original. */
-const NT_META_ACTION='RETIFICACAO_META_MOVIMENTACAO';
+const NT_META_ACTION=NT_MANUAL_EDIT_ACTION;
 let ntMetaDraft=null,ntMetaDate=null;
 function ntMetaFields(x){return {solicitante:String(x.solicitante||''),pedido:String(x.pedido||''),observacao:String(x.observacao||'')}}
 function ntMetaMoves(rows,edits){
  const map=new Map(rows.map(x=>[String(x.id||''),{...x}]));
- edits.filter(x=>x.acao===NT_META_ACTION&&x.documentoId&&x.depois)
+ edits.filter(x=>x.acao===NT_META_ACTION&&x.documentoTipo==='movimento'&&x.documentoId&&x.depois)
  .sort((a,b)=>String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||''))||String(a.numero||'').localeCompare(String(b.numero||'')))
  .forEach(e=>{const m=map.get(String(e.documentoId));if(m&&['solicitante','pedido','observacao'].every(k=>typeof e.depois[k]==='string'))map.set(String(e.documentoId),{...m,...ntMetaFields(e.depois)})});
  return [...map.values()];
@@ -2162,14 +2162,13 @@ async function ntManagerOpen(mode){
   const movementQuery=mode==='month'
     ?query(collection(db,'nt_web_movimentos'),where('dia','>=',from),where('dia','<=',to))
     :query(collection(db,'nt_web_movimentos'),where('dia','==',date));
-  const [materialSnap,moveSnap,receiptSnap,correctionSnap,metadataCorrections]=await Promise.all([
+  const [materialSnap,moveSnap,receiptSnap,correctionSnap]=await Promise.all([
    getDocsFromServer(collection(db,'nt_web_materiais')),
    getDocsFromServer(movementQuery),
    getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
-   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION))),
-   ntMetaRead()
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
   ]);
-  const materials=materialSnap.docs.map(d=>d.data()),moves=ntMetaMoves(moveSnap.docs.map(d=>({...d.data(),id:d.id})),metadataCorrections);
+  const materials=materialSnap.docs.map(d=>d.data()),moves=ntMetaMoves(moveSnap.docs.map(d=>({...d.data(),id:d.id})),correctionSnap.docs.map(d=>({...d.data(),numero:d.id})));
   const receipts=ntManualApplyEdits(receiptSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens)),
    correctionSnap.docs.map(d=>({...d.data(),numero:d.id})));
   const html=ntManagerReport(materials,moves,from,to,periodLabel,receipts);
@@ -2365,17 +2364,17 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
 async function ntGeneralDayFetch(date){
  if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase. Não foi possível consultar o relatório.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))throw Error('Escolha uma data válida.');
- const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap,reposSnap,metadataCorrections]=await Promise.all([
+ const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap,reposSnap]=await Promise.all([
   getDocsFromServer(collection(db,'nt_web_materiais')),
   getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_PRODUCTION_ACTION))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION))),
-  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_REPOS_ACTION))),
-  ntMetaRead()
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_REPOS_ACTION)))
  ]);
- const materials=materialSnap.docs.map(x=>x.data()),moves=ntMetaMoves(moveSnap.docs.map(x=>({...x.data(),id:x.id})),metadataCorrections);
+ const materials=materialSnap.docs.map(x=>x.data());
  const corrections=correctionSnap.docs.map(x=>({...x.data(),numero:x.id}));
+ const moves=ntMetaMoves(moveSnap.docs.map(x=>({...x.data(),id:x.id})),corrections);
  const receipts=ntManualApplyEdits(receiptSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
  const production=ntManualApplyEdits(productionSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
  const repos=ntManualApplyEdits(reposSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens)),corrections);
