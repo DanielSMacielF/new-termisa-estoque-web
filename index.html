@@ -2489,12 +2489,25 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
   const events=balanceHistoryByCode.get(String(row.codigo))||row.historico;
   const first=events[0],last=events[events.length-1];
   row.inicio=ntDayValidSaldo(first.antes);row.fim=ntDayValidSaldo(last.depois);
+  // Conferências não são operações de entrada/saída e não entram nas contagens
+  // nem nos rankings. São usadas somente para conciliar saldos históricos.
+  const counts=events.filter(m=>m.tipo==='AJUSTE');
+  let reconciled=0;
+  for(const event of counts){
+   const before=ntDayValidSaldo(event.antes),after=ntDayValidSaldo(event.depois),
+    delta=Number(event.delta);
+   if(before===null||after===null||!Number.isFinite(delta)||
+      Math.abs(rnd(after-before-delta))>0.0001){
+    row.ajusteInvalido=true;
+   }else reconciled=rnd(reconciled+delta);
+  }
+  row.ajustes=reconciled;
   if(row.inicio!==null&&row.fim!==null){
    const movementDelta=rnd(row.entrada+row.devolucao-row.saida);
    row.outras=rnd(row.fim-row.inicio-movementDelta);
-   row.residual=row.outras;
-   // Diferencas entre a posicao historica e movimentos operacionais exigem conciliacao.
-   row.validar=Math.abs(row.residual)>0.0001;
+   row.residual=rnd(row.outras-reconciled);
+   // Só a diferença não explicada por registros válidos exige revisão.
+   row.validar=row.ajusteInvalido||Math.abs(row.residual)>0.0001;
   }else{
    // Dados antigos sem saldo antes/depois não podem parecer conciliados.
    row.validar=true;
@@ -2708,7 +2721,7 @@ function ntGeneralStockPages(stock,date,marker){
    (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
   const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    table+audit+
-   '<p class="note">As colunas mostram somente entradas, saídas e devoluções. Os saldos refletem a posição registrada, e diferenças entre saldos e operações exigem conciliação antes do envio.</p>';
+   '<p class="note">As colunas mostram somente entradas, saídas e devoluções. Os saldos históricos refletem a posição registrada, que pode incluir conferências físicas já conciliadas. Essas conferências não são contabilizadas como movimentações.</p>';
   pages.push('<section class="page landscape nt-general-stock">'+ntTop('SALDOS DO ALMOXARIFADO','Saldos históricos antes e depois dos lançamentos do dia.',date)+body+marker+'</section>');
  }
  return pages;
@@ -2725,7 +2738,7 @@ async function ntSaldosIndividualOpen(){
  popup.document.close();
  try{
   const model=await ntGeneralDayFetch(selected);
-   if(!ntReportConfirm(model,'stock')){popup.close();notice('Confira os saldos antes de emitir.');return}
+   if(!ntReportConfirm(model,'stock')){popup.document.open();popup.document.write(ntReportPendingHtml(model,'stock'));popup.document.close();notice('Saldos: motivos exibidos na aba de conferência.',true);return}
   popup.document.open();popup.document.write(ntSaldosIndividualPDF(model));popup.document.close();
  }catch(e){
   popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body><h2>Consulta indisponível</h2><p>Não foi possível obter os saldos atuais do servidor.</p></body></html>');popup.document.close();
@@ -3339,6 +3352,7 @@ function ntDayExcelExport(model,XLSX){
   ['Fornecedores',t.suppliers,'Fornecedores com recebimento documentado'],
   ['Linhas divergentes de NF',t.receiptDifferences,'Previsto na NF diferente do recebido'],
   ['Materiais movimentados',t.stockItems,'Somente códigos com entrada, retirada ou devolução operacional'],
+  ['Critério dos saldos','Posição histórica real','Conferências físicas devidamente registradas podem alterar o saldo sem representar movimentação operacional'],
   ['Movimentações de entrada',t.stockEntries,'Entradas operacionais registradas no estoque'],
   ['Saldos a conferir',t.stockNotReconciled,'Diferenças entre saldos históricos e movimentos operacionais exigem conciliação'],
   ['Observação','Somente entradas vinculadas a materiais cadastrados atualizam o saldo','Entradas integradas possuem identificador; documentos antigos podem não ter vínculo']
@@ -3395,6 +3409,19 @@ function ntReportWarnings(model,scope='general'){
  }
  return [...new Set(warnings)];
 }
+function ntReportPendingHtml(model,scope='general'){
+ const messages=ntReportWarnings(model,scope);
+ const safe=x=>ntPlain(String(x??''));
+ return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
+  '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório aguardando conferência</title>'+
+  '<style>body{font-family:Arial,sans-serif;max-width:780px;margin:35px auto;padding:0 20px;color:#16374b;line-height:1.5}'+
+  'h1{font-size:25px}li{padding:9px 0}small{color:#527180}</style></head><body>'+
+  '<h1>Relatório aguardando conferência</h1><p>Data: <b>'+safe(ntDate(model.date))+'</b></p>'+
+  '<p>O documento não foi emitido porque foi solicitada uma conferência dos registros abaixo. Os saldos do Firebase não foram modificados.</p>'+
+  '<ol>'+messages.map(x=>'<li>'+safe(x)+'</li>').join('')+'</ol>'+
+  '<p>Volte ao almoxarifado e confira os registros correspondentes antes de enviar o documento.</p>'+
+  '<small>O histórico original permanece preservado para auditoria.</small></body></html>';
+}
 function ntReportConfirm(model,scope='general'){
  const warnings=ntReportWarnings(model,scope);
  if(!warnings.length)return true;
@@ -3411,7 +3438,7 @@ function ntGeneralDayOpenPDF(){
  (async()=>{
   try{
    const model=await ntGeneralDayFetch(date);
-   if(!ntReportConfirm(model,'general')){popup.close();notice('Relatório não emitido. Confira as divergências no histórico.');return}
+   if(!ntReportConfirm(model,'general')){popup.document.open();popup.document.write(ntReportPendingHtml(model,'general'));popup.document.close();notice('Relatório não emitido: motivos exibidos na aba de conferência.',true);return}
    popup.document.open();popup.document.write(ntGeneralDayPDF(model));popup.document.close();
   }catch(err){
    popup.document.open();
@@ -3427,7 +3454,7 @@ async function ntGeneralDayOpenExcel(){
   loader(true);
   const date=dateFilter;
   const [model,XLSX]=await Promise.all([ntGeneralDayFetch(date),ntDayEnsureExcel()]);
-  if(!ntReportConfirm(model,'general')){notice('Exportação cancelada até conferir as divergências.');return}
+  if(!ntReportConfirm(model,'general')){notice('Exportação cancelada: '+ntReportWarnings(model,'general').slice(0,2).join(' '),true);return}
   ntDayExcelExport(model,XLSX);
   notice('Planilha Excel do dia '+ntDate(date)+' preparada. Nenhum saldo foi alterado.');
  }catch(err){notice('Não foi possível exportar Excel: '+String(err.message||err),true)}
