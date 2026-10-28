@@ -1370,6 +1370,60 @@ function ntOpenReport(mode){
 const NT_RECEIPT_ACTION='RELATORIO_RECEBIMENTO_REGISTRADO';
 const NT_PRODUCTION_ACTION='RELATORIO_PRODUCAO_REGISTRADO';
 const NT_MANUAL_EDIT_ACTION='RETIFICACAO_DOCUMENTAL_NEW_TERMISA';
+/* Retificação documental de movimentos: preserva quantidade e saldo original. */
+const NT_META_ACTION='RETIFICACAO_META_MOVIMENTACAO';
+let ntMetaDraft=null,ntMetaDate=null;
+function ntMetaFields(x){return {solicitante:String(x.solicitante||''),pedido:String(x.pedido||''),observacao:String(x.observacao||'')}}
+function ntMetaMoves(rows,edits){
+ const map=new Map(rows.map(x=>[String(x.id||''),{...x}]));
+ edits.filter(x=>x.acao===NT_META_ACTION&&x.documentoId&&x.depois)
+ .sort((a,b)=>String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||''))||String(a.numero||'').localeCompare(String(b.numero||'')))
+ .forEach(e=>{const m=map.get(String(e.documentoId));if(m&&['solicitante','pedido','observacao'].every(k=>typeof e.depois[k]==='string'))map.set(String(e.documentoId),{...m,...ntMetaFields(e.depois)})});
+ return [...map.values()];
+}
+async function ntMetaRead(){
+ const snap=await getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_META_ACTION)));
+ return snap.docs.map(d=>({...d.data(),numero:d.id}));
+}
+async function ntMetaOpen(id){
+ isReady();loader(true);
+ try{
+  const snap=await getDocFromServer(doc(db,'nt_web_movimentos',String(id||'')));
+  if(!snap.exists())throw Error('Movimentação não encontrada.');
+  const m={...snap.data(),id:snap.id};
+  if(!['SAIDA','ENTRADA','DEVOLUCAO'].includes(m.tipo)||m.anulado||m.reciboId||m.origem==='RECEBIMENTO_INTEGRADO')
+   throw Error('Este lançamento é protegido; consulte o Histórico de Recebimentos, se for entrada vinculada.');
+  const v=ntMetaMoves([m],await ntMetaRead())[0];ntMetaDraft={id:m.id,old:ntMetaFields(v)};
+  panel('<h2>Editar informações do lançamento</h2><p class="small">'+esc(m.tipo)+' · '+esc(m.codigo)+' · '+esc(m.nome||'')+'</p>'+
+   '<p class="small">Esta correção com auditoria altera somente solicitante, pedido e observação. Não altera data, quantidade, saldo nem os lançamentos originais.</p>'+
+   ntField('Solicitante','ntmPerson',v.solicitante)+ntField('Pedido / referência','ntmOrder',v.pedido)+ntField('Observação','ntmNotes',v.observacao)+
+   '<div class="buttons"><button class="btn" data-action="nt-meta-save">Salvar correção</button><button class="btn ghost" data-action="nt-meta-history">Voltar</button></div>');
+ }finally{loader(false)}
+}
+async function ntMetaSave(){
+ const draft=ntMetaDraft;if(!draft)throw Error('Abra um lançamento no histórico.');
+ isReady();
+ const next={solicitante:String($('ntmPerson')?.value||'').trim(),pedido:String($('ntmOrder')?.value||'').trim(),observacao:String($('ntmNotes')?.value||'').trim()};
+ if(!next.solicitante||next.solicitante.length>160||next.pedido.length>120||next.observacao.length>400)
+  throw Error('Informe solicitante e respeite os limites dos campos (160, 120 e 400 caracteres).');
+ if(JSON.stringify(next)===JSON.stringify(draft.old)){notice('Nenhuma alteração realizada.');return}
+ if(!confirm('Salvar a retificação auditada? Os saldos e quantidades continuarão inalterados.'))return;
+ loader(true);
+ try{
+  const snap=await getDocFromServer(doc(db,'nt_web_movimentos',draft.id));
+  if(!snap.exists())throw Error('Registro original não localizado.');
+  const m={...snap.data(),id:snap.id};
+  if(m.anulado||m.reciboId||m.origem==='RECEBIMENTO_INTEGRADO')throw Error('Lançamento protegido.');
+  const current=ntMetaFields(ntMetaMoves([m],await ntMetaRead())[0]);
+  if(JSON.stringify(current)!==JSON.stringify(draft.old))throw Error('Alteração em outra sessão. Reabra o histórico.');
+  if(testeIdentificado(m)!==testeIdentificado({...m,...next}))throw Error('Não é permitido reclassificar um teste nesta edição.');
+  await setDoc(doc(collection(db,'nt_web_auditoria')),{acao:NT_META_ACTION,documentoId:draft.id,documentoTipo:'movimento',
+   antes:current,depois:next,usuario:user.email||'',uid:user.uid,criadoEmLocal:new Date().toISOString(),criadoEm:serverTimestamp()});
+  ntMetaDraft=null;notice('Correção registrada para os relatórios. Nenhum saldo foi alterado.');
+  await ntShowTodayMovements(ntMetaDate||day());
+ }finally{loader(false)}
+}
+
 let ntReceiptDraft={fornecedor:'',pedidoCompra:'',notaFiscal:'',dataRecebimento:day(),observacao:''},ntReceiptItems=[];
 let ntProductionDraft={dataProducao:day(),observacao:''},ntProductionItems=[];
 let ntReceiptCache=new Map(),ntProductionCache=new Map();
@@ -3318,7 +3372,7 @@ if(a==='nt-manual-edit-add-machine'){ntManualEditAddMachine();return}
 if(a==='nt-manual-edit-undo-machine'){ntManualEditUndoMachine();return}
 if(a==='nt-manual-edit-save'){await ntManualEditSave();return}
 if(a==='nt-manual-edit-cancel'){await ntManualHistory(ntManualEditDraft?.type||'receipt');return}
-if(a==='nt-today-movements'){await ntShowTodayMovements();return}if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
+if(a==='nt-meta-edit'){await ntMetaOpen(act.dataset.code);return}if(a==='nt-meta-save'){await ntMetaSave();return}if(a==='nt-meta-history'){await ntShowTodayMovements(ntMetaDate||dateFilter);return}if(a==='nt-today-movements'){await ntShowTodayMovements();return}if(a==='nt-intelligence-open'){window.location.href='./inteligencia.html';return}if(a==='nt-manager-day'){await ntManagerOpen('day');return}
 if(a==='nt-manager-month'){await ntManagerOpen('month');return}
 if(a==='nt-repos-new'){await ntReposNew();return}if(a==='nt-repos-all'){ntReposBatch('all');return}if(a==='nt-repos-visible'){ntReposBatch('visible');return}if(a==='nt-repos-clear'){ntReposBatch('clear');return}if(a==='nt-repos-preview'){ntReposPreview();return}if(a==='nt-repos-issue'){await ntReposIssue();return}if(a==='nt-repos-history'){await ntReposHistory();return}if(a==='nt-repos-open-history'){ntReposOpenHistory(act.dataset.code);return}
 if(a==='nt-repos-edit'){ntReposEdit(act.dataset.code);return}
