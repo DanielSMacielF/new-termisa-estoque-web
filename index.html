@@ -690,6 +690,7 @@ function closeView(){
  '<div class="nt-rc-group">Operação diária</div><div class="nt-rc-grid">'+
  ntCenterCard('Relatório Geral do Dia','Todos os setores em um documento: produção, pedidos, fornecedores, saldos e conferência.','Automático + dados manuais',button('nt-geral-pdf','PDF completo')+button('nt-geral-excel','Baixar Excel (.xlsx)','alt'))+
  ntCenterCard('Comunicação Interna','Pedidos e entregas de materiais do dia '+date+'.','Automático',button('nt-requests-pdf','Gerar PDF'))+
+ ntCenterCard('QR Codes · Materiais Entregues','Um QR por código retirado na data selecionada, saldo atual conferido no Firebase e avisos de repetição.','Automático · leitura',button('nt-daily-qr-pdf','Gerar PDF com QR Codes'))+
  ntCenterCard('Fechamento Diário','Entradas, saídas, devoluções e saldos antes e depois de cada movimentação.','Automático',button('nt-saldos-pdf','Gerar PDF'))+
  ntCenterCard('Reposição de Materiais','Lista diária editável, histórico e sugestões por estoque mínimo.','Automático + revisão',button('nt-repos-new','Ver itens para compra')+button('nt-repos-history','Histórico','alt'))+
  ntCenterCard('Recebimento de Materiais','Consulta das entradas registradas em Movimentar, por fornecedor, PC e nota fiscal.','Automático · leitura',button('nt-receipt-pdf','PDF do dia')+button('nt-receipt-history','Histórico / Editar','alt'))+
@@ -2370,6 +2371,207 @@ function ntRequestsIndividualPDF(model){
  return ntHtml('Materiais entregues · '+ntDate(model.date),
   pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
+
+/* Consulta de QR diario: leitura somente no Firestore; nunca movimenta o estoque.
+   O dia filtra SAIDAS. O saldo e o saldo ATUAL consultado no servidor, nao o saldo historico. */
+function ntDailyQrPrevious(date){
+ const parts=String(date||'').split('-').map(Number);
+ if(parts.length!==3||parts.some(x=>!Number.isInteger(x)))throw Error('Data invalida');
+ const d=new Date(Date.UTC(parts[0],parts[1]-1,parts[2]-1,12));
+ return d.toISOString().slice(0,10);
+}
+function ntDailyQrData(date,materialRows,selectedMoves,previousMoves,stamp){
+ const products=new Map((materialRows||[]).map(m=>[String(m.codigo||'').trim(),m]));
+ const valid=rows=>ntArmEffectiveMovements(rows||[]).filter(m=>
+  String(m.tipo||'')==='SAIDA'&&!m.anulado&&!testeIdentificado(m));
+ const today=valid(selectedMoves);
+ const prev=valid(previousMoves);
+ const prevCodes=new Set(prev.map(x=>String(x.codigo||'').trim()).filter(Boolean));
+ const data=new Map();
+ for(const move of today){
+  const code=String(move.codigo||'').trim();
+  if(!code)throw Error('Existe uma saida sem codigo no dia consultado. Verifique o historico.');
+  const row=data.get(code)||{codigo:code,ocorrencias:0,retirado:0,anterior:prevCodes.has(code)};
+  row.ocorrencias++;
+  const q=ntQty(move);
+  if(!Number.isFinite(q)||q<=0)throw Error('Quantidade de saida invalida no codigo '+code);
+  row.retirado=rnd(row.retirado+q);
+  data.set(code,row);
+ }
+ const faltantes=[],invalidos=[];
+ const itens=[...data.values()].map(x=>{
+  const material=products.get(x.codigo);
+  if(!material){faltantes.push(x.codigo);return null}
+  const saldo=Number(material.quantidade);
+  if(!Number.isFinite(saldo)||saldo<0){invalidos.push(x.codigo);return null}
+  return {...x,nome:String(material.nome||'SEM DESCRICAO'),unidade:String(material.unidadeMedida||'—'),
+   saldo:rnd(saldo),conferido:material.conferido===true};
+ }).filter(Boolean);
+ if(faltantes.length||invalidos.length)throw Error('Nao foi possivel confirmar saldos oficiais. Codigos sem cadastro: '+
+  (faltantes.join(', ')||'nenhum')+'; saldos invalidos: '+(invalidos.join(', ')||'nenhum')+'.');
+ itens.sort((a,b)=>Number(b.anterior)-Number(a.anterior)||
+  a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
+ return {date,previous:ntDailyQrPrevious(date),consultadoEm:stamp,itens,
+  retiradas:today.length,repetidosAntes:itens.filter(x=>x.anterior).length,
+  repetidosNoDia:itens.filter(x=>x.ocorrencias>1).length};
+}
+function ntDailyQrPopupInit(){
+ // Executada exclusivamente na aba de impressao, sem acesso ao banco de dados.
+ const ready=document.getElementById('ntqStatus');
+ const button=document.getElementById('ntqPrint');
+ try{
+  const Core=window.NTQRCodeCore;
+  if(typeof Core!=='function')throw Error('Gerador de QR Code indisponivel');
+  const targets=Array.from(document.querySelectorAll('[data-ntq-code]'));
+  for(const box of targets){
+   const code=box.getAttribute('data-ntq-code');
+   const qr=new Core(-1,0);
+   qr.addData(code);qr.make();
+   const count=qr.getModuleCount(),quiet=4,total=count+quiet*2;
+   let path='';
+   for(let y=0;y<count;y++)for(let x=0;x<count;x++){
+    if(qr.isDark(y,x))path+='M'+(x+quiet)+' '+(y+quiet)+'h1v1h-1z';
+   }
+   box.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR Code" viewBox="0 0 '+
+    total+' '+total+'"><rect width="'+total+'" height="'+total+'" fill="#fff"/><path fill="#122e3a" d="'+path+'"/></svg>';
+  }
+  if(ready)ready.textContent=targets.length+' QR Code(s) prontos. Selecione A4 retrato e salve como PDF.';
+  if(button)button.disabled=false;
+ }catch(e){
+  if(ready)ready.textContent='FALHA NO QR CODE: '+String(e.message||e)+'. Nao imprima antes de corrigir.';
+  if(button)button.disabled=true;
+ }
+}
+function ntDailyQrHTML(model){
+ const escQr=x=>ntPlain(x);
+ const fmtQty=x=>fmt(x);
+ const perPage=8;
+ const sheets=[];
+ const items=model.itens;
+ const total=Math.max(1,Math.ceil(items.length/perPage));
+ const card=item=>{
+  const tag=item.anterior?'TAMBEM EM '+ntDate(model.previous):
+   item.ocorrencias>1?'VARIAS SAIDAS NESTE DIA':'SAIDA EM '+ntDate(model.date);
+  const warning=item.anterior||item.ocorrencias>1;
+  return '<article class="ntq-card">'+
+   '<div class="ntq-badge'+(warning?' ntq-alert':'')+'">'+escQr(tag)+' · 1 QR NESTE PDF</div>'+
+   '<div class="ntq-main"><div class="ntq-left"><div class="ntq-qr" data-ntq-code="'+escQr(item.codigo)+'"></div>'+
+    '<b class="ntq-code">'+escQr(item.codigo)+'</b></div>'+
+    '<div class="ntq-detail"><div class="ntq-name">'+escQr(item.nome)+'</div>'+
+    '<div class="ntq-unit">UNIDADE: '+escQr(item.unidade)+'</div>'+
+    '<div class="ntq-saldo"><small>SALDO ATUAL NO FIREBASE</small><strong>'+
+     escQr(fmtQty(item.saldo))+' <span>'+escQr(item.unidade)+'</span></strong></div>'+
+    (item.ocorrencias>1?'<div class="ntq-sub">SAIDAS DO DIA: '+item.ocorrencias+' registros</div>':'')+
+    (!item.conferido?'<div class="ntq-sub ntq-check">CADASTRO NAO CONFERIDO</div>':'')+
+   '</div></div></article>';
+ };
+ for(let p=0;p<total;p++){
+  const subset=items.slice(p*perPage,(p+1)*perPage);
+  const note=!items.length?'<p class="ntq-empty">Nenhuma saida operacional registrada nesta data. Nenhum QR gerado.</p>':
+   '<p class="ntq-guidance">O QR Code contem SOMENTE o codigo do material. Um unico QR por material nesta lista. '+
+   'A marcacao de repeticao NAO comprova que o outro sistema ja foi atualizado.</p>';
+  sheets.push('<section class="ntq-sheet"><header class="ntq-head">'+
+   '<div class="ntq-brand"><img src="'+escQr(NT_LOGO)+'" alt="New Termisa"/>'+
+   '<div><b>QR CODES · MATERIAIS ENTREGUES</b><span>Entregas de '+ntDate(model.date)+'</span></div></div>'+
+   '<div class="ntq-topright">ALMOXARIFADO / NEW TERMISA<br/>'+
+   'Saldo consultado: '+escQr(model.consultadoEm)+'</div></header>'+
+   '<div class="ntq-line"></div>'+
+   '<div class="ntq-metrics"><span><b>'+items.length+'</b> materiais unicos</span>'+
+   '<span><b>'+model.retiradas+'</b> saidas do dia</span>'+
+   '<span><b>'+model.repetidosAntes+'</b> tambem em '+ntDate(model.previous)+'</span>'+
+   '<span><b>'+model.repetidosNoDia+'</b> varias saidas no dia</span></div>'+
+   '<div class="ntq-grid">'+subset.map(card).join('')+'</div>'+
+   (p===total-1?note:'')+
+   '<footer class="ntq-footer"><span>Saldos atuais no momento da consulta; nao representam fechamento historico de '+ntDate(model.date)+'.</span>'+
+   '<b>PAGINA '+(p+1)+' DE '+total+'</b></footer></section>');
+ }
+ const styles=[
+ '@page{size:A4 portrait;margin:0}',
+ '*{box-sizing:border-box}',
+ 'html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;color:#164454;background:#e8eff1}',
+ '.ntq-toolbar{padding:12px;text-align:center;background:#153f4e;color:white;position:sticky;top:0;z-index:3;font-size:13px}',
+ '.ntq-toolbar button{margin-right:10px;background:#118b94;color:white;border:0;border-radius:7px;padding:10px 14px;font-weight:700;cursor:pointer}',
+ '.ntq-toolbar button:disabled{opacity:.5;cursor:not-allowed}',
+ '.ntq-sheet{width:210mm;height:278mm;padding:10mm 9mm 10mm;margin:10px auto;background:white;position:relative;page-break-after:always;break-after:page;box-shadow:0 4px 20px #0002}',
+ '.ntq-sheet:last-child{break-after:auto;page-break-after:auto}',
+ '.ntq-head{height:22mm;display:flex;align-items:center;justify-content:space-between;gap:7mm}',
+ '.ntq-brand{display:flex;gap:5mm;align-items:center;min-width:0}',
+ '.ntq-brand img{width:38mm;height:15mm;object-fit:contain;object-position:left center}',
+ '.ntq-brand div{display:flex;flex-direction:column;gap:1.2mm}',
+ '.ntq-brand b{font-size:10pt;color:#174c5b}',
+ '.ntq-brand span{font-size:9pt;color:#4c6a76}',
+ '.ntq-topright{font-size:6.8pt;color:#4d6973;text-align:right;line-height:1.6;white-space:nowrap}',
+ '.ntq-line{background:#229fa3;height:.45mm;margin:1mm 0 3mm}',
+ '.ntq-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2mm;margin-bottom:3.2mm}',
+ '.ntq-metrics span{display:block;background:#ebf5f6;padding:2.1mm 2mm;border-radius:2mm;font-size:7pt;line-height:1.4}',
+ '.ntq-metrics b{font-size:9pt;color:#137d84}',
+ '.ntq-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(4,48.7mm);gap:3mm 3mm;align-content:start}',
+ '.ntq-card{border:.27mm solid #c9dfe2;border-radius:2.6mm;overflow:hidden;background:white;min-width:0;page-break-inside:avoid;break-inside:avoid}',
+ '.ntq-badge{height:8mm;display:flex;align-items:center;padding:0 2.4mm;background:#e9f5f5;font-size:6.6pt;font-weight:700;color:#185264;white-space:nowrap}',
+ '.ntq-alert{background:#fff0d5;color:#865b1e}',
+ '.ntq-main{display:grid;grid-template-columns:34mm minmax(0,1fr);gap:2mm;padding:2mm;min-width:0}',
+ '.ntq-left{display:flex;flex-direction:column;align-items:center;gap:.6mm}',
+ '.ntq-qr{width:31mm;height:31mm;display:flex;align-items:center;justify-content:center}',
+ '.ntq-qr svg{width:100%;height:100%;display:block}',
+ '.ntq-code{font-size:9.7pt;white-space:nowrap;letter-spacing:.2px}',
+ '.ntq-detail{min-width:0;position:relative;min-height:37mm}',
+ '.ntq-name{font-size:8.4pt;line-height:1.22;font-weight:700;overflow-wrap:anywhere;word-break:normal;max-height:15.5mm;overflow-wrap:break-word}',
+ '.ntq-unit{font-size:7.1pt;color:#55727b;margin-top:1.2mm}',
+ '.ntq-saldo{background:#e8f5f0;padding:2.4mm 2.2mm;border-radius:1.8mm;margin-top:2mm}',
+ '.ntq-saldo small{font-size:6.7pt;line-height:1.2;display:block;font-weight:700;color:#146c6f}',
+ '.ntq-saldo strong{display:block;font-size:12pt;margin-top:1mm;line-height:1.1;color:#125a5d;white-space:nowrap}',
+ '.ntq-saldo strong span{font-size:8pt}',
+ '.ntq-sub{font-size:6.6pt;color:#73541d;margin-top:1mm;line-height:1.1}',
+ '.ntq-check{color:#9f421e}',
+ '.ntq-guidance{margin:2.3mm 0 0;font-size:7pt;color:#4a6570;line-height:1.3}',
+ '.ntq-empty{margin:15mm 0;text-align:center;font-size:11pt;color:#365a67}',
+ '.ntq-footer{position:absolute;bottom:6mm;left:9mm;right:9mm;border-top:.25mm solid #d5e4e6;padding-top:2mm;display:flex;justify-content:space-between;gap:4mm;color:#4e6973;font-size:6.6pt}',
+ '.ntq-footer span{max-width:80%}',
+ '@media print{html,body{background:white!important}.ntq-toolbar{display:none!important}.ntq-sheet{margin:0!important;height:278mm!important;box-shadow:none!important;break-inside:avoid-page;page-break-inside:avoid}.ntq-card,.ntq-badge,.ntq-saldo,.ntq-metrics span{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+ ].join('\n');
+ // O motor QR offline ja acompanha o sistema; nenhum servico externo recebe codigos.
+ const engine=atob(ntQrEngine).replace(/<\/script/gi,'<\\/script');
+ return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
+  '<meta name="viewport" content="width=device-width,initial-scale=1">'+
+  '<title>New Termisa · QR Codes · '+ntDate(model.date)+'</title><style>'+styles+'</style></head><body>'+
+  '<div class="ntq-toolbar"><button type="button" disabled id="ntqPrint" onclick="window.print()">Imprimir / Salvar PDF</button>'+
+  '<span id="ntqStatus">Preparando QR Codes...</span></div>'+
+  sheets.join('')+
+  '<scr'+'ipt>'+engine+'</scr'+'ipt>'+
+  '<scr'+'ipt>('+ntDailyQrPopupInit.toString()+')();</scr'+'ipt>'+
+  '</body></html>';
+}
+function ntDailyQrOpenPDF(){
+ if(!user||!serverReady||!navigator.onLine){notice('Conecte-se ao Firebase para gerar os QR Codes com saldo atual.',true);return}
+ const selected=dateFilter;
+ const popup=window.open('','_blank');
+ if(!popup){notice('Permita pop-ups para abrir o PDF com QR Codes.',true);return}
+ popup.document.open();
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:26px">Consultando saidas e saldos oficiais no Firebase...</body></html>');
+ popup.document.close();
+ (async()=>{
+  try{
+   const previous=ntDailyQrPrevious(selected);
+   const [matSnap,daySnap,prevSnap]=await Promise.all([
+    getDocsFromServer(collection(db,'nt_web_materiais')),
+    getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',selected))),
+    getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',previous)))
+   ]);
+   const model=ntDailyQrData(selected,matSnap.docs.map(d=>d.data()),
+    daySnap.docs.map(d=>({...d.data(),id:d.id})),
+    prevSnap.docs.map(d=>({...d.data(),id:d.id})),
+    new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',
+       hour:'2-digit',minute:'2-digit'}));
+   const html=ntDailyQrHTML(model);
+   popup.document.open();popup.document.write(html);popup.document.close();
+  }catch(e){
+   popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8">'+
+    '<body style="font:16px Arial;padding:26px"><h2>PDF nao gerado</h2><p>O Firebase nao confirmou todos os saldos. '+ntPlain(e.message||e)+'</p></body></html>');popup.document.close();
+   notice('QR Codes por dia: '+String(e.message||e),true);
+  }
+ })();
+}
+
 async function ntRequestsIndividualOpen(){
  const selected=dateFilter,popup=window.open('','_blank');
  if(!popup){notice('Permita pop-ups para visualizar o relatório.',true);return}
@@ -2995,7 +3197,7 @@ async function openQr(target){
   }
 }
 
-async function handleActions(e){const act=e.target.closest('[data-action]');if(!act)return;const a=act.dataset.action;try{if(a==='nt-requests-pdf'){await ntRequestsIndividualOpen();return}if(a==='nt-saldos-pdf'){await ntSaldosIndividualOpen();return}
+async function handleActions(e){const act=e.target.closest('[data-action]');if(!act)return;const a=act.dataset.action;try{if(a==='nt-daily-qr-pdf'){ntDailyQrOpenPDF();return}if(a==='nt-requests-pdf'){await ntRequestsIndividualOpen();return}if(a==='nt-saldos-pdf'){await ntSaldosIndividualOpen();return}
 if(a==='nt-geral-pdf'){ntGeneralDayOpenPDF();return}if(a==='nt-intelligence-pdf'){await ntDailyIntelligenceIndividualOpen();return}if(a==='nt-geral-excel'){await ntGeneralDayOpenExcel();return}
 if(a==='nt-repos-suggest'){ntReposSuggest();return}
 if(a==='nt-receipt-new'){await ntReceiptNew();return}if(a==='nt-receipt-mode'){ntReceiptCapture();ntReceiptManualMode=act.dataset.mode==='unknown';draw();return}
