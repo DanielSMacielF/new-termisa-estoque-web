@@ -1352,8 +1352,8 @@ function ntOpenReport(mode){
  (async()=>{
   try{
    const qry=query(collection(db,'nt_web_movimentos'),where('dia','==',selectedDate));
-   const [snap,materialsSnap]=await Promise.all([getDocsFromServer(qry),getDocsFromServer(collection(db,'nt_web_materiais'))]); // somente servidor
-   const moves=snap.docs.map(d=>d.data());
+   const [snap,materialsSnap,metadataCorrections]=await Promise.all([getDocsFromServer(qry),getDocsFromServer(collection(db,'nt_web_materiais')),ntMetaRead()]); // somente servidor
+   const moves=ntMetaMoves(snap.docs.map(d=>({...d.data(),id:d.id})),metadataCorrections);
    const catalog=new Map(materialsSnap.docs.map(d=>[String(d.data().codigo??d.id),d.data()]));
    const report=mode==='ci'?ntCI(moves,selectedDate,catalog):ntClosing(moves,selectedDate,catalog);
    popup.document.open();popup.document.write(report);popup.document.close();
@@ -2112,13 +2112,14 @@ async function ntManagerOpen(mode){
   const movementQuery=mode==='month'
     ?query(collection(db,'nt_web_movimentos'),where('dia','>=',from),where('dia','<=',to))
     :query(collection(db,'nt_web_movimentos'),where('dia','==',date));
-  const [materialSnap,moveSnap,receiptSnap,correctionSnap]=await Promise.all([
+  const [materialSnap,moveSnap,receiptSnap,correctionSnap,metadataCorrections]=await Promise.all([
    getDocsFromServer(collection(db,'nt_web_materiais')),
    getDocsFromServer(movementQuery),
    getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
-   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
+   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION))),
+   ntMetaRead()
   ]);
-  const materials=materialSnap.docs.map(d=>d.data()),moves=moveSnap.docs.map(d=>d.data());
+  const materials=materialSnap.docs.map(d=>d.data()),moves=ntMetaMoves(moveSnap.docs.map(d=>({...d.data(),id:d.id})),metadataCorrections);
   const receipts=ntManualApplyEdits(receiptSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens)),
    correctionSnap.docs.map(d=>({...d.data(),numero:d.id})));
   const html=ntManagerReport(materials,moves,from,to,periodLabel,receipts);
@@ -2314,15 +2315,16 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
 async function ntGeneralDayFetch(date){
  if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase. Não foi possível consultar o relatório.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))throw Error('Escolha uma data válida.');
- const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap,reposSnap]=await Promise.all([
+ const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap,reposSnap,metadataCorrections]=await Promise.all([
   getDocsFromServer(collection(db,'nt_web_materiais')),
   getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_PRODUCTION_ACTION))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION))),
-  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_REPOS_ACTION)))
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_REPOS_ACTION))),
+  ntMetaRead()
  ]);
- const materials=materialSnap.docs.map(x=>x.data()),moves=moveSnap.docs.map(x=>x.data());
+ const materials=materialSnap.docs.map(x=>x.data()),moves=ntMetaMoves(moveSnap.docs.map(x=>({...x.data(),id:x.id})),metadataCorrections);
  const corrections=correctionSnap.docs.map(x=>({...x.data(),numero:x.id}));
  const receipts=ntManualApplyEdits(receiptSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
  const production=ntManualApplyEdits(productionSnap.docs.map(x=>({...x.data(),numero:x.id})).filter(x=>Array.isArray(x.itens)),corrections);
