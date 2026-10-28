@@ -2715,7 +2715,7 @@ function ntGeneralStockPages(stock,date,marker){
  for(let i=0;i<sheets;i++){
   const part=stock.slice(i*perPage,(i+1)*perPage);
   const table=part.length?ntTable(
-   ['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','INICIAL CALC.','SAÍDAS','DEVOL.','ENTRADAS','FINAL'],
+   ['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','INICIAL','SAÍDAS','DEVOL.','ENTRADAS','FINAL'],
    [13,32,7,10,10,10,9,9],
    part.map(x=>[x.codigo,x.nome,x.unidade,x.inicialCalculado===null?'—':fmt(x.inicialCalculado),
     fmt(x.saida),fmt(x.devolucao),fmt(x.entrada),
@@ -2729,7 +2729,7 @@ function ntGeneralStockPages(stock,date,marker){
    (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
   const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    table+audit+
-   '<p class="note">Inicial calc. = saldo final registrado + saídas − entradas − devoluções. É uma reconstituição do período, não uma contagem física feita no início do dia. O saldo final é a posição registrada; correções físicas ficam no histórico interno e não são movimentações operacionais.</p>';
+   '<p class="note">Inicial = saldo final registrado + saídas − entradas − devoluções. É uma reconstituição do período, não uma contagem física feita no início do dia. O saldo final é a posição registrada; correções físicas ficam no histórico interno e não são movimentações operacionais.</p>';
   pages.push('<section class="page landscape nt-general-stock">'+ntTop('SALDOS DO ALMOXARIFADO','Saldos finais registrados e iniciais calculados com as movimentações do dia.',date)+body+marker+'</section>');
  }
  return pages;
@@ -3385,7 +3385,7 @@ function ntDayExcelExport(model,XLSX){
      'SOLICITADO PARA ANÁLISE DE COMPRA',ntReposQueryDate(model.catalogConsultedAt)];
    })));
  }
- sheet('Estoque Movimentado',['DATA','CÓDIGO','MATERIAL','UNIDADE','SALDO INICIAL CALCULADO','SAÍDAS','DEVOLUÇÕES','ENTRADAS','SALDO FINAL REGISTRADO','DIFERENÇA A CONFERIR'],
+ sheet('Estoque Movimentado',['DATA','CÓDIGO','MATERIAL','UNIDADE','SALDO INICIAL','SAÍDAS','DEVOLUÇÕES','ENTRADAS','SALDO FINAL REGISTRADO','DIFERENÇA A CONFERIR'],
   model.stockRows.map(x=>[date,x.codigo,x.nome,x.unidade,x.inicialCalculado??'',x.saida,x.devolucao,x.entrada,x.fim??'',x.residual??'']));
  sheet('Conferência de Entradas',['DATA','CÓDIGO','MATERIAL','UNIDADE','RECEBIDO NO DOCUMENTO','ENTRADAS NO ESTOQUE','DIFERENÇA','SITUAÇÃO'],
   model.comparisons.map(x=>[date,x.codigo,x.nome,x.unidade,x.recebido,x.entradas,x.diferenca,x.situacao]));
