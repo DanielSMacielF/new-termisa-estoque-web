@@ -3683,10 +3683,10 @@ async function ntGeneralDayOpenExcel(){
  try{
   loader(true);
   const date=dateFilter;
-  const [model,XLSX]=await Promise.all([ntGeneralDayFetch(date),ntDayEnsureExcel()]);
+  const model=await ntGeneralDayFetch(date);
   if(!ntReportConfirm(model,'general')){notice('Exportação cancelada: '+ntReportWarnings(model,'general').slice(0,2).join(' '),true);return}
-  ntDayExcelExport(model,XLSX);
-  notice('Planilha Excel do dia '+ntDate(date)+' preparada. Nenhum saldo foi alterado.');
+  const result=await ntDayExportVisualExcel(model);
+  notice('Excel completo: '+result.pages+' páginas iguais ao PDF e '+(result.sheets-result.pages)+' abas de dados. Nenhum saldo foi alterado.');
  }catch(err){notice('Não foi possível exportar Excel: '+String(err.message||err),true)}
  finally{loader(false)}
 }
