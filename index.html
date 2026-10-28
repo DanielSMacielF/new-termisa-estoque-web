@@ -2902,9 +2902,7 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
      (pressure.length>3?'<p class="nt-deep-muted">Mais '+(pressure.length-3)+' item(ns) com retirada elevada; consulte a tabela de saldos.</p>':'')+
     '</div>'+
    '</div>'+
-   receiptBox+
-   '<div class="nt-di-footnote">Percentuais de consumo são exibidos somente quando os registros permitem uma comparação confiável entre saídas e saldo inicial. '+
-   'Saldos históricos são do dia consultado; este resumo não altera o estoque.</div>';
+   receiptBox; // A nota detalhada foi suprimida: preserva o rodape A4 e evita texto solto na ultima pagina.
   pages.push('<section class="page landscape nt-general-stock-deep">'+
    ntTop('INTELIGÊNCIA DO ESTOQUE','Consumo, saldos históricos e controle de recebimentos do dia.',date)+
    pageTwo+marker+'</section>');
