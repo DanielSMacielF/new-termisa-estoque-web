@@ -3000,7 +3000,7 @@ function ntGeneralDayPDF(model){
  const readout='<div class="sectionline"><span>PANORAMA DO DIA</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
  executive+concerns+
  '<p class="note">Este documento reúne os registros do dia selecionado. Solicitação de reposição não significa compra ou recebimento; o saldo depende das movimentações oficiais.</p>';
- page('RELATÓRIO GERAL DO DIA','Resumo executivo · Produção, saídas, recebimentos e reposições.',blocks+readout,true,'nt-general-summary');
+ page('RELATÓRIO GERAL DO DIA · '+ntDate(date),'Referente ao dia '+ntDate(date)+' · Produção, saídas, recebimentos e reposições.',blocks+readout,true,'nt-general-summary');
 
  // A inteligência diária é incluída somente na última folha, após os saldos.
  if(model.machineRows?.length)pages.push(...ntGeneralProductionPages(model.machineRows,date,marker));
