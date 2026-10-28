@@ -1700,6 +1700,8 @@ function ntManualApplyEdits(records,corrections){
     if(typeof edit.depois[k]!=='string')continue;
     next[k]=edit.depois[k];
    }
+   if(Array.isArray(edit.depois.itens)&&edit.depois.itens.length<=50)
+    next.itens=edit.depois.itens.map(x=>({...x}));
   }else if(type==='reposition'){
    if(Array.isArray(edit.depois.itens)&&edit.depois.itens.length>0){
     next.itens=edit.depois.itens.map(item=>({...item}));
@@ -1792,7 +1794,8 @@ let ntManualEditDraft=null;
 function ntManualEditableData(type,record){
  if(type==='receipt')return {
   fornecedor:String(record.fornecedor||''),pedidoCompra:String(record.pedidoCompra||''),
-  notaFiscal:String(record.notaFiscal||'')
+  notaFiscal:String(record.notaFiscal||''),
+  itens:(record.itens||[]).map(x=>({...x}))
  };
  return {itens:(record.itens||[]).map(x=>({
   codigoMaquina:String(x.codigoMaquina||''),nomeMaquina:String(x.nomeMaquina||x.modelo||''),
@@ -1804,13 +1807,26 @@ function ntManualEditableData(type,record){
 function ntManualEditPanel(type,record){
  const id=String(record.numero||'');
  ntManualEditDraft={type,id,original:ntManualEditableData(type,record),addedCount:0,removedRows:new Set()};
- const hint='<p class="small">Correção administrativa com trilha de auditoria. Os saldos de estoque, quantidades da NF, data e movimentos oficiais não serão alterados.</p>';
+ const hint='<p class="small">Correção administrativa auditada. O estoque, as quantidades realmente recebidas, as datas e os movimentos oficiais não serão alterados. A quantidade descrita na NF pode ser corrigida.</p>';
  let fields='';
  if(type==='receipt'){
   fields=ntField('Fornecedor','neSupplier',record.fornecedor)+
    ntField('Pedido de compra (PC)','nePC',record.pedidoCompra)+
    ntField('Nota fiscal (NF)','neInvoice',record.notaFiscal)+
-   '<p class="small">Os novos dados serão usados nos PDFs de Recebimento e no Relatório Geral. O histórico original de movimentação continua preservado.</p>';
+   '<h3 style="margin:14px 0 8px">Materiais desta entrega</h3>'+
+   ntManualEditDraft.original.itens.map((item,i)=>{
+    const canRemove=!!item.semCadastro||(!item.movimentacaoId&&Number(item.quantidadeRecebida||0)===0);
+    return '<div class="nt-rc-lines" id="neRow'+i+'"><h3>Item '+(i+1)+'</h3>'+
+     (item.semCadastro?ntField('Descrição sem cadastro','neRecName'+i,item.nome):
+      '<p><strong>'+esc(item.nome||item.codigo||'Material')+'</strong></p>')+
+     '<p class="small">'+esc(item.codigo||'SEM CÓDIGO')+' · Recebido: <b>'+fmt(item.quantidadeRecebida||0)+'</b> (protegido)'+
+     (item.movimentacaoId?' · Entrada vinculada ao estoque':' · Sem movimento vinculado')+'</p>'+
+     ntField('Quantidade da nota fiscal','neRecNF'+i,String(item.quantidadeNota),'text')+
+     (canRemove?'<div class="buttons"><button class="btn ghost" type="button" data-action="nt-receipt-edit-remove" data-index="'+i+'" id="neRemoveBtn'+i+'">Excluir do documento</button></div>'+
+      '<p class="small" id="neRemovedLabel'+i+'" style="display:none">Linha excluída somente do PDF; registro original preservado na auditoria.</p>':
+      '<p class="small">Não é possível excluir uma entrada já contabilizada no estoque nesta tela.</p>')+'</div>';
+   }).join('')+
+   '<p class="small">Quantidades recebidas e entradas vinculadas só podem ser corrigidas por estorno auditado, não por alteração da nota.</p>';
  }else{
   fields=(record.itens||[]).map((it,i)=>{
    const item=ntManualEditDraft.original.itens[i];
@@ -1834,6 +1850,23 @@ function ntManualEditPanel(type,record){
   '<p class="small">Registro '+esc(id)+' · '+esc(ntDate(type==='receipt'?record.dataRecebimento:record.dataProducao))+'</p>'+
   hint+fields+'<div class="buttons"><button type="button" class="btn" data-action="nt-manual-edit-save">Salvar correção</button>'+
   '<button type="button" class="btn ghost" data-action="nt-manual-edit-cancel">Voltar ao histórico</button></div>');
+}
+function ntReceiptEditToggle(index){
+ const draft=ntManualEditDraft;
+ if(!draft||draft.type!=='receipt')throw Error('Abra o Histórico de Recebimentos para editar.');
+ const i=Number(index);
+ if(!Number.isSafeInteger(i)||i<0||i>=draft.original.itens.length)throw Error('Item não encontrado.');
+ const item=draft.original.itens[i];
+ if(!item.semCadastro&&(item.movimentacaoId||Number(item.quantidadeRecebida||0)!==0))
+  throw Error('Uma entrada real não pode ser excluída do documento sem compensação de estoque.');
+ if(!draft.removedRows.has(i)){
+  if(!confirm('Excluir este item apenas do documento e dos novos PDFs? A entrada de estoque não será alterada e o histórico original será preservado.'))return;
+  draft.removedRows.add(i);
+ }else draft.removedRows.delete(i);
+ const removed=draft.removedRows.has(i),row=$('neRow'+i),btn=$('neRemoveBtn'+i),hint=$('neRemovedLabel'+i);
+ if(row)row.style.opacity=removed?'0.5':'';
+ if(btn)btn.textContent=removed?'Desfazer exclusão':'Excluir do documento';
+ if(hint)hint.style.display=removed?'':'none';
 }
 function ntManualEditToggleMachine(index){
  const draft=ntManualEditDraft;
@@ -1911,7 +1944,24 @@ function ntManualNewData(type,old){
    invoice=String($('neInvoice')?.value||'').trim();
   if(!supplier||supplier.length>160||!pc||pc.length>90||!invoice||invoice.length>90)
    throw Error('Preencha fornecedor, pedido de compra e nota fiscal (limites: 160, 90 e 90 caracteres).');
-  return {fornecedor:supplier,pedidoCompra:pc,notaFiscal:invoice};
+  const draft=ntManualEditDraft;
+  const items=draft.original.itens.filter((item,i)=>!draft.removedRows.has(i)).map((item,i,all)=>{
+   const originalIndex=draft.original.itens.indexOf(item);
+   const original=draft.original.itens[originalIndex];
+   const text=String($('neRecNF'+originalIndex)?.value||'').trim();
+   const amount=rnd(nval(text));
+   if(!/^\d{1,8}([,.]\d{1,4})?$/.test(text)||!Number.isFinite(amount)||amount<=0)
+    throw Error('Item '+(originalIndex+1)+': confira a quantidade da nota fiscal (até quatro casas decimais).');
+   const next={...original,quantidadeNota:amount};
+   if(original.semCadastro){
+    const name=String($('neRecName'+originalIndex)?.value||'').trim();
+    if(name.length<3||name.length>140)throw Error('Item '+(originalIndex+1)+': descrição inválida.');
+    next.nome=name;
+   }
+   return next;
+  });
+  if(!items.length)throw Error('O recebimento não pode ficar sem itens. Não exclua a última linha.');
+  return {fornecedor:supplier,pedidoCompra:pc,notaFiscal:invoice,itens:items};
  }
  const draft=ntManualEditDraft;
  const count=old.itens.length+(draft?.type==='production'?(draft.addedCount||0):0);
@@ -3369,7 +3419,7 @@ if(a==='nt-production-pdf'){await ntManualPDF('production');return}
 if(a==='nt-production-history'){await ntManualHistory('production');return}
 if(a==='nt-manual-record'){await ntManualRecord(act.dataset.kind,act.dataset.code);return}
 if(a==='nt-manual-edit'){await ntManualEditStart(act.dataset.kind,act.dataset.code);return}
-if(a==='nt-manual-edit-remove-machine'){ntManualEditToggleMachine(act.dataset.index);return}
+if(a==='nt-receipt-edit-remove'){ntReceiptEditToggle(act.dataset.index);return}if(a==='nt-manual-edit-remove-machine'){ntManualEditToggleMachine(act.dataset.index);return}
 if(a==='nt-manual-edit-add-machine'){ntManualEditAddMachine();return}
 if(a==='nt-manual-edit-undo-machine'){ntManualEditUndoMachine();return}
 if(a==='nt-manual-edit-save'){await ntManualEditSave();return}
