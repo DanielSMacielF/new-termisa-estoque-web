@@ -615,7 +615,7 @@ async function nativeCharts(buffer,graphs,JSZip){
 export async function exportarExcelFuncional(model,options={}){
  const [ExcelJS,JSZip]=await loadLibs(),book=new ExcelJS.Workbook();
  book.creator='New Termisa Almoxarifado';book.title='Relatório Geral · '+prettyDate(model.date);
- book.subject='Excel editável REV5; gráficos sem rótulos sobrepostos; fontes nativas';
+ book.subject='Excel editável REV6; gráficos com nomes em células e diagnósticos em destaque';
  book.created=new Date();book.calcProperties.fullCalcOnLoad=true;
  dashboard(book,model,options.logo);
  const graphs=makeData(book,model,options.logo);
@@ -626,7 +626,7 @@ export async function exportarExcelFuncional(model,options={}){
  ],JSZip);
  const blob=new Blob([enhanced],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
   url=URL.createObjectURL(blob),link=document.createElement('a');
- link.href=url;link.download='NewTermisa_Relatorio_Geral_EDITAVEL_REV5_'+model.date+'.xlsx';
+ link.href=url;link.download='NewTermisa_Relatorio_Geral_EDITAVEL_REV6_'+model.date+'.xlsx';
  document.body.appendChild(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),30000);
  return {sheets:book.worksheets.length,charts:2,editable:true};
