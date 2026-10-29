@@ -2892,103 +2892,82 @@ function ntDailyQrPopupInit(){
   if(button)button.disabled=true;
  }
 }
+
 function ntDailyQrHTML(model){
- // Mesmo cabeçalho, cores e rodapé dos demais PDFs. Um QR por código, A4 horizontal.
- const plain=ntPlain;
- const perPage=9;
- const items=model.itens;
- const total=Math.max(1,Math.ceil(items.length/perPage));
+ // A4 vertical, 2 por linha, espaço entre etiquetas para leitura segura.
+ const plain=ntPlain,items=model.itens||[],perPage=6,total=Math.max(1,Math.ceil(items.length/perPage));
  const cards=item=>{
-  const repeated=item.anterior||item.ocorrencias>1;
-  const tag=model.historico?'ÚLTIMA SAÍDA '+ntDate(item.lastDay):item.anterior?'TAMBÉM EM '+ntDate(model.previous):
-   item.ocorrencias>1?'MAIS DE UMA SAÍDA NO DIA':'SAÍDA EM '+ntDate(model.date);
+  const tag=String(item.tipoOrigem||'MATERIAL ENTREGUE'),code=plain(item.codigo),name=plain(item.nome),unit=plain(item.unidade);
   return '<article class="ntq-card">'+
-   '<div class="ntq-ribbon'+(repeated?' ntq-repeat':'')+'">'+plain(tag)+' · 1 QR NESTE PDF</div>'+
-   '<div class="ntq-cardbody"><div class="ntq-codeblock">'+
-    '<div class="ntq-qr" data-ntq-code="'+plain(item.codigo)+'"></div>'+
-    '<b class="ntq-code">'+plain(item.codigo)+'</b></div>'+
-    '<div class="ntq-detail"><strong class="ntq-name">'+plain(item.nome)+'</strong>'+
-    '<div class="ntq-unit">UNIDADE: '+plain(item.unidade)+'</div>'+
-    '<div class="ntq-saldo"><small>'+plain(model.historico?'SALDO REGISTRADO ATÉ '+ntDate(model.date):'SALDO ATUAL NO FIREBASE')+'</small><strong>'+
-     plain(fmt(item.saldo))+' <span>'+plain(item.unidade)+'</span></strong></div>'+
-    (item.ocorrencias>1?'<div class="ntq-mini">SAÍDAS SELECIONADAS: '+item.ocorrencias+'</div>':'')+
+   '<div class="ntq-ribbon">'+plain(tag)+' · 1 QR POR CÓDIGO</div>'+
+   '<div class="ntq-cardbody">'+
+    '<div class="ntq-codeblock"><div class="ntq-qr" data-ntq-code="'+code+'"></div><b class="ntq-code">'+code+'</b></div>'+
+    '<div class="ntq-detail"><strong class="ntq-name">'+name+'</strong>'+
+    '<div class="ntq-unit">UNIDADE: '+unit+'</div>'+
+    '<div class="ntq-saldo"><small>SALDO ATUAL DO FIREBASE</small><strong>'+plain(fmt(item.saldo))+' <span>'+unit+'</span></strong></div>'+
+    (item.ocorrencias>1?'<div class="ntq-mini">RETIRADAS: '+item.ocorrencias+'</div>':'')+
     (!item.conferido?'<div class="ntq-mini ntq-unchecked">CADASTRO NÃO CONFERIDO</div>':'')+
-    '</div></div></article>';
+   '</div></div></article>';
  };
  const pages=[];
  for(let p=0;p<total;p++){
   const chunk=items.slice(p*perPage,(p+1)*perPage);
-  const footnote=!items.length?'Nenhuma saída operacional encontrada. Nenhum QR foi gerado.':
-   'Cada QR contém somente o código do material. Saldos consultados no Firebase em '+
-   model.consultadoEm+'. '+(model.historico?'Referência: último saldo registrado até '+ntDate(model.date)+'. Correções físicas sem movimentação podem não constar.':'Um item repetido não confirma atualização no outro sistema.');
-  pages.push('<section class="landscape ntq-sheet">'+
-   ntTop('QR CODES · MATERIAIS ENTREGUES',
-    (model.historico?'Datas selecionadas: '+model.periodo+' · Saldo até '+ntDate(model.date):'Saídas registradas em '+ntDate(model.date)+' · Saldos atuais consultados em '+model.consultadoEm),model.date)+
+  pages.push('<section class="ntq-sheet">'+
+   ntTop('QR CODES · MATERIAIS PARA ATUALIZAÇÃO',
+     'Entregas/ajustes: '+model.periodo+' · Saldos atuais confirmados em '+model.consultadoEm,model.date)+
    '<div class="ntq-metrics">'+
     '<div class="ntq-metric"><small>MATERIAIS ÚNICOS</small><strong>'+items.length+'</strong></div>'+
-    '<div class="ntq-metric"><small>SAÍDAS SELECIONADAS</small><strong>'+model.retiradas+'</strong></div>'+
-    '<div class="ntq-metric"><small>'+plain(model.historico?'EM MAIS DE UM DIA':'REP. DO DIA ANTERIOR')+'</small><strong>'+model.repetidosAntes+'</strong></div>'+
-    '<div class="ntq-metric"><small>SAÍDAS REPETIDAS</small><strong>'+model.repetidosNoDia+'</strong></div>'+
+    '<div class="ntq-metric"><small>RETIRADAS</small><strong>'+model.retiradas+'</strong></div>'+
+    '<div class="ntq-metric"><small>CONFERIDOS</small><strong>'+model.conferidos+'</strong></div>'+
+    '<div class="ntq-metric"><small>AJUSTADOS</small><strong>'+model.ajustados+'</strong></div>'+
    '</div>'+
-   '<div class="ntq-sectionline"><strong>RELAÇÃO DE MATERIAIS PARA LEITURA</strong>'+
-    '<span>'+(chunk.length?chunk.length+' material(is) nesta página':'Sem movimentações')+'</span></div>'+
+   '<div class="ntq-sectionline"><b>RELAÇÃO PARA LEITURA</b><span>'+chunk.length+' material(is) nesta página</span></div>'+
    '<div class="ntq-grid">'+chunk.map(cards).join('')+'</div>'+
-   (p===total-1?'<p class="ntq-guidance">'+plain(footnote)+'</p>':'')+
-   ntFooter(p+1,total)+
-   '</section>');
+   (p===total-1?'<p class="ntq-guidance">QR contém somente o código. Saldo atual consultado em '+plain(model.consultadoEm)+'. Confira código e quantidade antes de lançar no sistema do gerente.</p>':'')+
+   ntFooter(p+1,total)+'</section>');
  }
  const css=ntReportCSS().replace(/^<style>/,'').replace(/<\/style>\s*$/,'');
- const localStyles=[
- '@page{size:A4 landscape;margin:0}',
- /* Shared header uses .rhead, .line, .heading, .desc, .company; footer uses .footer. */
- '.ntq-sheet{position:relative;box-sizing:border-box;width:297mm;height:196mm;min-height:0!important;padding:6.5mm 15mm 12mm;margin:12px auto;background:#fff;box-shadow:0 2px 16px #0002;break-after:page;page-break-after:always}',
- '.ntq-sheet:last-child{break-after:auto;page-break-after:auto}',
- '.ntq-sheet .rhead{min-height:12mm}',
- '.ntq-sheet .rhead img{width:59mm;max-height:14mm}',
- '.ntq-sheet .company{font-size:8pt;line-height:1.45}',
- '.ntq-sheet .company b{font-size:8.3pt}',
- '.ntq-sheet .line{margin:2mm 0 2.6mm}',
- '.ntq-sheet .heading{font-size:16.5pt;margin-bottom:1mm}',
- '.ntq-sheet .desc{font-size:8.8pt;line-height:1.3;margin-bottom:2mm}',
- '.ntq-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2.4mm;margin:1.7mm 0 2.4mm}',
- '.ntq-metric{background:#e7f1f2;border-radius:2mm;border-left:.9mm solid #139ea2;padding:1.7mm 2.4mm;min-height:12mm}',
- '.ntq-metric small{display:block;font-size:7pt;color:#365b68;font-weight:700;line-height:1.2}',
- '.ntq-metric strong{display:block;font-size:15pt;color:#0a7d86;font-weight:700;margin-top:.3mm}',
- '.ntq-sectionline{display:flex;align-items:center;justify-content:space-between;margin:1mm 0 1.8mm;color:#153e4c;font-size:8.6pt}',
- '.ntq-sectionline strong{font-weight:700}',
- '.ntq-sectionline span{font-size:7.8pt;color:#56727e}',
- '.ntq-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,39mm);gap:2mm;align-content:start}',
- '.ntq-card{border:.25mm solid #c8d9dd;border-radius:2mm;overflow:hidden;background:#fff;min-width:0;break-inside:avoid;page-break-inside:avoid}',
- '.ntq-ribbon{height:6mm;display:flex;align-items:center;padding:0 2mm;background:#194957;color:#fff;font-size:6.1pt;font-weight:700;white-space:nowrap}',
- '.ntq-ribbon.ntq-repeat{background:#fff0d8;color:#805619;border-bottom:.25mm solid #efdbb7}',
- '.ntq-cardbody{display:grid;grid-template-columns:28mm minmax(0,1fr);gap:1.5mm;padding:1.5mm;min-width:0}',
- '.ntq-codeblock{display:flex;flex-direction:column;align-items:center;gap:.5mm}',
- '.ntq-qr{width:25.5mm;height:25.5mm;display:flex;align-items:center;justify-content:center}',
- '.ntq-qr svg{display:block;width:100%;height:100%}',
- '.ntq-code{font-size:8.2pt;color:#153e4c;white-space:nowrap}',
- '.ntq-detail{min-width:0}',
- '.ntq-name{display:block;color:#153e4c;font-size:7.8pt;line-height:1.17;overflow-wrap:anywhere;word-break:normal}',
- '.ntq-unit{font-size:6.6pt;color:#55727e;margin-top:.8mm}',
- '.ntq-saldo{background:#e7f1f2;border-left:.7mm solid #1c9fa4;border-radius:1.4mm;padding:1.1mm 1.4mm;margin-top:1.2mm}',
- '.ntq-saldo small{display:block;color:#466977;font-size:6.2pt;font-weight:700;line-height:1.15}',
- '.ntq-saldo strong{display:block;color:#0a7d86;font-size:11.1pt;line-height:1.13;margin-top:.4mm;white-space:nowrap}',
- '.ntq-saldo strong span{font-size:7pt}',
- '.ntq-mini{color:#8a6326;font-size:6pt;line-height:1.2;margin-top:.6mm}',
- '.ntq-unchecked{color:#a0442e}',
- '.ntq-guidance{color:#456672;font-size:7pt;line-height:1.2;margin:1.5mm 0 0}',
- '.ntq-sheet .footer{left:15mm;right:15mm;bottom:5mm;padding-top:1.5mm;font-size:7.3pt}',
- '.ntq-toolbar{background:#153f4e;color:#fff;padding:12px 20px;text-align:center;font-size:13px;position:sticky;top:0;z-index:3}',
- '.ntq-toolbar button{background:#1a9da3;color:#fff;border:0;border-radius:7px;font-weight:700;padding:10px 16px;margin-right:10px;cursor:pointer}',
- '.ntq-toolbar button:disabled{opacity:.55;cursor:not-allowed}',
- '@media print{html,body{margin:0!important;padding:0!important;background:#fff!important}.ntq-toolbar{display:none!important}.ntq-sheet{width:297mm!important;height:196mm!important;min-height:0!important;margin:0!important;box-shadow:none!important;break-inside:avoid-page!important;page-break-inside:avoid!important}.ntq-card,.ntq-ribbon,.ntq-saldo,.ntq-metric{print-color-adjust:exact!important;-webkit-print-color-adjust:exact!important}}'
+ const local=[
+  '@page{size:A4 portrait;margin:0}',
+  '.ntq-sheet{position:relative;box-sizing:border-box;width:210mm;height:283mm;padding:8mm 12mm 13mm;margin:12px auto;background:white;box-shadow:0 2px 16px #0002;overflow:hidden;break-after:page;page-break-after:always}',
+  '.ntq-sheet:last-child{break-after:auto;page-break-after:auto}',
+  '.ntq-sheet .rhead{min-height:13mm}.ntq-sheet .rhead img{width:54mm;max-height:13mm}',
+  '.ntq-sheet .company{font-size:8pt}.ntq-sheet .company b{font-size:8.4pt}',
+  '.ntq-sheet .line{margin:2mm 0 2.5mm}.ntq-sheet .heading{font-size:15pt;margin:0 0 1mm}',
+  '.ntq-sheet .desc{font-size:8pt;line-height:1.3;margin:0 0 2mm}',
+  '.ntq-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2mm;margin:2mm 0 3mm}',
+  '.ntq-metric{background:#e7f1f2;border-radius:1.5mm;border-left:.7mm solid #139ea2;padding:1.5mm;min-height:12mm}',
+  '.ntq-metric small{display:block;font-size:6.3pt;color:#365b68;font-weight:700;line-height:1.1}',
+  '.ntq-metric strong{display:block;font-size:13pt;color:#0a7d86;margin-top:.5mm}',
+  '.ntq-sectionline{display:flex;justify-content:space-between;align-items:center;color:#153e4c;font-size:8.5pt;margin:1mm 0 2.4mm}',
+  '.ntq-sectionline span{font-size:7.5pt;color:#56727e}',
+  '.ntq-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,62mm);column-gap:10mm;row-gap:9mm}',
+  '.ntq-card{border:.25mm solid #c8d9dd;border-radius:2mm;background:#fff;overflow:hidden;min-width:0;break-inside:avoid}',
+  '.ntq-ribbon{min-height:7mm;display:flex;align-items:center;padding:1mm 2mm;background:#194957;color:white;font-size:7pt;font-weight:700;line-height:1.2}',
+  '.ntq-cardbody{display:grid;grid-template-columns:37mm minmax(0,1fr);gap:2mm;padding:2mm;min-width:0}',
+  '.ntq-codeblock{display:flex;flex-direction:column;align-items:center;gap:.7mm}',
+  '.ntq-qr{width:35mm;height:35mm;background:white;display:flex;align-items:center;justify-content:center}',
+  '.ntq-qr svg{display:block;width:100%;height:100%}.ntq-code{font-size:9.5pt;color:#153e4c;white-space:nowrap}',
+  '.ntq-detail{min-width:0}.ntq-name{display:block;font-size:9pt;line-height:1.25;color:#153e4c;overflow-wrap:anywhere}',
+  '.ntq-unit{font-size:7.5pt;color:#55727e;margin-top:1mm}',
+  '.ntq-saldo{background:#e7f1f2;border-left:.7mm solid #1c9fa4;border-radius:1.4mm;padding:1.6mm;margin-top:2mm}',
+  '.ntq-saldo small{display:block;font-size:7.1pt;color:#466977;font-weight:700;line-height:1.16}',
+  '.ntq-saldo strong{display:block;font-size:13pt;line-height:1.17;color:#0a7d86;margin-top:1mm;overflow-wrap:anywhere}',
+  '.ntq-saldo strong span{font-size:8pt}',
+  '.ntq-mini{font-size:7pt;color:#8a6326;margin-top:1mm;line-height:1.2}.ntq-unchecked{color:#a0442e}',
+  '.ntq-guidance{font-size:8pt;color:#456672;line-height:1.25;margin:2.5mm 0 0}',
+  '.ntq-sheet .footer{left:12mm;right:12mm;bottom:5mm;font-size:7.3pt}',
+  '.ntq-toolbar{background:#153f4e;color:#fff;padding:12px 20px;text-align:center;font-size:13px;position:sticky;top:0;z-index:3}',
+  '.ntq-toolbar button{background:#1a9da3;color:white;border:0;border-radius:7px;font-weight:700;padding:10px 16px;margin-right:10px;cursor:pointer}',
+  '.ntq-toolbar button:disabled{opacity:.55;cursor:not-allowed}',
+  '@media print{html,body{margin:0!important;padding:0!important;background:white!important}.ntq-toolbar{display:none!important}.ntq-sheet{width:210mm!important;height:283mm!important;min-height:283mm!important;margin:0!important;box-shadow:none!important;break-inside:avoid-page!important;page-break-inside:avoid!important}.ntq-card,.ntq-ribbon,.ntq-saldo,.ntq-metric{print-color-adjust:exact!important;-webkit-print-color-adjust:exact!important}}'
  ].join('\n');
- // Mesma biblioteca de QR offline ja presente no sistema; o QR contem somente o codigo.
  const engine=atob(ntQrEngine).replace(/<\/script/gi,'<\\/script');
  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
   '<meta name="viewport" content="width=device-width,initial-scale=1">'+
-  '<title>New Termisa · QR Codes · '+ntDate(model.date)+'</title><style>'+css+'\n'+localStyles+'</style></head><body>'+
+  '<title>New Termisa · QR Codes · '+ntDate(model.date)+'</title><style>'+css+'\n'+local+'</style></head><body>'+
   '<div class="ntq-toolbar"><button type="button" disabled id="ntqPrint" onclick="window.print()">Imprimir / Salvar PDF</button>'+
-  '<span id="ntqStatus">Preparando QR Codes... Para impressão: A4 paisagem.</span></div>'+
+  '<span id="ntqStatus">Preparando QR Codes... Para impressão: A4 retrato (vertical).</span></div>'+
   pages.join('')+
   '<scr'+'ipt>'+engine+'</scr'+'ipt>'+
   '<scr'+'ipt>('+ntDailyQrPopupInit.toString()+')();</scr'+'ipt>'+
