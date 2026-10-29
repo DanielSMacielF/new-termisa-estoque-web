@@ -306,13 +306,64 @@ function ntIntelligencePDF(){
  @media print{html,body{background:#fff}.toolbar{display:none}.sheet{margin:0;box-shadow:none}
  .kpi,.report-panel,.pbar-track,.pbar-track i,.diag,.data th,.data tr,.stock-list div{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
  `;
+
+ // No navegador que imprime: mede a altura REAL das linhas. Se houver
+ // descrições longas, distribui as últimas linhas na próxima página do ranking.
+ // Atualiza a numeração depois do ajuste. Não consulta nem altera o Firebase.
+ const printReflowScript=`
+ (function(){
+  let done=false;
+  function adjust(){
+   if(done)return;
+   done=true;
+   const sheets=Array.from(document.querySelectorAll('.sheet-ranking'));
+   let moves=0;
+   for(let i=0;i<sheets.length;i++){
+    const sheet=sheets[i],body=sheet.querySelector('tbody');
+    const note=sheet.querySelector('.note'),footer=sheet.querySelector('.foot');
+    if(!body||!note||!footer)continue;
+    while(body.rows.length>1 &&
+      note.getBoundingClientRect().bottom > footer.getBoundingClientRect().top - 12){
+     let next=sheets[i+1];
+     if(!next){
+      next=sheet.cloneNode(true);
+      next.querySelector('tbody').innerHTML='';
+      sheet.after(next);
+      sheets.push(next);
+     }
+     next.querySelector('tbody').prepend(body.lastElementChild);
+     if(++moves>1000)break;
+    }
+   }
+   const all=Array.from(document.querySelectorAll('.sheet'));
+   all.forEach((sheet,i)=>{
+    const last=sheet.querySelector('.foot span:last-child');
+    if(last)last.textContent='PÁGINA '+(i+1)+' DE '+all.length;
+   });
+   sheets.forEach((sheet,i)=>{
+    const sub=sheet.querySelector('.subtitle');
+    if(sub)sub.textContent=sub.textContent.replace(/\\s*·\\s*\\d+\\s+de\\s+\\d+\\s*$/,
+      ' · '+(i+1)+' de '+sheets.length);
+   });
+   const button=document.getElementById('intel-pdf-print');
+   if(button)button.disabled=false;
+  }
+  const ready=()=>Promise.resolve(document.fonts?.ready).then(()=>requestAnimationFrame(adjust));
+  if(document.readyState==='complete')ready();
+  else window.addEventListener('load',ready,{once:true});
+  window.addEventListener('beforeprint',adjust);
+ })();`;
+
  const body=pages.map((p,i)=>'<section class="sheet '+(p.title==='RANKING DE MOVIMENTAÇÃO'?'sheet-ranking':'')+'">'+header(p.title,p.subtitle)+p.body+
  '<div class="foot"><span>NEW TERMISA | ALMOXARIFADO · CENTRAL DE INTELIGÊNCIA</span>'+
  '<span>PÁGINA '+(i+1)+' DE '+pages.length+'</span></div></section>').join('');
  win.document.open();win.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
   '<title>New Termisa · Inteligência · '+from+' a '+to+'</title><style>'+stylesheet+'</style></head>'+
-  '<body><div class="toolbar"><button onclick="window.print()">Imprimir / Salvar PDF · A4 paisagem</button></div>'+
+  '<body><div class="toolbar"><button id="intel-pdf-print" disabled onclick="window.print()">Imprimir / Salvar PDF · A4 paisagem</button></div>'+
   body+'</body></html>');win.document.close();
+ const reflow=win.document.createElement('script');
+ reflow.textContent=printReflowScript;
+ win.document.body.appendChild(reflow);
 }
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-detail]');if(b)detail(b.dataset.detail)});
