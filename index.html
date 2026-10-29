@@ -3025,7 +3025,7 @@ function ntQrMultiData(dates,materialRows,allMoves,stamp){
  const selected=new Map(),last=new Map();
  for(const m of moves){
   const code=String(m.codigo||'').trim(),dia=String(m.dia||'');if(!code)continue;
-  if(dia<=end&&ntDayValidSaldo(m.depois)!==null)last.set(code,m);
+  if(dia<=end&&['SAIDA','ENTRADA','DEVOLUCAO','AJUSTE'].includes(String(m.tipo||'')))last.set(code,m);
   if(m.tipo!=='SAIDA'||!desired.has(dia))continue;
   const q=ntQty(m);if(!Number.isFinite(q)||q<=0)throw Error('Saída sem quantidade válida: '+code);
   const row=selected.get(code)||{codigo:code,ocorrencias:0,retirado:0,dias:new Set(),lastDay:dia};
