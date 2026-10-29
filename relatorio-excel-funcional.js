@@ -139,6 +139,63 @@ function dashboard(book,model,logo){
  return ws;
 }
 
+
+function receiptPDFStyle(book,model,logo){
+ const date=prettyDate(model.date),rows=model.receiptRows||[],tot=model.totals||{};
+ const ws=createSheet(book,'Recebimentos','Recebimento de Materiais',
+  'Consolidado diário · entregas identificadas por fornecedor, nota e pedido.',[15,11,24,19,12,11,15,15,13],logo);
+ const cards=[['DATA DE REFERÊNCIA',date],['ENTREGAS',num(tot.receipts)],
+  ['LINHAS DE MATERIAL',rows.length],['DIVERGÊNCIAS',num(tot.receiptDifferences)]];
+ const blocks=[['A','B'],['C','D'],['E','F'],['G','I']];
+ cards.forEach(([name,value],i)=>{
+  const [a,b]=blocks[i];
+  merged(ws,a+'8:'+b+'8',name,{fill:PAL.light,color:PAL.navy,bold:true,size:9});
+  merged(ws,a+'9:'+b+'11',value,{fill:PAL.light,color:PAL.teal,bold:true,size:15});
+ });
+ const groups=new Map();
+ rows.forEach(row=>{
+  const key=[row.fornecedor||'',row.pedidoCompra||'',row.notaFiscal||''].join('|');
+  if(!groups.has(key))groups.set(key,[]);
+  groups.get(key).push(row);
+ });
+ let at=14,ix=0;
+ for(const list of groups.values()){
+  ix++;
+  const one=list[0]||{},label='ENTREGA '+String(ix).padStart(2,'0');
+  merged(ws,'A'+at+':B'+(at+2),label,{fill:PAL.navy,color:PAL.white,bold:true,size:11,align:'center'});
+  merged(ws,'C'+at+':F'+at,'FORNECEDOR',{fill:PAL.light,color:PAL.muted,bold:true,size:8});
+  merged(ws,'C'+(at+1)+':F'+(at+2),one.fornecedor||'Fornecedor não informado',
+    {fill:PAL.light,color:PAL.navy,bold:true,size:10,wrap:true});
+  merged(ws,'G'+at+':I'+at,'PC: '+txt(one.pedidoCompra||'—')+'    NF: '+txt(one.notaFiscal||'—'),
+    {fill:PAL.light,color:PAL.navy,bold:true,size:10,align:'right'});
+  merged(ws,'G'+(at+1)+':I'+(at+2),date,{fill:PAL.light,color:PAL.muted,size:9,align:'right'});
+  at+=3;
+  const header=[['A','B','CÓDIGO'],['C','E','MATERIAL'],['F','F','UN.'],['G','G','QTD. NF'],['H','H','RECEBIDO'],['I','I','DIF.']];
+  header.forEach(([a,b,t])=>merged(ws,a+at+':'+b+at,t,{fill:PAL.navy,color:PAL.white,bold:true,size:9,align:'center'}));
+  ws.getRow(at).height=25;at++;
+  list.forEach((x,i)=>{
+   const fill=i%2?PAL.light:PAL.white,row=at;
+   merged(ws,'A'+row+':B'+row,txt(x.codigo||''),{fill,size:9,align:'center'});
+   ws.getCell('A'+row).numFmt='@';
+   merged(ws,'C'+row+':E'+row,x.nome||'',{fill,size:9,wrap:true});
+   [['F',x.unidade||''],['G',num(x.prevista)],['H',num(x.recebida)]].forEach(([col,v])=>{
+    const cell=ws.getCell(col+row);cell.value=v;style(cell,{fill,size:9,align:'center',numeric:typeof v==='number'});
+   });
+   const c=ws.getCell('I'+row);c.value=f('H'+row+'-G'+row,num(x.recebida)-num(x.prevista));
+   style(c,{fill,size:9,align:'center',numeric:true});
+   ws.getRow(row).height=26;at++;
+  });
+  at+=2;
+ }
+ if(!rows.length)merged(ws,'A15:I17','Nenhum recebimento documentado na data.',{fill:PAL.light,size:10});
+ merged(ws,'A'+(at+1)+':I'+(at+3),
+  'A diferença corresponde à quantidade recebida menos a quantidade da NF. Entradas integradas de materiais cadastrados atualizam o estoque; itens sem cadastro ficam pendentes.',
+  {fill:PAL.light,color:PAL.muted,size:9,wrap:true});
+ ws.pageSetup.printArea='A1:I'+(at+5);
+ ws.pageSetup.fitToHeight=at<57?1:0;
+ return ws;
+}
+
 function makeData(book,model,logo){
  const t=model.totals||{},date=prettyDate(model.date),cat=new Map((model.materialCatalog||[]).map(x=>[txt(x.codigo),x]));
  const stockMap=new Map((model.stockRows||[]).map(x=>[txt(x.codigo),x]));
@@ -151,7 +208,7 @@ function makeData(book,model,logo){
   ['HORA','CÓDIGO','TIPO','MATERIAL','QUANTIDADE','SOLICITANTE','PEDIDO','ID'],
   (model.operationalRows||[]).map(x=>[timeOf(x),txt(x.codigo),x.tipo,x.nome||'',num(x.quantidade),
    x.solicitante||'',x.pedido||'',x.id||'']),{codes:[1],wrap:3});
- tab('Produção','Produção de Máquinas','Máquinas concluídas e lotes',
+ if((model.machineRows||[]).length)tab('Produção','Produção de Máquinas','Máquinas concluídas e lotes',
   [16,18,44,12,17,25],
   ['DATA','CÓDIGO','PRODUTO','UN.','QTDE.','LOTE / OPÇÃO'],
   (model.machineRows||[]).map(x=>[date,txt(x.codigoMaquina),x.produto||'',x.unidade||'',
@@ -161,14 +218,7 @@ function makeData(book,model,logo){
   ['HORA','CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE.','SOLICITANTE','PEDIDO'],
   (model.requests||[]).map(x=>[timeOf(x),txt(x.codigo),x.nome||'',stockMap.get(txt(x.codigo))?.unidade||'—',
    num(x.quantidade),x.solicitante||'',x.pedido||'']),{codes:[1],wrap:2});
- tab('Recebimentos','Recebimento de Materiais','Fornecedores, pedidos de compra, notas fiscais e itens',
-  [15,42,18,16,17,43,12,15,15,12,27],
-  ['DATA','FORNECEDOR','PEDIDO COMPRA','NOTA FISCAL','CÓDIGO','MATERIAL','UN.','QTDE. NF','RECEBIDO','DIF.','SITUAÇÃO'],
-  (model.receiptRows||[]).map((x,i)=>[date,x.fornecedor||'',x.pedidoCompra||'',x.notaFiscal||'',
-   txt(x.codigo),x.nome||'',x.unidade||'',num(x.prevista),num(x.recebida),
-   f('I'+(i+9)+'-H'+(i+9),round(num(x.recebida)-num(x.prevista))),
-   x.entradaConfirmada?'ENTRADA VINCULADA':x.semCadastro?'PENDENTE DE CADASTRO':'VERIFICAR VÍNCULO']),
-  {codes:[4],wrap:5});
+ receiptPDFStyle(book,model,logo);
  const rest=(model.repos||[]).flatMap(r=>(r.itens||[]).map(x=>{
   const m=cat.get(txt(x.codigo))||{};
   return [date,txt(x.codigo),x.nome||m.nome||'',m.unidadeMedida||stockMap.get(txt(x.codigo))?.unidade||m.unidade||'',
