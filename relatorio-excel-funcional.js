@@ -468,7 +468,7 @@ function chartXml(type,rows){
    '<c:crossBetween val="between"/></c:valAx>';
  }
  return pre+body+'</c:plotArea>'+(type==='donut'?'<c:legend><c:legendPos val="r"/><c:layout/></c:legend>':'')+
-  '<c:plotVisOnly val="1"/></c:chart></c:chartSpace>';
+  '<c:plotVisOnly val="0"/></c:chart></c:chartSpace>';
 }
 function anchor(id,rid,bounds){
  const loc=(name,col,row)=>'<xdr:'+name+'><xdr:col>'+col+'</xdr:col><xdr:colOff>0</xdr:colOff>'+
@@ -484,26 +484,37 @@ function anchor(id,rid,bounds){
   'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="'+rid+'"/>'+
   '</a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>';
 }
+
 async function nativeCharts(buffer,graphs,JSZip){
  const zip=await JSZip.loadAsync(buffer);
- const dpath='xl/drawings/drawing1.xml',rpath='xl/drawings/_rels/drawing1.xml.rels';
+ const sheetIndex=graphs[0]?.sheetIndex;
+ if(!Number.isInteger(sheetIndex)||sheetIndex<1)throw Error('Aba de inteligência não identificada.');
+ const wsRel='xl/worksheets/_rels/sheet'+sheetIndex+'.xml.rels';
+ if(!zip.file(wsRel))throw Error('Relacionamento da folha de inteligência não localizado.');
+ const wsXml=await zip.file(wsRel).async('string');
+ const match=wsXml.match(/Target="\.\.\/drawings\/(drawing\d+\.xml)"/);
+ if(!match)throw Error('Gráficos não puderam ser vinculados à inteligência.');
+ const filename=match[1],dpath='xl/drawings/'+filename,rpath='xl/drawings/_rels/'+filename+'.rels';
  if(!zip.file(dpath)||!zip.file(rpath)||!zip.file('[Content_Types].xml'))
-  throw Error('Não foi possível inicializar os gráficos nativos do Excel.');
+  throw Error('Estrutura de desenho do Excel indisponível.');
  let d=await zip.file(dpath).async('string'),r=await zip.file(rpath).async('string'),
   types=await zip.file('[Content_Types].xml').async('string');
  if(!d.includes('</xdr:wsDr>')||!r.includes('</Relationships>')||!types.includes('</Types>'))
-  throw Error('Estrutura gráfica do arquivo Excel não reconhecida.');
+  throw Error('Estrutura gráfica do Excel não reconhecida.');
  let count=Math.max(0,...[...r.matchAll(/Id="rId(\d+)"/g)].map(x=>Number(x[1])));
  graphs.forEach((x,i)=>{
   const id=i+1,rel='rId'+(++count),path='xl/charts/chart'+id+'.xml';
   zip.file(path,chartXml(x.type,x.rows));
-  r=r.replace('</Relationships>','<Relationship Id="'+rel+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart'+id+'.xml"/></Relationships>');
+  r=r.replace('</Relationships>',
+    '<Relationship Id="'+rel+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart'+id+'.xml"/></Relationships>');
   d=d.replace('</xdr:wsDr>',anchor(id,rel,x.box)+'</xdr:wsDr>');
-  types=types.replace('</Types>','<Override PartName="/'+path+'" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>');
+  types=types.replace('</Types>',
+    '<Override PartName="/'+path+'" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>');
  });
  zip.file(dpath,d);zip.file(rpath,r);zip.file('[Content_Types].xml',types);
  return zip.generateAsync({type:'uint8array',compression:'DEFLATE'});
 }
+
 export async function exportarExcelFuncional(model,options={}){
  const [ExcelJS,JSZip]=await loadLibs(),book=new ExcelJS.Workbook();
  book.creator='New Termisa Almoxarifado';book.title='Relatório Geral · '+prettyDate(model.date);
@@ -513,8 +524,8 @@ export async function exportarExcelFuncional(model,options={}){
  const graphs=makeData(book,model,options.logo);
  const original=await book.xlsx.writeBuffer();
  const enhanced=await nativeCharts(original,[
-  {type:'donut',rows:graphs.counts,box:[8,15,16,30]},
-  {type:graphs.unit,rows:graphs.top.length?graphs.top:[{name:'Sem dados',value:0}],box:[7,34,16,51]}
+  {type:graphs.unit,rows:graphs.top.length?graphs.top:[{name:'Sem dados',value:0}],box:[0,17,9,37],sheetIndex:graphs.intelligenceSheetIndex},
+  {type:'donut',rows:graphs.counts,box:[9,17,18,37],sheetIndex:graphs.intelligenceSheetIndex}
  ],JSZip);
  const blob=new Blob([enhanced],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
   url=URL.createObjectURL(blob),link=document.createElement('a');
