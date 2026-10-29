@@ -91,51 +91,54 @@ function card(ws,a,b,label,value,formula){
   {fill:PAL.light,color:PAL.teal,bold:true,size:21});c.numFmt='#,##0';
  ws.getRow(8).height=23;ws.getRow(9).height=25;ws.getRow(10).height=23;
 }
+
 function dashboard(book,model,logo){
- const t=model.totals||{};
- const ws=createSheet(book,'Dashboard','Relatório Geral do Dia · '+prettyDate(model.date),
-  'Visão executiva • dados do Firebase na data '+prettyDate(model.date),Array(16).fill(12),logo);
- ws.views=[{showGridLines:false,zoomScale:80}];
- card(ws,'A','C','Máquinas concluídas',t.machines,"SUM('Produção'!E9:E1000)");
- card(ws,'D','F','Retiradas',t.requestsLines,"'Dados Gráficos'!B9");
- card(ws,'G','I','Recebimentos',t.receipts,null);
- card(ws,'J','L','Reposições',t.reposReports,null);
- card(ws,'M','P','Materiais distintos',t.stockItems,null);
- section(ws,'A13:P13','PANORAMA DO DIA');
- const overview=[
-  ['PRODUÇÃO',num(t.machines)+' máquina(s) concluída(s).'],
-  ['MATERIAIS ENTREGUES',num(t.requestsLines)+' retiradas de '+num(t.requestsMaterials)+' materiais.'],
-  ['RECEBIMENTOS',num(t.receipts)+' recebimentos com '+num(t.receiptLines)+' linhas.'],
-  ['REPOSIÇÕES',num(t.reposReports)+' solicitação(ões), '+num(t.reposLines)+' item(ns).'],
-  ['MOVIMENTAÇÕES',num(t.requestsLines+t.stockEntries+t.returnLines)+' operações; '+num(t.stockItems)+' códigos distintos.']
+ const t=model.totals||{},date=prettyDate(model.date);
+ const ws=createSheet(book,'Dashboard','Relatório Geral do Dia · '+date,
+   'Referente ao dia '+date+' · Produção, saídas, recebimentos e reposições.',Array(20).fill(10),logo);
+ ws.views=[{showGridLines:false,zoomScale:85}];
+ const cards=[
+  ['MÁQUINAS CONCLUÍDAS',num(t.machines)],
+  ['RETIRADAS',num(t.requestsLines)],
+  ['RECEBIMENTOS',num(t.receipts)],
+  ['REPOSIÇÕES SOLICITADAS',num(t.reposReports)],
+  ['MATERIAIS DISTINTOS',num(t.stockItems)]
  ];
- overview.forEach(([title,value],i)=>{
-  const n=15+i*3;
-  merged(ws,'A'+n+':C'+(n+1),title,{fill:PAL.light,color:PAL.navy,bold:true,size:9});
-  merged(ws,'D'+n+':G'+(n+1),value,{fill:PAL.light,size:10,wrap:true});
-  ws.getRow(n).height=23;ws.getRow(n+1).height=22;
+ cards.forEach(([label,value],i)=>{
+  const a=alpha(i*4+1),b=alpha(i*4+4);
+  merged(ws,a+'8:'+b+'8',label,{fill:PAL.light,color:PAL.navy,bold:true,size:9});
+  const c=merged(ws,a+'9:'+b+'11',value,{fill:PAL.light,color:PAL.teal,bold:true,size:22});
+  c.numFmt='#,##0';
  });
- section(ws,'I14:P14','MOVIMENTAÇÕES OPERACIONAIS');
- section(ws,'A32:P32','INTELIGÊNCIA DE ESTOQUE');
- merged(ws,'A34:G34','DIAGNÓSTICOS DO DIA',{bold:true,color:PAL.teal,size:11});
- const lines=[
-  'Retiradas: '+num(t.requestsLines),
-  'Entradas reais: '+num(t.stockEntries),
-  'Devoluções: '+num(t.returnLines),
-  'Materiais distintos: '+num(t.stockItems),
-  'Recebimentos documentados: '+num(t.receipts),
-  'Diferenças de nota fiscal: '+num(t.receiptDifferences),
-  'Saldos que exigem conferência: '+num(t.stockNotReconciled)
+ [8,9,10,11].forEach(n=>ws.getRow(n).height=n===8?24:19);
+ section(ws,'A14:T14','PANORAMA DO DIA');
+ const summaries=[
+  ['PRODUÇÃO',num(t.machines)+' máquina(s) concluída(s).'],
+  ['MATERIAIS ENTREGUES',num(t.requestsLines)+' retirada(s) realizadas de '+num(t.requestsMaterials)+' material(is) diferente(s).'],
+  ['RECEBIMENTOS',num(t.receipts)+' entrega(s) documentada(s), envolvendo '+num(t.receiptLines)+' linha(s) de material.'],
+  ['REPOSIÇÕES',num(t.reposReports)?num(t.reposReports)+' solicitação(ões) de reposição emitida(s), com '+num(t.reposLines)+' linha(s) de material. Confira os documentos após o recebimento.':'Nenhuma solicitação de reposição emitida nesta data.'],
+  ['MOVIMENTAÇÕES DO ESTOQUE',num(t.requestsLines+t.stockEntries+t.returnLines)+' operações confirmadas: '+num(t.requestsLines)+' retirada(s), '+num(t.stockEntries)+' entrada(s) e '+num(t.returnLines)+' devolução(ões), envolvendo '+num(t.stockItems)+' material(is) distinto(s).']
  ];
- lines.forEach((line,i)=>merged(ws,'A'+(36+i*2)+':G'+(37+i*2),line,
-  {fill:i%2?PAL.white:PAL.light,size:10}));
- merged(ws,'A53:P55',
-  'Os dados foram consultados no Firebase ao gerar o arquivo. Esta é uma cópia de análise: '+
-  'alterações feitas no Excel não são enviadas ao estoque. Gráficos e fórmulas são editáveis.',
-  {fill:PAL.light,color:PAL.muted,size:9,wrap:true});
- ws.pageSetup.printArea='A1:P55';ws.pageSetup.fitToHeight=1;
+ summaries.forEach(([name,value],i)=>{
+  const start=17+i*5,end=start+3;
+  merged(ws,'A'+start+':E'+end,name,{fill:PAL.light,color:PAL.navy,bold:true,size:10});
+  merged(ws,'F'+start+':T'+end,value,{fill:PAL.light,size:10,color:PAL.ink,wrap:true});
+  for(let k=start;k<=end;k++)ws.getRow(k).height=15;
+ });
+ const warnings=[];
+ if(num(t.receiptDifferences)>0)warnings.push(num(t.receiptDifferences)+' diferença(s) entre nota fiscal e recebimento.');
+ if(num(t.pendingCodes)>0)warnings.push(num(t.pendingCodes)+' item(ns) recebido(s) sem cadastro.');
+ if(num(t.stockNotReconciled)>0)warnings.push(num(t.stockNotReconciled)+' saldo(s) com divergência histórica a conferir.');
+ if(warnings.length){
+  section(ws,'A43:T43','PONTOS DE ATENÇÃO');
+  merged(ws,'A44:T46',warnings.join('  '),{fill:'FFF3DE',color:PAL.ink,size:10,wrap:true});
+ }
+ merged(ws,'A49:T51','Este relatório reúne os registros do dia selecionado. Solicitação de reposição não significa compra ou recebimento; o saldo depende das movimentações oficiais.',
+  {color:PAL.muted,size:9,wrap:true});
+ ws.pageSetup.printArea='A1:T53';ws.pageSetup.fitToHeight=1;
  return ws;
 }
+
 function makeData(book,model,logo){
  const t=model.totals||{},date=prettyDate(model.date),cat=new Map((model.materialCatalog||[]).map(x=>[txt(x.codigo),x]));
  const stockMap=new Map((model.stockRows||[]).map(x=>[txt(x.codigo),x]));
