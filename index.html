@@ -172,6 +172,7 @@ setTimeout(function(){
     box.innerHTML='<div class="alert">O sistema não conseguiu iniciar. Verifique a internet e recarregue a página. Não faça movimentações nesta tela.</div>';
 },12000);
 </script><script type="module">
+import {exportarExcelFuncional} from './relatorio-excel-funcional.js';
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import {getFirestore,collection,doc,setDoc,getDocsFromServer,getDocFromServer,onSnapshot,query,where,orderBy,limit,writeBatch,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
@@ -2545,6 +2546,7 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
  const requests=new Set(requested.map(x=>String(x.pedido||'').trim()).filter(Boolean));
  return {date,materialsCount:materials.length,materialCatalog:materials,machineRows,receiptRows,receipts,repos,
   requests:[...requested].sort(ntDaySortMovement),
+  operationalRows:operating.map(m=>({id:m.id||'',timeClient:m.timeClient||'',codigo:m.codigo||'',nome:m.nome||'',tipo:m.tipo,quantidade:ntQty(m),solicitante:m.solicitante||'',pedido:m.pedido||''})),
   stockRows,comparisons,production,
   totals:{machines:totalMachines,machinesRequested:totalAsked,orders:requests.size,cancelledMoves:cancelledMovements.length,
    reposReports:repos.length,reposLines:repos.reduce((sum,r)=>sum+r.itens.length,0),
@@ -3685,8 +3687,8 @@ async function ntGeneralDayOpenExcel(){
   const date=dateFilter;
   const model=await ntGeneralDayFetch(date);
   if(!ntReportConfirm(model,'general')){notice('Exportação cancelada: '+ntReportWarnings(model,'general').slice(0,2).join(' '),true);return}
-  const result=await ntDayExportVisualExcel(model);
-  notice('Excel completo: '+result.pages+' páginas iguais ao PDF e '+(result.sheets-result.pages)+' abas de dados. Nenhum saldo foi alterado.');
+  const result=await exportarExcelFuncional(model,{logo:NT_LOGO});
+  notice('Excel funcional criado: '+result.sheets+' abas editáveis, '+result.charts+' gráficos nativos e dashboard. Nenhum saldo foi alterado.');
  }catch(err){notice('Não foi possível exportar Excel: '+String(err.message||err),true)}
  finally{loader(false)}
 }
