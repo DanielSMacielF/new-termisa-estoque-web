@@ -2600,7 +2600,17 @@ function ntGeneralDayModel(date,materials,movements,receiptDocs,productionDocs,r
    notes:comparisons.filter(x=>Math.abs(x.diferenca)>.0001).length}
  };
 }
+// Não guarda relatórios prontos: deduplica apenas consultas simultâneas,
+ // sem deixar o estoque exibido desatualizado após uma nova movimentação.
+const ntReportInFlight=new Map();
 async function ntGeneralDayFetch(date){
+ const current=ntReportInFlight.get(date);
+ if(current)return current;
+ const task=ntGeneralDayFetchFresh(date);
+ ntReportInFlight.set(date,task);
+ try{return await task}finally{if(ntReportInFlight.get(date)===task)ntReportInFlight.delete(date)}
+}
+async function ntGeneralDayFetchFresh(date){
  if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase. Não foi possível consultar o relatório.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))throw Error('Escolha uma data válida.');
  const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap,reposSnap]=await Promise.all([
@@ -2865,30 +2875,41 @@ function ntDailyQrData(date,materialRows,selectedMoves,previousMoves,stamp){
   retiradas:today.length,repetidosAntes:itens.filter(x=>x.anterior).length,
   repetidosNoDia:itens.filter(x=>x.ocorrencias>1).length};
 }
+
 function ntDailyQrPopupInit(){
- // Executada exclusivamente na aba de impressao, sem acesso ao banco de dados.
- const ready=document.getElementById('ntqStatus');
- const button=document.getElementById('ntqPrint');
+ // Renderizar em lotes evita travamentos perceptíveis com muitos conferidos.
+ const ready=document.getElementById('ntqStatus'),button=document.getElementById('ntqPrint');
  try{
   const Core=window.NTQRCodeCore;
-  if(typeof Core!=='function')throw Error('Gerador de QR Code indisponivel');
+  if(typeof Core!=='function')throw Error('Gerador de QR Code indisponível');
   const targets=Array.from(document.querySelectorAll('[data-ntq-code]'));
-  for(const box of targets){
-   const code=box.getAttribute('data-ntq-code');
-   const qr=new Core(-1,0);
-   qr.addData(code);qr.make();
-   const count=qr.getModuleCount(),quiet=4,total=count+quiet*2;
-   let path='';
-   for(let y=0;y<count;y++)for(let x=0;x<count;x++){
-    if(qr.isDark(y,x))path+='M'+(x+quiet)+' '+(y+quiet)+'h1v1h-1z';
+  let index=0;
+  const next=()=>{
+   try{
+    const limit=Math.min(index+8,targets.length);
+    for(;index<limit;index++){
+     const box=targets[index],code=box.getAttribute('data-ntq-code');
+     const qr=new Core(-1,0);
+     qr.addData(code);qr.make();
+     const count=qr.getModuleCount(),quiet=4,total=count+quiet*2;
+     let path='';
+     for(let y=0;y<count;y++)for(let x=0;x<count;x++)
+      if(qr.isDark(y,x))path+='M'+(x+quiet)+' '+(y+quiet)+'h1v1h-1z';
+     box.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR Code do material '+code+'" viewBox="0 0 '+total+' '+total+'">'+
+      '<rect width="'+total+'" height="'+total+'" fill="#fff"/><path fill="#122e3a" d="'+path+'"/></svg>';
+    }
+    if(ready)ready.textContent='Gerando QR Codes: '+index+' de '+targets.length+'...';
+    if(index<targets.length){window.setTimeout(next,0);return;}
+    if(ready)ready.textContent=targets.length+' QR Code(s) prontos. Selecione A4 retrato (vertical).';
+    if(button)button.disabled=false;
+   }catch(e){
+    if(ready)ready.textContent='FALHA NO QR CODE: '+String(e.message||e)+'. Não imprima.';
+    if(button)button.disabled=true;
    }
-   box.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR Code" viewBox="0 0 '+
-    total+' '+total+'"><rect width="'+total+'" height="'+total+'" fill="#fff"/><path fill="#122e3a" d="'+path+'"/></svg>';
-  }
-  if(ready)ready.textContent=targets.length+' QR Code(s) prontos. Selecione A4 paisagem e salve como PDF.';
-  if(button)button.disabled=false;
+  };
+  next();
  }catch(e){
-  if(ready)ready.textContent='FALHA NO QR CODE: '+String(e.message||e)+'. Nao imprima antes de corrigir.';
+  if(ready)ready.textContent='FALHA NO QR CODE: '+String(e.message||e)+'. Não imprima.';
   if(button)button.disabled=true;
  }
 }
