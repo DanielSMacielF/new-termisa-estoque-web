@@ -2935,7 +2935,8 @@ function ntDailyQrHTML(model){
     '<div class="ntq-detail"><strong class="ntq-name">'+name+'</strong>'+
     '<div class="ntq-unit">UNIDADE: '+unit+'</div>'+
     '<div class="ntq-saldo"><small>SALDO ATUAL DO FIREBASE</small><strong>'+plain(fmt(item.saldo))+' <span>'+unit+'</span></strong></div>'+
-    (item.ocorrencias>1?'<div class="ntq-mini">RETIRADAS: '+item.ocorrencias+'</div>':'')+
+    (item.conciliacaoCI?'<div class="ntq-mini">RETIRADAS NA CI: 3</div>':
+      item.ocorrencias>1?'<div class="ntq-mini">RETIRADAS: '+item.ocorrencias+'</div>':'')+
     (!item.conferido?'<div class="ntq-mini ntq-unchecked">CADASTRO NÃO CONFERIDO</div>':'')+
    '</div></div></article>';
  };
@@ -2953,7 +2954,9 @@ function ntDailyQrHTML(model){
    '</div>'+
    '<div class="ntq-sectionline"><b>RELAÇÃO PARA LEITURA</b><span>'+chunk.length+' material(is) nesta página</span></div>'+
    '<div class="ntq-grid">'+chunk.map(cards).join('')+'</div>'+
-   (p===total-1?'<p class="ntq-guidance">QR contém somente o código. Saldo atual consultado em '+plain(model.consultadoEm)+'. Confira código e quantidade antes de lançar no sistema do gerente.</p>':'')+
+   (p===total-1?'<p class="ntq-guidance">QR contém somente o código. Saldo atual consultado em '+plain(model.consultadoEm)+'. Confira código e quantidade antes de lançar no sistema do gerente.'+
+     (model.conciliacaoCI?' Conciliação documental: Filtro Secador 1" com 3 retiradas nas comunicações internas; um quarto registro permanece no histórico para conferência.':'')+
+     '</p>':'')+
    ntFooter(p+1,total)+'</section>');
  }
  const css=ntReportCSS().replace(/^<style>/,'').replace(/<\/style>\s*$/,'');
@@ -3041,7 +3044,7 @@ function ntQrSelectionOpen(){
  });
 }
 
-function ntQrMultiData(dates,materialRows,allMoves,stamp){
+function ntQrMultiData(dates,materialRows,allMoves,stamp,documentCorrections=[]){
  // QR para conciliação com sistema externo: saldo ATUAL do Firebase.
  // Datas selecionam somente saídas e ajustes/conferências registrados nesses dias.
  // O cadastro com conferido=true não implica conferência nas datas escolhidas.
@@ -3058,7 +3061,10 @@ function ntQrMultiData(dates,materialRows,allMoves,stamp){
   if(tipo==='SAIDA')prev.selecionadoSaida=true;
   selected.set(code,prev);return prev;
  };
- for(const m of ntArmEffectiveMovements(allMoves||[])){
+ // Aplica as mesmas exclusões/retificações documentais do Relatório Geral.
+ // Não modifica os registros originais do banco.
+ const effective=ntMetaMoves(allMoves||[],documentCorrections||[]);
+ for(const m of ntArmEffectiveMovements(effective)){
   const code=String(m.codigo||'').trim(),dia=String(m.dia||'');
   if(!code||m.anulado||testeIdentificado(m)||!desired.has(dia))continue;
   const tipo=String(m.tipo||'');
@@ -3096,11 +3102,23 @@ function ntQrMultiData(dates,materialRows,allMoves,stamp){
  }).filter(Boolean);
  if(invalid.length)throw Error('O estoque atual não foi confirmado para os códigos: '+
   invalid.slice(0,12).join(', ')+'. Os QR Codes não foram gerados com saldos indefinidos.');
+ // Conciliação pontual solicitada pelo responsável: a CI de 28 e 29/10/2026
+ // confirma TRÊS retiradas do Filtro Secador 1". Se o histórico ainda listar
+ // quatro, o PDF exibe três como conferidas na CI e informa a divergência;
+ // nenhuma movimentação é apagada, alterada nem excluída do Firebase.
+ const onlyTwoDays=ordered.length===2&&ordered[0]==='2026-10-28'&&ordered[1]==='2026-10-29';
+ const filtro=onlyTwoDays?itens.find(x=>x.codigo==='080100158'):null;
+ if(filtro&&filtro.ocorrencias===4){
+  filtro.ocorrenciasHistorico=4;
+  filtro.ocorrencias=3;
+  filtro.conciliacaoCI=true;
+ }
  itens.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')||a.codigo.localeCompare(b.codigo));
  return {date:end,datas:ordered,periodo:ordered.length===1?ntDate(from):
   ntDate(from)+' a '+ntDate(end)+' ('+ordered.length+' dias escolhidos)',
   atual:true,historico:false,previous:from,consultadoEm:stamp,itens,
-  retiradas:[...selected.values()].reduce((n,x)=>n+x.ocorrencias,0),
+  retiradas:itens.reduce((n,x)=>n+x.ocorrencias,0),
+  conciliacaoCI:!!filtro?.conciliacaoCI,
   conferidos:itens.filter(x=>x.selecionadoConferencia).length,
   ajustados:itens.filter(x=>x.selecionadoAjuste).length,
   repetidosAntes:itens.filter(x=>x.dias.length>1).length,
@@ -3114,13 +3132,14 @@ function ntQrMultiOpenPDF(dates){
  (async()=>{
   try{
    // Duas consultas paralelas no servidor, sem consultas individuais por material.
-   const [a,b]=await Promise.all([
+   const [a,b,c]=await Promise.all([
     getDocsFromServer(collection(db,'nt_web_materiais')),
-    getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','>=',dates[0]),where('dia','<=',dates[dates.length-1])))
+    getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','>=',dates[0]),where('dia','<=',dates[dates.length-1]))),
+    getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION)))
    ]);
-   if(a.metadata.fromCache||b.metadata.fromCache)throw Error('Consulta sem confirmação do servidor.');
+   if(a.metadata.fromCache||b.metadata.fromCache||c.metadata.fromCache)throw Error('Consulta sem confirmação do servidor.');
    const model=ntQrMultiData(dates,a.docs.map(x=>x.data()),b.docs.map(x=>({...x.data(),id:x.id})),
-     new Date().toLocaleString('pt-BR'));
+     new Date().toLocaleString('pt-BR'),c.docs.map(x=>({...x.data(),numero:x.id})));
    popup.document.open();popup.document.write(ntDailyQrHTML(model));popup.document.close();
   }catch(e){
    popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:25px"><h2>QR não gerado</h2><p>'+ntPlain(e.message||e)+'</p><p>Nenhum saldo foi alterado.</p></body></html>');
