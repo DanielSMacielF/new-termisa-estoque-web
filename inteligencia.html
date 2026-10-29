@@ -233,13 +233,13 @@ function ntIntelligencePDF(){
  function chunks(rows,size){const out=[];for(let i=0;i<rows.length;i+=size)out.push(rows.slice(i,i+size));return out}
  function table(headers,items){return '<table class="data"><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+items.join('')+'</tbody></table>'}
  const noConsumption=[...idle].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
- const idlePages=chunks(noConsumption,22);
+ const idlePages=chunks(noConsumption,18);
  for(let i=0;i<idlePages.length;i++)add('ESTOQUE SEM CONSUMO','Sem retirada entre '+from+' e '+to+' · '+(i+1)+' de '+idlePages.length,
    '<div class="section-title">MATERIAIS SEM RETIRADA · '+noConsumption.length+' REGISTROS</div>'+
    table(['CÓDIGO','MATERIAL','UNIDADE','SALDO ATUAL','ESTOQUE MÍNIMO'],
    idlePages[i].map(x=>'<tr><td class="code">'+esc(x.code)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.unit)+'</td><td class="number">'+pt(x.stock)+'</td><td class="number">'+pt(x.min)+'</td></tr>'))+
    '<p class="note">Ausência de retirada no intervalo não significa que o estoque esteja sem consumo histórico.</p>');
- const rankPages=chunks(ranking,22);
+ const rankPages=chunks(ranking,18);
  for(let i=0;i<rankPages.length;i++)add('RANKING DE MOVIMENTAÇÃO',
   'Entradas, saídas e devoluções por material · '+period+' · '+(i+1)+' de '+rankPages.length,
   '<div class="section-title">RANKING DO PERÍODO · '+ranking.length+' MATERIAIS</div>'+
@@ -275,7 +275,7 @@ function ntIntelligencePDF(){
  .pbar-track{background:#e5eff1;height:2.6mm;border-radius:2mm;overflow:hidden}
  .pbar-track i{background:#149ba3;display:block;height:100%;border-radius:2mm}
  .pbar b{font-size:8pt;text-align:right}
- .trend svg{width:100%;height:42mm}
+ .trend svg{width:100%;height:42mm}.trend svg text{fill:#274b5b!important}.trend svg path{stroke:#168d9b!important}.trend svg circle{fill:#138b98!important}.trend svg line{stroke:#9ab9c4!important}
  .stock-list{display:grid;gap:3mm}.stock-list div{display:flex;justify-content:space-between;
  align-items:center;background:#eaf3f4;padding:3mm;font-size:9pt;border-radius:1mm}
  .stock-list b{color:#0e7580;font-size:13pt}
@@ -286,7 +286,7 @@ function ntIntelligencePDF(){
  .risk-row strong{display:block}.risk-row small{display:block;color:#526e7a}
  .data{border-collapse:collapse;width:100%;table-layout:fixed;font-size:7.8pt}
  .data th{background:#153e4c;color:white;text-align:center;font-size:7.3pt;padding:2mm 1mm}
- .data td{padding:1.6mm 1.5mm;border-bottom:.2mm solid #d8e5e8;vertical-align:middle;overflow-wrap:anywhere}
+ .data td{padding:1.3mm 1.5mm;border-bottom:.2mm solid #d8e5e8;vertical-align:middle;overflow-wrap:anywhere;line-height:1.15}
  .data tr:nth-child(even){background:#edf5f6}
  .data td:nth-child(2){width:36%}
  .data .number{text-align:right;font-variant-numeric:tabular-nums}
