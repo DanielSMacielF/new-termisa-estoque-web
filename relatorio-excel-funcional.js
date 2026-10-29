@@ -251,6 +251,7 @@ function intelligenceExecutive(book,model,logo,mainUnit,ranked){
  const t=model.totals||{},date=prettyDate(model.date);
  const ws=createSheet(book,'Inteligência Executiva','Inteligência do Estoque',
    'Visão executiva diária · volumes, operações e sinais de atenção.',Array(18).fill(11),logo);
+ ws.properties.defaultRowHeight=14;ws.views=[{showGridLines:false,zoomScale:90}];
  const kpis=[['RETIRADAS (OPERAÇÕES)',num(t.requestsLines)],['MATERIAIS DISTINTOS',num(t.requestsMaterials)],
   ['ENTRADAS (OPERAÇÕES)',num(t.stockEntries)],['DEVOLUÇÕES (OPERAÇÕES)',num(t.returnLines)]];
  const blocks=[['A','D'],['E','H'],['I','M'],['N','R']];
@@ -296,6 +297,7 @@ function intelligenceDetailed(book,model,logo,mainUnit,ranked,others){
  const t=model.totals||{},date=prettyDate(model.date),stock=model.stockRows||[];
  const ws=createSheet(book,'Inteligência Detalhada','Inteligência do Estoque',
    'Consumo, saldos históricos e controle de recebimentos do dia.',Array(18).fill(11),logo);
+ ws.properties.defaultRowHeight=14;ws.views=[{showGridLines:false,zoomScale:90}];
  const zero=stock.filter(x=>num(x.saida)>0&&x.fim!=null&&num(x.fim)===0);
  const pressure=stock.filter(x=>num(x.saida)>0&&num(x.inicialCalculado)>0&&num(x.saida)/num(x.inicialCalculado)>=.5);
  const divergent=stock.filter(x=>x.validar||Math.abs(num(x.residual))>.0001);
@@ -505,13 +507,13 @@ function chartXml(type,rows){
   const colors=['12888F','3C86C4','E1A457'];
   const dots=rows.map((x,i)=>'<c:dPt><c:idx val="'+i+'"/><c:spPr><a:solidFill><a:srgbClr val="'+colors[i%3]+'"/></a:solidFill></c:spPr></c:dPt>').join('');
   body='<c:doughnutChart><c:varyColors val="1"/><c:ser><c:idx val="0"/><c:order val="0"/>'+
-   '<c:tx><c:v>Operações</c:v></c:tx>'+dots+chartRef(rows,['A','B'])+'</c:ser>'+
+   '<c:tx><c:v>Operações</c:v></c:tx>'+dots+chartRef(rows,['A','B'])+'</c:ser><c:dLbls><c:showVal val="1"/></c:dLbls>'+
    '<c:holeSize val="60"/></c:doughnutChart>';
  }else{
   body='<c:barChart><c:barDir val="bar"/><c:grouping val="clustered"/>'+
    '<c:ser><c:idx val="0"/><c:order val="0"/><c:tx><c:v>Consumo em '+escapeXml(type)+'</c:v></c:tx>'+
    '<c:spPr><a:solidFill><a:srgbClr val="15989F"/></a:solidFill></c:spPr>'+
-   chartRef(rows,['D','E'])+'</c:ser><c:gapWidth val="60"/><c:axId val="924451"/><c:axId val="924452"/></c:barChart>'+
+   chartRef(rows,['D','E'])+'</c:ser><c:dLbls><c:showVal val="1"/></c:dLbls><c:gapWidth val="60"/><c:axId val="924451"/><c:axId val="924452"/></c:barChart>'+
    '<c:catAx><c:axId val="924451"/><c:scaling><c:orientation val="maxMin"/></c:scaling>'+
    '<c:axPos val="l"/><c:tickLblPos val="nextTo"/><c:crossAx val="924452"/><c:crosses val="autoZero"/>'+
    '<c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>'+
