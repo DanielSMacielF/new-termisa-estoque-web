@@ -288,6 +288,14 @@ function intelligenceExecutive(book,model,logo,mainUnit,ranked){
    result:operations+' OPERAÇÕES CONFIRMADAS'
  },
   {fill:PAL.light,color:PAL.teal,bold:true,size:16,align:'center'});
+ // A legenda fica em CÉLULAS ao lado das barras. Os eixos nativos do Excel
+ // escondiam os nomes conforme a versão do aplicativo.
+ ranked.slice(0,6).forEach((x,i)=>{
+  const first=19+i*3,last=first+2,code=txt(x.code),name=txt(x.name);
+  merged(ws,'A'+first+':C'+last,
+   (i+1)+'. '+name+'\\n'+num(x.qty).toLocaleString('pt-BR')+' '+mainUnit,
+   {fill:i%2?PAL.white:PAL.light,color:PAL.navy,bold:true,size:9,wrap:true});
+ });
  section(ws,'A40:R40','RANKING DE CONSUMO DO DIA');
  ranked.slice(0,6).forEach((v,i)=>{
   const row=42+i*2;
@@ -384,7 +392,7 @@ function intelligenceDetailed(book,model,logo,mainUnit,ranked,others){
   }else{
    entries.slice(0,4).forEach((x,j)=>{
     merged(ws,'J'+alertRow+':R'+(alertRow+1),render(x),
-      {fill:j%2?PAL.white:'FFF3DE',size:9,color:PAL.ink,wrap:true});
+      {fill:label.startsWith('RETIRADA ELEVADA')?'FFF0CD':j%2?PAL.white:'FFF3DE',size:9,color:PAL.ink,wrap:true});
     alertRow+=2;
    });alertRow++;
   }
@@ -544,7 +552,7 @@ function chartXml(type,rows){
    '</c:barChart>'+
    '<c:catAx><c:axId val="924451"/>'+
    '<c:scaling><c:orientation val="maxMin"/></c:scaling>'+
-   '<c:axPos val="l"/><c:tickLblPos val="nextTo"/>'+
+   '<c:axPos val="l"/><c:tickLblPos val="none"/>'+
    '<c:crossAx val="924452"/><c:crosses val="autoZero"/>'+
    '<c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/>'+
    '</c:catAx>'+
@@ -613,7 +621,7 @@ export async function exportarExcelFuncional(model,options={}){
  const graphs=makeData(book,model,options.logo);
  const original=await book.xlsx.writeBuffer();
  const enhanced=await nativeCharts(original,[
-  {type:graphs.unit,rows:graphs.top.length?graphs.top:[{name:'Sem dados',value:0}],box:[0,17,9,37],sheetIndex:graphs.intelligenceSheetIndex},
+  {type:graphs.unit,rows:graphs.top.length?graphs.top:[{name:'Sem dados',value:0}],box:[3,17,9,37],sheetIndex:graphs.intelligenceSheetIndex},
   {type:'donut',rows:graphs.counts,box:[9,17,18,32],sheetIndex:graphs.intelligenceSheetIndex}
  ],JSZip);
  const blob=new Blob([enhanced],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
