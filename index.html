@@ -787,9 +787,9 @@ function closeView(){
  return '<div class="nt-rc-head"><div class="nt-rc-eyebrow">NEW TERMISA · ALMOXARIFADO</div><h2>Central de Relatórios</h2><p class="small">Documentos organizados e atualizados pelos registros do Firebase no momento da emissão.</p></div>'+
  '<div class="nt-rc-date card"><div class="field"><label for="dateInput">Data dos relatórios diários</label><input type="date" id="dateInput" value="'+esc(dateFilter)+'"></div></div>'+
  '<div class="nt-rc-group">Operação diária</div><div class="nt-rc-grid">'+
- ntCenterCard('Relatório Geral do Dia','Todos os setores em um documento: produção, pedidos, fornecedores, saldos e conferência.','Automático + dados manuais',button('nt-geral-pdf','PDF completo')+button('nt-geral-excel','Excel editável no padrão do PDF (.xlsx)','alt'))+
+ ntCenterCard('Relatório Geral do Dia','Todos os setores em um documento: produção, pedidos, fornecedores, saldos e conferência.','Automático + dados manuais',button('nt-geral-pdf','PDF completo')+button('nt-geral-excel','Excel (.xlsx)','alt'))+
  ntCenterCard('Comunicação Interna','Pedidos e entregas de materiais do dia '+date+'.','Automático',button('nt-requests-pdf','Gerar PDF'))+
- ntCenterCard('QR Codes · Materiais Entregues','Um QR por código retirado na data selecionada, saldo atual conferido no Firebase e avisos de repetição.','Automático · leitura',button('nt-daily-qr-pdf','Gerar PDF com QR Codes'))+
+ ntCenterCard('QR Codes · Materiais Entregues','Selecione vários dias de retirada. Um QR por material, com saldo registrado até a última data.','Automático · leitura',button('nt-daily-qr-pdf','Selecionar datas e gerar QR Codes'))+
  ntCenterCard('Fechamento Diário','Entradas, saídas, devoluções e saldos antes e depois de cada movimentação.','Automático',button('nt-saldos-pdf','Gerar PDF'))+
  ntCenterCard('Reposição de Materiais','Lista diária editável, histórico e sugestões por estoque mínimo.','Automático + revisão',button('nt-repos-new','Ver itens para compra')+button('nt-repos-history','Histórico','alt'))+
  ntCenterCard('Recebimento de Materiais','Consulta das entradas registradas em Movimentar, por fornecedor, PC e nota fiscal.','Automático · leitura',button('nt-receipt-pdf','PDF do dia')+button('nt-receipt-history','Histórico / Editar','alt'))+
@@ -2886,7 +2886,7 @@ function ntDailyQrHTML(model){
  const total=Math.max(1,Math.ceil(items.length/perPage));
  const cards=item=>{
   const repeated=item.anterior||item.ocorrencias>1;
-  const tag=item.anterior?'TAMBÉM EM '+ntDate(model.previous):
+  const tag=model.historico?'ÚLTIMA SAÍDA '+ntDate(item.lastDay):item.anterior?'TAMBÉM EM '+ntDate(model.previous):
    item.ocorrencias>1?'MAIS DE UMA SAÍDA NO DIA':'SAÍDA EM '+ntDate(model.date);
   return '<article class="ntq-card">'+
    '<div class="ntq-ribbon'+(repeated?' ntq-repeat':'')+'">'+plain(tag)+' · 1 QR NESTE PDF</div>'+
@@ -2895,9 +2895,9 @@ function ntDailyQrHTML(model){
     '<b class="ntq-code">'+plain(item.codigo)+'</b></div>'+
     '<div class="ntq-detail"><strong class="ntq-name">'+plain(item.nome)+'</strong>'+
     '<div class="ntq-unit">UNIDADE: '+plain(item.unidade)+'</div>'+
-    '<div class="ntq-saldo"><small>SALDO ATUAL NO FIREBASE</small><strong>'+
+    '<div class="ntq-saldo"><small>'+plain(model.historico?'SALDO REGISTRADO ATÉ '+ntDate(model.date):'SALDO ATUAL NO FIREBASE')+'</small><strong>'+
      plain(fmt(item.saldo))+' <span>'+plain(item.unidade)+'</span></strong></div>'+
-    (item.ocorrencias>1?'<div class="ntq-mini">SAÍDAS NO DIA: '+item.ocorrencias+'</div>':'')+
+    (item.ocorrencias>1?'<div class="ntq-mini">SAÍDAS SELECIONADAS: '+item.ocorrencias+'</div>':'')+
     (!item.conferido?'<div class="ntq-mini ntq-unchecked">CADASTRO NÃO CONFERIDO</div>':'')+
     '</div></div></article>';
  };
@@ -2906,15 +2906,15 @@ function ntDailyQrHTML(model){
   const chunk=items.slice(p*perPage,(p+1)*perPage);
   const footnote=!items.length?'Nenhuma saída operacional encontrada. Nenhum QR foi gerado.':
    'Cada QR contém somente o código do material. Saldos consultados no Firebase em '+
-   model.consultadoEm+'. Um item repetido não confirma atualização no outro sistema.';
+   model.consultadoEm+'. '+(model.historico?'Referência: último saldo registrado até '+ntDate(model.date)+'. Correções físicas sem movimentação podem não constar.':'Um item repetido não confirma atualização no outro sistema.');
   pages.push('<section class="landscape ntq-sheet">'+
    ntTop('QR CODES · MATERIAIS ENTREGUES',
-    'Saídas registradas em '+ntDate(model.date)+' · Saldos atuais consultados em '+model.consultadoEm,model.date)+
+    (model.historico?'Datas selecionadas: '+model.periodo+' · Saldo até '+ntDate(model.date):'Saídas registradas em '+ntDate(model.date)+' · Saldos atuais consultados em '+model.consultadoEm),model.date)+
    '<div class="ntq-metrics">'+
     '<div class="ntq-metric"><small>MATERIAIS ÚNICOS</small><strong>'+items.length+'</strong></div>'+
-    '<div class="ntq-metric"><small>SAÍDAS DO DIA</small><strong>'+model.retiradas+'</strong></div>'+
-    '<div class="ntq-metric"><small>REP. DO DIA ANTERIOR</small><strong>'+model.repetidosAntes+'</strong></div>'+
-    '<div class="ntq-metric"><small>SAÍDAS REPETIDAS NO DIA</small><strong>'+model.repetidosNoDia+'</strong></div>'+
+    '<div class="ntq-metric"><small>SAÍDAS SELECIONADAS</small><strong>'+model.retiradas+'</strong></div>'+
+    '<div class="ntq-metric"><small>'+plain(model.historico?'EM MAIS DE UM DIA':'REP. DO DIA ANTERIOR')+'</small><strong>'+model.repetidosAntes+'</strong></div>'+
+    '<div class="ntq-metric"><small>SAÍDAS REPETIDAS</small><strong>'+model.repetidosNoDia+'</strong></div>'+
    '</div>'+
    '<div class="ntq-sectionline"><strong>RELAÇÃO DE MATERIAIS PARA LEITURA</strong>'+
     '<span>'+(chunk.length?chunk.length+' material(is) nesta página':'Sem movimentações')+'</span></div>'+
@@ -2979,6 +2979,94 @@ function ntDailyQrHTML(model){
   '<scr'+'ipt>'+engine+'</scr'+'ipt>'+
   '<scr'+'ipt>('+ntDailyQrPopupInit.toString()+')();</scr'+'ipt>'+
   '</body></html>';
+}
+
+/* QR multidiário: consulta somente leitura; material único e último saldo histórico
+   registrado após movimentação até a maior data. Nunca usa estoque atual em
+   substituição silenciosa a um saldo histórico ausente. */
+const ntQrSelectedDays=new Set();
+function ntQrSelectionRows(){
+ const box=document.getElementById('ntq-date-list');if(!box)return;
+ box.innerHTML=[...ntQrSelectedDays].sort().map(d=>
+  '<div style="display:flex;align-items:center;justify-content:space-between;gap:9px;background:#e7f1f2;color:#153e4c;margin:7px 0;padding:9px;border-radius:8px"><b>'+ntDate(d)+'</b>'+
+  '<button class="btn ghost" type="button" data-remove-date="'+esc(d)+'">Remover</button></div>').join('')||
+  '<p class="small">Adicione pelo menos uma data.</p>';
+ const btn=document.getElementById('ntq-date-generate');if(btn)btn.disabled=!ntQrSelectedDays.size;
+}
+function ntQrSelectionOpen(){
+ ntQrSelectedDays.clear();ntQrSelectedDays.add(dateFilter);
+ panel('<h2>QR Codes · Materiais Entregues</h2>'+
+  '<p class="small">Escolha até 20 dias. O mesmo código aparece uma única vez; use o saldo registrado após a última movimentação até a data mais recente.</p>'+
+  '<div class="field"><label>Adicionar data</label><input id="ntq-pick-day" type="date" value="'+esc(dateFilter)+'"></div>'+
+  '<div class="buttons"><button class="btn alt" type="button" id="ntq-date-add">+ Adicionar dia</button></div>'+
+  '<div id="ntq-date-list"></div>'+
+  '<p class="small">QR contém apenas o código. Correções de estoque feitas sem movimentação podem não existir no histórico; se o saldo não estiver registrado a geração será bloqueada.</p>'+
+  '<div class="buttons"><button class="btn" type="button" id="ntq-date-generate">Gerar PDF das datas</button>'+
+  '<button class="btn ghost" type="button" data-action="close">Cancelar</button></div>');
+ ntQrSelectionRows();
+ document.getElementById('ntq-date-add').addEventListener('click',()=>{
+  const d=document.getElementById('ntq-pick-day').value;
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(d)||d>day()){notice('Escolha uma data válida, até hoje.',true);return}
+  if(ntQrSelectedDays.size>=20&&!ntQrSelectedDays.has(d)){notice('Máximo de 20 dias.',true);return}
+  ntQrSelectedDays.add(d);ntQrSelectionRows();
+ });
+ document.getElementById('ntq-date-list').addEventListener('click',e=>{
+  const b=e.target.closest('[data-remove-date]');if(b){ntQrSelectedDays.delete(b.dataset.removeDate);ntQrSelectionRows()}
+ });
+ document.getElementById('ntq-date-generate').addEventListener('click',()=>{
+  const dates=[...ntQrSelectedDays].sort();if(dates.length)ntQrMultiOpenPDF(dates);
+ });
+}
+function ntQrMultiData(dates,materialRows,allMoves,stamp){
+ const ordered=[...new Set(dates)].sort(),from=ordered[0],end=ordered[ordered.length-1];
+ const desired=new Set(ordered),products=new Map(materialRows.map(x=>[String(x.codigo||''),x]));
+ const moves=ntArmEffectiveMovements(allMoves).filter(x=>!x.anulado&&!testeIdentificado(x));
+ moves.sort((a,b)=>String(a.dia||'').localeCompare(String(b.dia||''))||ntDaySortMovement(a,b));
+ const selected=new Map(),last=new Map();
+ for(const m of moves){
+  const code=String(m.codigo||'').trim(),dia=String(m.dia||'');if(!code)continue;
+  if(dia<=end&&ntDayValidSaldo(m.depois)!==null)last.set(code,m);
+  if(m.tipo!=='SAIDA'||!desired.has(dia))continue;
+  const q=ntQty(m);if(!Number.isFinite(q)||q<=0)throw Error('Saída sem quantidade válida: '+code);
+  const row=selected.get(code)||{codigo:code,ocorrencias:0,retirado:0,dias:new Set(),lastDay:dia};
+  row.ocorrencias++;row.retirado=rnd(row.retirado+q);row.dias.add(dia);
+  if(dia>row.lastDay)row.lastDay=dia;
+  selected.set(code,row);
+ }
+ const invalid=[];
+ const itens=[...selected.values()].map(x=>{
+  const m=products.get(x.codigo),record=last.get(x.codigo),saldo=ntDayValidSaldo(record?.depois);
+  if(!m||saldo===null||saldo<0){invalid.push(x.codigo);return null}
+  return {...x,dias:[...x.dias].sort(),anterior:x.dias.size>1,
+   nome:String(m.nome||'SEM DESCRIÇÃO'),unidade:String(m.unidadeMedida||'—'),
+   saldo:rnd(saldo),saldoDia:String(record.dia),conferido:m.conferido===true};
+ }).filter(Boolean);
+ if(invalid.length)throw Error('Não foi possível confirmar o saldo histórico dos códigos: '+
+  invalid.slice(0,12).join(', ')+'. A exportação foi bloqueada para evitar quantidades incorretas.');
+ itens.sort((a,b)=>b.lastDay.localeCompare(a.lastDay)||a.nome.localeCompare(b.nome,'pt-BR'));
+ return {date:end,datas:ordered,periodo:ordered.map(ntDate).join(' · '),historico:true,
+  previous:from,consultadoEm:stamp,itens,retiradas:[...selected.values()].reduce((n,x)=>n+x.ocorrencias,0),
+  repetidosAntes:itens.filter(x=>x.dias.length>1).length,repetidosNoDia:itens.filter(x=>x.ocorrencias>1).length};
+}
+function ntQrMultiOpenPDF(dates){
+ if(!user||!serverReady||!navigator.onLine){notice('É preciso estar sincronizado ao Firebase.',true);return}
+ const popup=window.open('','_blank');if(!popup){notice('Permita pop-ups para gerar o PDF.',true);return}
+ popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:25px">Consultando o Firebase e reconstruindo o histórico...</body></html>');
+ popup.document.close();
+ (async()=>{
+  try{
+   const [a,b]=await Promise.all([
+    getDocsFromServer(collection(db,'nt_web_materiais')),
+    getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','>=',dates[0]),where('dia','<=',dates[dates.length-1])))
+   ]);
+   if(a.metadata.fromCache||b.metadata.fromCache)throw Error('Consulta sem confirmação do servidor.');
+   const model=ntQrMultiData(dates,a.docs.map(x=>x.data()),b.docs.map(x=>({...x.data(),id:x.id})),new Date().toLocaleString('pt-BR'));
+   popup.document.open();popup.document.write(ntDailyQrHTML(model));popup.document.close();
+  }catch(e){
+   popup.document.open();popup.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:25px"><h2>QR não gerado</h2><p>'+ntPlain(e.message||e)+'</p><p>Nenhum saldo foi alterado.</p></body></html>');
+   popup.document.close();notice('QR por datas: '+String(e.message||e),true);
+  }
+ })();
 }
 function ntDailyQrOpenPDF(){
  if(!user||!serverReady||!navigator.onLine){notice('Conecte-se ao Firebase para gerar os QR Codes com saldo atual.',true);return}
@@ -3895,7 +3983,7 @@ async function openQr(target){
   }
 }
 
-async function handleActions(e){const act=e.target.closest('[data-action]');if(!act)return;const a=act.dataset.action;try{if(a==='nt-daily-qr-pdf'){ntDailyQrOpenPDF();return}if(a==='nt-requests-pdf'){await ntRequestsIndividualOpen();return}if(a==='nt-saldos-pdf'){await ntSaldosIndividualOpen();return}
+async function handleActions(e){const act=e.target.closest('[data-action]');if(!act)return;const a=act.dataset.action;try{if(a==='nt-daily-qr-pdf'){ntQrSelectionOpen();return}if(a==='nt-requests-pdf'){await ntRequestsIndividualOpen();return}if(a==='nt-saldos-pdf'){await ntSaldosIndividualOpen();return}
 if(a==='nt-geral-pdf'){ntGeneralDayOpenPDF();return}if(a==='nt-intelligence-pdf'){await ntDailyIntelligenceIndividualOpen();return}if(a==='nt-geral-excel'){await ntGeneralDayOpenExcel();return}
 if(a==='nt-repos-suggest'){ntReposSuggest();return}
 if(a==='nt-receipt-new'){await ntReceiptNew();return}if(a==='nt-receipt-mode'){ntReceiptCapture();ntReceiptManualMode=act.dataset.mode==='unknown';draw();return}
