@@ -42,17 +42,22 @@ function createSheet(book,name,title,subtitle,widths,logo){
  ws.properties.defaultRowHeight=19;
  widths.forEach((w,i)=>ws.getColumn(i+1).width=w);
  const last=alpha(Math.max(8,widths.length));
- merged(ws,'A1:'+last+'1','NEW TERMISA   /   ALMOXARIFADO',
-  {fill:PAL.deep,color:PAL.white,bold:true,size:11});ws.getRow(1).height=27;
- ws.getRow(2).height=22;ws.getRow(3).height=22;
+ ws.getRow(1).height=9;ws.getRow(2).height=33;ws.getRow(3).height=21;
+ ws.getRow(4).height=5;ws.getRow(5).height=29;
+ ws.getRow(6).height=21;ws.getRow(7).height=11;
  if(logo?.startsWith('data:image/')){
   const id=book.addImage({base64:logo,extension:logo.includes('jpeg')?'jpeg':'png'});
-  ws.addImage(id,{tl:{col:.1,row:1.16},ext:{width:155,height:38}});
+  ws.addImage(id,{tl:{col:.05,row:1.08},ext:{width:155,height:36}});
  }
- merged(ws,'C2:'+last+'3',title.toUpperCase(),{size:16,bold:true,align:'right',color:PAL.navy});
- merged(ws,'A4:'+last+'4',subtitle,{size:9,color:PAL.muted});
- for(let i=1;i<=widths.length;i++)ws.getCell(5,i).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+PAL.teal}};
- ws.getRow(5).height=4;
+ merged(ws,'D2:'+last+'2','ALMOXARIFADO / NEW TERMISA',
+  {color:PAL.navy,bold:true,size:10,align:'right'});
+ const date=(txt(subtitle).match(/\d\d\/\d\d\/\d{4}/)||[])[0]||'';
+ merged(ws,'D3:'+last+'3',date,{size:9,color:PAL.muted,align:'right'});
+ for(let i=1;i<=Math.max(8,widths.length);i++){
+  ws.getCell(4,i).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+PAL.teal}};
+ }
+ merged(ws,'A5:'+last+'5',title.toUpperCase(),{size:16,bold:true,color:PAL.navy});
+ merged(ws,'A6:'+last+'6',subtitle,{size:9,color:PAL.muted});
  ws.headerFooter.oddFooter='NEW TERMISA  |  ALMOXARIFADO  |  &P / &N';
  ws.pageSetup.printTitlesRow='1:8';
  return ws;
@@ -148,12 +153,12 @@ function makeData(book,model,logo){
   ['DATA','CÓDIGO','PRODUTO','UN.','QTDE.','LOTE / OPÇÃO'],
   (model.machineRows||[]).map(x=>[date,txt(x.codigoMaquina),x.produto||'',x.unidade||'',
    num(x.concluida),x.lote||'']),{codes:[1],wrap:2});
- tab('Materiais Entregues','Comunicação Interna','Materiais retirados do almoxarifado',
+ tab('Materiais Entregues','Materiais Entregues','Comunicação interna · materiais retirados do almoxarifado',
   [14,17,43,12,15,31,23],
   ['HORA','CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','QTDE.','SOLICITANTE','PEDIDO'],
   (model.requests||[]).map(x=>[timeOf(x),txt(x.codigo),x.nome||'',stockMap.get(txt(x.codigo))?.unidade||'—',
    num(x.quantidade),x.solicitante||'',x.pedido||'']),{codes:[1],wrap:2});
- tab('Recebimentos','Recebimento de Materiais','Fornecedores, pedidos, notas fiscais e itens',
+ tab('Recebimentos','Recebimento de Materiais','Fornecedores, pedidos de compra, notas fiscais e itens',
   [15,42,18,16,17,43,12,15,15,12,27],
   ['DATA','FORNECEDOR','PEDIDO COMPRA','NOTA FISCAL','CÓDIGO','MATERIAL','UN.','QTDE. NF','RECEBIDO','DIF.','SITUAÇÃO'],
   (model.receiptRows||[]).map((x,i)=>[date,x.fornecedor||'',x.pedidoCompra||'',x.notaFiscal||'',
@@ -163,11 +168,11 @@ function makeData(book,model,logo){
   {codes:[4],wrap:5});
  const rest=(model.repos||[]).flatMap(r=>(r.itens||[]).map(x=>{
   const m=cat.get(txt(x.codigo))||{};
-  return [date,txt(x.codigo),x.nome||m.nome||'',m.unidadeMedida||'',
+  return [date,txt(x.codigo),x.nome||m.nome||'',m.unidadeMedida||stockMap.get(txt(x.codigo))?.unidade||m.unidade||'',
    Number.isFinite(Number(m.quantidade))?Number(m.quantidade):'',
    'SOLICITADO PARA ANÁLISE'];
  }));
- tab('Reposição','Reposição de Materiais','Materiais solicitados para compras',
+ tab('Reposição','Reposição de Materiais','Materiais solicitados para análise de compras',
   [16,18,45,14,20,30],['DATA','CÓDIGO','MATERIAL','UN.','SALDO ATUAL','SITUAÇÃO'],
   rest,{codes:[1],wrap:2});
  tab('Saldos','Saldos do Almoxarifado','INICIAL reconstituído; FINAL registrado no Firebase',
@@ -189,7 +194,7 @@ function makeData(book,model,logo){
  const main=all.filter(x=>x.unit===mainUnit).sort((a,b)=>b.qty-a.qty||a.name.localeCompare(b.name,'pt-BR'));
  const other=all.filter(x=>x.unit!==mainUnit).sort((a,b)=>String(a.unit).localeCompare(String(b.unit))||b.qty-a.qty);
  const rows=[...main,...other];
- tab('Inteligência','Inteligência de Estoque','Consumo separado por unidade',
+ tab('Inteligência','Inteligência do Estoque','Consumo separado por unidade de medida',
   [18,46,14,19,20,25],
   ['CÓDIGO','MATERIAL','UN.','CONSUMO','RETIRADAS','CATEGORIA'],
   rows.map(x=>[x.code,x.name,x.unit,x.qty,x.ops,x.unit===mainUnit?'GRÁFICO PRINCIPAL':'OUTRA UNIDADE']),
