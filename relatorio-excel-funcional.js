@@ -197,6 +197,56 @@ function receiptPDFStyle(book,model,logo){
 }
 
 
+
+function reposPDFStyle(book,model,logo,catalog,stock){
+ const date=prettyDate(model.date);
+ const ws=createSheet(book,'Reposição','Relatório de Reposição de Materiais',
+  'Relação de materiais solicitados para análise e aquisição.',[17,11,30,20,13,14,18,18],logo);
+ const documents=(model.repos||[]).filter(x=>(x.itens||[]).length>0);
+ let pos=9;
+ if(!documents.length){
+  merged(ws,'A10:H12','Nenhuma solicitação de reposição emitida na data.',{fill:PAL.light,size:10});
+ }
+ for(let docIndex=0;docIndex<documents.length;docIndex++){
+  const doc=documents[docIndex],items=doc.itens||[];
+  section(ws,'A'+pos+':H'+pos,'MATERIAIS PARA AQUISIÇÃO  ·  '+items.length+' ITEM(NS)');
+  pos+=2;
+  const d=new Date(doc.criadoEmLocal||'');
+  const hour=Number.isFinite(d.getTime())?new Intl.DateTimeFormat('pt-BR',
+   {timeZone:'America/Fortaleza',hour:'2-digit',minute:'2-digit',hour12:false}).format(d):'—';
+  merged(ws,'A'+pos+':D'+pos,'DATA E HORA · '+date+' · '+hour,
+   {fill:PAL.light,color:PAL.navy,bold:true,size:9});
+  merged(ws,'E'+pos+':H'+pos,'SOLICITADO POR · Almoxarifado',
+   {fill:PAL.light,color:PAL.navy,bold:true,size:9,align:'right'});
+  pos+=2;
+  [['A','B','CÓDIGO'],['C','E','MATERIAL'],['F','F','UN.'],['G','H','SALDO ATUAL']].forEach(([a,b,name])=>
+   merged(ws,a+pos+':'+b+pos,name,{fill:PAL.navy,color:PAL.white,bold:true,align:'center',size:9}));
+  ws.getRow(pos).height=25;pos++;
+  for(let i=0;i<items.length;i++){
+   const x=items[i],m=catalog.get(txt(x.codigo))||stock.get(txt(x.codigo))||{},fill=i%2?PAL.light:PAL.white;
+   merged(ws,'A'+pos+':B'+pos,txt(x.codigo||''),{fill,size:9,align:'center'});
+   ws.getCell('A'+pos).numFmt='@';
+   merged(ws,'C'+pos+':E'+pos,x.nome||m.nome||'',{fill,size:9,wrap:true});
+   ws.getCell('F'+pos).value=m.unidadeMedida||m.unidade||'';
+   style(ws.getCell('F'+pos),{fill,size:9,align:'center'});
+   const amt=Number.isFinite(Number(m.quantidade))?Number(m.quantidade):'';
+   const cell=merged(ws,'G'+pos+':H'+pos,amt,{fill,size:9,align:'center',numeric:typeof amt==='number'});
+   if(typeof amt==='number')cell.numFmt='#,##0.####';
+   ws.getRow(pos).height=25;pos++;
+  }
+  pos+=2;
+ }
+ merged(ws,'A'+(pos+1)+':H'+(pos+3),'Saldo atual e unidade consultados no Firebase ao gerar o relatório. O saldo não representa necessariamente a posição na data original da solicitação.',
+  {fill:PAL.light,color:PAL.muted,wrap:true,size:9});
+ section(ws,'A'+(pos+5)+':H'+(pos+5),'ENCAMINHAMENTO');
+ merged(ws,'A'+(pos+6)+':H'+(pos+9),
+  'Solicita-se análise para aquisição dos materiais relacionados. A definição das quantidades e a autorização cabem à chefia e ao setor de Compras. Este registro não comprova compra ou recebimento.',
+  {color:PAL.ink,size:9,wrap:true});
+ ws.pageSetup.printArea='A1:H'+(pos+11);
+ ws.pageSetup.fitToHeight=pos<50?1:0;
+ return ws;
+}
+
 function intelligenceExecutive(book,model,logo,mainUnit,ranked){
  const t=model.totals||{},date=prettyDate(model.date);
  const ws=createSheet(book,'Inteligência Executiva','Inteligência do Estoque',
@@ -366,16 +416,18 @@ function makeData(book,model,logo){
   (model.requests||[]).map(x=>[timeOf(x),txt(x.codigo),x.nome||'',stockMap.get(txt(x.codigo))?.unidade||'—',
    num(x.quantidade),x.solicitante||'',x.pedido||'']),{codes:[1],wrap:2});
  receiptPDFStyle(book,model,logo);
- const rest=(model.repos||[]).flatMap(r=>(r.itens||[]).map(x=>{
-  const m=cat.get(txt(x.codigo))||{};
-  return [date,txt(x.codigo),x.nome||m.nome||'',m.unidadeMedida||stockMap.get(txt(x.codigo))?.unidade||m.unidade||'',
-   Number.isFinite(Number(m.quantidade))?Number(m.quantidade):'',
-   'SOLICITADO PARA ANÁLISE'];
- }));
- tab('Reposição','Reposição de Materiais','Materiais solicitados para análise de compras',
-  [16,18,45,14,20,30],['DATA','CÓDIGO','MATERIAL','UN.','SALDO ATUAL','SITUAÇÃO'],
-  rest,{codes:[1],wrap:2});
- tab('Saldos','Saldos do Almoxarifado','INICIAL reconstituído; FINAL registrado no Firebase',
+
+ reposPDFStyle(book,model,logo,cat,stockMap);
+ tab('Saldos','Saldos do Almoxarifado','Saldos finais registrados e iniciais calculados com as movimentações do dia.',
+  [18,46,12,17,16,16,17,18],
+  ['CÓDIGO','MATERIAL / DESCRIÇÃO','UN.','INICIAL','SAÍDAS','DEVOL.','ENTRADAS','FINAL'],
+  (model.stockRows||[]).map((x,i)=>{
+   const n=i+9,open=x.inicialCalculado==null?'':num(x.inicialCalculado);
+   return [txt(x.codigo),x.nome||'',x.unidade||'',
+    open===''?'':f('H'+n+'+E'+n+'-F'+n+'-G'+n,open),
+    num(x.saida),num(x.devolucao),num(x.entrada),x.fim==null?'':num(x.fim)];
+  }),{codes:[0],wrap:1});
+ const audit=tab('Dados - Conciliação','Conciliação de Saldos','Verificações auxiliares para auditoria',
   [17,46,12,17,16,15,16,18,19,17],
   ['CÓDIGO','MATERIAL','UN.','INICIAL','SAÍDAS','DEVOL.','ENTRADAS','FINAL REGISTRADO','FINAL CALCULADO','DIFERENÇA'],
   (model.stockRows||[]).map((x,i)=>{
@@ -384,6 +436,7 @@ function makeData(book,model,logo){
     open===''?'':f('D'+n+'-E'+n+'+F'+n+'+G'+n,end),
     open===''?'':f('H'+n+'-I'+n,0)];
   }),{codes:[0],wrap:1});
+ audit.state='hidden';
  const used=new Map();
  (model.requests||[]).forEach(x=>{
   const code=txt(x.codigo),old=used.get(code)||{code,name:x.nome||'',
