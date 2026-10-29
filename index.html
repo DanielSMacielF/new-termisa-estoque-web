@@ -156,6 +156,19 @@ header .brand>div:last-child{min-width:0}
 .nt-history-shortcut-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:7px 11px;min-height:35px;width:auto;max-width:100%;border:1px solid #3e6482;border-radius:10px;background:#123552;color:#bcd3e7;font-size:.78rem;font-weight:650;line-height:1.1;letter-spacing:.005em}
 .nt-history-shortcut-button:focus-visible,.nt-history-shortcut-button:hover{background:#1d486a;border-color:#70a5ce;color:#f5fbff}
 .nt-history-shortcut-icon{font-size:1.12rem;line-height:1;color:#9ecdf0}
+
+/* QR Codes · datas escolhidas: contraste legível em temas claros e escuros */
+#ntq-date-list{display:grid;gap:9px;margin:14px 0;max-height:320px;overflow-y:auto}
+.ntq-selected-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+ padding:10px 12px;border:1px solid #5783aa;border-radius:12px;background:#193e61;color:#f3f9ff}
+.ntq-selected-row strong{color:#f3f9ff;font-weight:750;letter-spacing:.01em;font-size:1rem}
+button.ntq-remove{background:#275a80!important;color:#fff!important;border:1px solid #9dd5fc!important;
+ font-size:.92rem;font-weight:750;border-radius:10px;padding:9px 15px;min-width:96px;min-height:43px}
+button.ntq-remove:hover,button.ntq-remove:focus-visible{background:#3478a7!important;border-color:#e0f5ff!important;
+ outline:2px solid #a2e5ff;outline-offset:2px}
+#ntq-date-list .ntq-date-empty{color:#bed8ec;margin:8px 0}
+@media(max-width:390px){.ntq-selected-row{padding:9px}.ntq-selected-row strong{font-size:.95rem}
+button.ntq-remove{min-width:86px;padding:9px 11px}}
 </style></head>
 <body><div class="shell"><header><div class="brand"><div class="mark"><img id="ntHeaderLogo" alt="New Termisa" width="56" height="56"></div><div><h1>Almoxarifado</h1><div class="sub">NEW TERMISA · Controle em nuvem</div></div></div><div id="status" class="status">Aguardando configuração</div></header><main id="app"><div class="notice">Carregando o controle…</div></main><div id="navigation" class="bar hide"><button data-go="painel" class="active"><span>▦</span>Painel</button><button data-go="materiais"><span>▤</span>Materiais</button><button data-go="movimentar"><span>⇄</span>Movimentar</button><button data-go="pedidos"><span>☷</span>Pedidos</button><button data-go="fechamento" aria-label="Central de Relatórios"><span>▣</span>Relatórios</button><button data-go="seguranca"><span>⚙</span>Segurança</button></div></div><div id="modalwrap" class="modalwrap"><div id="modal" class="modal"></div></div><div id="toast" class="toast"></div><div id="busy" class="busy"><div>Verificando e salvando no Firebase…</div></div><input type="file" id="arquivoCatalogo" accept=".json,application/json" hidden>
 <script>
@@ -172,7 +185,7 @@ setTimeout(function(){
     box.innerHTML='<div class="alert">O sistema não conseguiu iniciar. Verifique a internet e recarregue a página. Não faça movimentações nesta tela.</div>';
 },12000);
 </script><script type="module">
-import {exportarExcelFuncional} from './relatorio-excel-funcional.js?v=20261029r5';
+import {exportarExcelFuncional} from './relatorio-excel-funcional.js?v=20261029r6';
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import {getFirestore,collection,doc,setDoc,getDocsFromServer,getDocFromServer,onSnapshot,query,where,orderBy,limit,writeBatch,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
@@ -2988,9 +3001,9 @@ const ntQrSelectedDays=new Set();
 function ntQrSelectionRows(){
  const box=document.getElementById('ntq-date-list');if(!box)return;
  box.innerHTML=[...ntQrSelectedDays].sort().map(d=>
-  '<div style="display:flex;align-items:center;justify-content:space-between;gap:9px;background:#e7f1f2;color:#153e4c;margin:7px 0;padding:9px;border-radius:8px"><b>'+ntDate(d)+'</b>'+
-  '<button class="btn ghost" type="button" data-remove-date="'+esc(d)+'">Remover</button></div>').join('')||
-  '<p class="small">Adicione pelo menos uma data.</p>';
+  '<div class="ntq-selected-row"><strong>'+ntDate(d)+'</strong>'+
+  '<button class="ntq-remove" type="button" aria-label="Remover data '+ntDate(d)+'" data-remove-date="'+esc(d)+'">Remover</button></div>').join('')||
+  '<p class="ntq-date-empty">Adicione pelo menos uma data.</p>';
  const btn=document.getElementById('ntq-date-generate');if(btn)btn.disabled=!ntQrSelectedDays.size;
 }
 function ntQrSelectionOpen(){
@@ -3802,7 +3815,7 @@ async function ntGeneralDayOpenExcel(){
   const model=await ntGeneralDayFetch(date);
   if(!ntReportConfirm(model,'general')){notice('Exportação cancelada: '+ntReportWarnings(model,'general').slice(0,2).join(' '),true);return}
   const result=await exportarExcelFuncional(model,{logo:NT_LOGO});
-  notice('Excel revisão 5 gerado: '+result.sheets+' abas com células e gráficos; use apenas o arquivo com REV5 no nome. Nenhum saldo foi alterado.');
+  notice('Excel revisão 6 gerado: '+result.sheets+' abas com células e gráficos; use o arquivo com REV6 no nome. Nenhum saldo foi alterado.');
  }catch(err){notice('Não foi possível exportar Excel: '+String(err.message||err),true)}
  finally{loader(false)}
 }
