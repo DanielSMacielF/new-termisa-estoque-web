@@ -301,7 +301,11 @@ function ntIntelligencePDF(){
  .sheet-ranking .note,.sheet-idle .note{margin-top:3mm;font-size:9pt;line-height:1.3}
  .sheet-ranking .foot{background:white;z-index:2}
  .data td:nth-child(2){width:36%}
- .data .number{text-align:right;font-variant-numeric:tabular-nums}
+ .data .number{text-align:center;font-variant-numeric:tabular-nums}
+ .data th:not(:nth-child(2)){text-align:center}
+ .sheet-idle .data td:nth-child(3),.sheet-ranking .data td:nth-child(3){text-align:center}
+ .sheet-idle .data td:nth-child(1),.sheet-ranking .data td:nth-child(1){text-align:center}
+ .sheet-ranking .data td:nth-child(n+4),.sheet-idle .data td:nth-child(n+4){text-align:center;font-variant-numeric:tabular-nums}
  .data .code{font-variant-numeric:tabular-nums;white-space:nowrap}
  .foot{position:absolute;bottom:5mm;left:14mm;right:14mm;border-top:.2mm solid #d2e1e5;
  display:flex;justify-content:space-between;color:#526f7b;padding-top:1.8mm;font-size:7pt}
