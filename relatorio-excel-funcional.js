@@ -276,10 +276,17 @@ function intelligenceExecutive(book,model,logo,mainUnit,ranked){
  [['J','L'],['M','O'],['P','R']].forEach(([a,b],i)=>{
   const [label,value]=operationLabels[i];
   const percent=operations?Math.round(100*value/operations):0;
-  merged(ws,a+'34:'+b+'35',label+'  '+value+' ('+percent+'%)',
+  const valueRef="'Dados Gráficos'!B"+(9+i);
+  const totalRef="SUM('Dados Gráficos'!B9:B11)";
+  const result=label+'  '+value+' ('+percent+'%)';
+  const formula='"'+label+'  "&'+valueRef+'&" ("&IFERROR(TEXT('+valueRef+'/'+totalRef+',"0%"),"0%")&")"';
+  merged(ws,a+'34:'+b+'35',{formula,result},
    {fill:PAL.light,color:PAL.navy,bold:true,size:9,align:'center'});
  });
- merged(ws,'J37:R38',operations+' OPERAÇÕES CONFIRMADAS',
+ merged(ws,'J37:R38',{
+   formula:'SUM(\'Dados Gráficos\'!B9:B11)&" OPERAÇÕES CONFIRMADAS"',
+   result:operations+' OPERAÇÕES CONFIRMADAS'
+ },
   {fill:PAL.light,color:PAL.teal,bold:true,size:16,align:'center'});
  section(ws,'A40:R40','RANKING DE CONSUMO DO DIA');
  ranked.slice(0,6).forEach((v,i)=>{
