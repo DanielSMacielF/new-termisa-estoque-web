@@ -3010,7 +3010,7 @@ function ntQrSelectionRows(){
 function ntQrSelectionOpen(){
  ntQrSelectedDays.clear();ntQrSelectedDays.add(dateFilter);
  panel('<h2>QR Codes · Materiais Entregues</h2>'+
-  '<p class="small">Escolha até 20 dias. Inclui entregues, conferidos e ajustes físicos, sem repetir códigos. O saldo é sempre o atual, consultado no Firebase.</p>'+
+  '<p class="small">Escolha até 20 dias. Inclui somente entregas, conferências e ajustes registrados nos dias escolhidos, sem repetir códigos. Mostra o saldo atual do Firebase.</p>'+
   '<div class="field"><label>Adicionar data</label><input id="ntq-pick-day" type="date" value="'+esc(dateFilter)+'"></div>'+
   '<div class="buttons"><button class="btn alt" type="button" id="ntq-date-add">+ Adicionar dia</button></div>'+
   '<div id="ntq-date-list"></div>'+
@@ -3034,8 +3034,9 @@ function ntQrSelectionOpen(){
 
 function ntQrMultiData(dates,materialRows,allMoves,stamp){
  // QR para conciliação com sistema externo: saldo ATUAL do Firebase.
- // Datas selecionam as saídas e os ajustes físicos; conferidos entram mesmo
- // sem movimentação no período. Nunca grava material ou movimentação.
+ // Datas selecionam somente saídas e ajustes/conferências registrados nesses dias.
+ // O cadastro com conferido=true não implica conferência nas datas escolhidas.
+ // Nunca grava material ou movimentação.
  const ordered=[...new Set(dates)].sort(),from=ordered[0],end=ordered[ordered.length-1];
  const desired=new Set(ordered),products=new Map((materialRows||[]).map(x=>[String(x.codigo||'').trim(),x]));
  const selected=new Map();
@@ -3057,13 +3058,16 @@ function ntQrMultiData(dates,materialRows,allMoves,stamp){
    if(!Number.isFinite(q)||q<=0)throw Error('Retirada sem quantidade válida: '+code);
    const o=ensure(code,dia,'SAIDA');o.ocorrencias++;o.retirado=rnd(o.retirado+q);
   }else if(tipo==='AJUSTE'&&String(m.origem||'')!=='ESTORNO_MOVIMENTO'){
-   ensure(code,dia,'AJUSTE');
+   // Conferência física registrada NESTE dia, não qualquer item marcado
+   // permanentemente como conferido no cadastro.
+   const physical=String(m.pedido||'').toUpperCase().includes('CONFERÊNCIA FÍSICA')||
+    /confer[eê]ncia f[ií]sica|contagem f[ií]sica/i.test(String(m.observacao||''));
+   if(physical)ensure(code,dia,'CONFERIDO');
+   // Conferência sem mudança de quantidade é CONFERIDO, não AJUSTADO.
+   const before=ntDayValidSaldo(m.antes),after=ntDayValidSaldo(m.depois);
+   const changed=before===null||after===null||Math.abs(after-before)>0.00001;
+   if(changed)ensure(code,dia,'AJUSTE');
   }
- }
- // Inclui os itens efetivamente conferidos, mesmo que não tenham sido entregues.
- for(const m of materialRows||[]){
-  const code=String(m.codigo||'').trim();
-  if(code&&m.conferido===true)ensure(code,'','CONFERIDO');
  }
  const invalid=[];
  const itens=[...selected.values()].map(x=>{
