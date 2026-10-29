@@ -196,6 +196,152 @@ function receiptPDFStyle(book,model,logo){
  return ws;
 }
 
+
+function intelligenceExecutive(book,model,logo,mainUnit,ranked){
+ const t=model.totals||{},date=prettyDate(model.date);
+ const ws=createSheet(book,'Inteligência Executiva','Inteligência do Estoque',
+   'Visão executiva diária · volumes, operações e sinais de atenção.',Array(18).fill(11),logo);
+ const kpis=[['RETIRADAS (OPERAÇÕES)',num(t.requestsLines)],['MATERIAIS DISTINTOS',num(t.requestsMaterials)],
+  ['ENTRADAS (OPERAÇÕES)',num(t.stockEntries)],['DEVOLUÇÕES (OPERAÇÕES)',num(t.returnLines)]];
+ const blocks=[['A','D'],['E','H'],['I','M'],['N','R']];
+ kpis.forEach(([name,value],i)=>{
+  const [a,b]=blocks[i];
+  merged(ws,a+'8:'+b+'8',name,{fill:PAL.light,color:PAL.navy,bold:true,size:9});
+  const c=merged(ws,a+'9:'+b+'11',value,{fill:PAL.light,color:PAL.teal,bold:true,size:20});c.numFmt='#,##0';
+ });
+ section(ws,'A13:R13','VISÃO EXECUTIVA · '+date);
+ section(ws,'A15:I15','MAIORES RETIRADAS EM '+mainUnit);
+ section(ws,'J15:R15','MOVIMENTAÇÕES OPERACIONAIS');
+ merged(ws,'A16:I16','Top 6 por quantidade. Não somar unidades de medida diferentes.',
+  {size:9,color:PAL.muted});
+ merged(ws,'J16:R16','Entradas, retiradas e devoluções registradas no período.',
+  {size:9,color:PAL.muted});
+ merged(ws,'J37:R38',num(t.requestsLines+t.stockEntries+t.returnLines)+' OPERAÇÕES CONFIRMADAS',
+  {fill:PAL.light,color:PAL.teal,bold:true,size:16,align:'center'});
+ section(ws,'A40:R40','RANKING DE CONSUMO DO DIA');
+ ranked.slice(0,6).forEach((v,i)=>{
+  const row=42+i*2;
+  merged(ws,'A'+row+':K'+row,(i+1)+'. '+txt(v.name)+'  ·  '+txt(v.code),{fill:i%2?PAL.white:PAL.light,size:9,color:PAL.ink});
+  merged(ws,'L'+row+':R'+row,num(v.qty).toLocaleString('pt-BR')+' '+mainUnit+' · '+v.ops+' retirada(s)',
+    {fill:i%2?PAL.white:PAL.light,color:PAL.teal,bold:true,size:10,align:'right'});
+  ws.getRow(row).height=21;
+ });
+ section(ws,'A56:R56','DIAGNÓSTICOS DO DIA');
+ const top=ranked[0],total=ranked.reduce((a,x)=>a+num(x.qty),0);
+ const cards=[
+  ['MAIOR CONSUMO EM '+mainUnit,top?txt(top.name)+' · '+num(top.qty).toLocaleString('pt-BR')+' '+mainUnit:'Sem retiradas na unidade.'],
+  ['FREQUÊNCIA DE RETIRADAS',num(t.requestsMaterials)+' material(is) diferentes; '+num(t.requestsLines)+' operações.'],
+  ['ATENÇÃO AO SALDO',num(t.stockNotReconciled)?num(t.stockNotReconciled)+' saldo(s) exigem conferência.':'Nenhum saldo com divergência indicada.']
+ ];
+ [['A','F'],['G','L'],['M','R']].forEach(([a,b],i)=>{
+  merged(ws,a+'58:'+b+'58',cards[i][0],{fill:PAL.light,bold:true,color:PAL.navy,size:9});
+  merged(ws,a+'59:'+b+'62',cards[i][1],{fill:PAL.light,color:PAL.ink,size:9,wrap:true});
+ });
+ merged(ws,'A64:R66','Fonte: movimentações confirmadas no Firebase. Ranking separado por unidade de medida; valores da planilha não são enviados automaticamente de volta ao estoque.',
+  {color:PAL.muted,size:9,wrap:true});
+ ws.pageSetup.printArea='A1:R67';ws.pageSetup.fitToHeight=1;
+ return ws;
+}
+function intelligenceDetailed(book,model,logo,mainUnit,ranked,others){
+ const t=model.totals||{},date=prettyDate(model.date),stock=model.stockRows||[];
+ const ws=createSheet(book,'Inteligência Detalhada','Inteligência do Estoque',
+   'Consumo, saldos históricos e controle de recebimentos do dia.',Array(18).fill(11),logo);
+ const zero=stock.filter(x=>num(x.saida)>0&&x.fim!=null&&num(x.fim)===0);
+ const pressure=stock.filter(x=>num(x.saida)>0&&num(x.inicialCalculado)>0&&num(x.saida)/num(x.inicialCalculado)>=.5);
+ const divergent=stock.filter(x=>x.validar||Math.abs(num(x.residual))>.0001);
+ const kpis=[['SALDOS ZERADOS APÓS SAÍDA',zero.length],
+  ['CONSUMO ≥ 50% DO INICIAL',pressure.length],
+  ['DIVERGÊNCIAS DE SALDO',divergent.length],
+  ['LINHAS RECEBIDAS',num(t.receiptLines)]];
+ const spans=[['A','D'],['E','H'],['I','M'],['N','R']];
+ kpis.forEach(([label,value],i)=>{
+  const [a,b]=spans[i];merged(ws,a+'8:'+b+'8',label,{fill:PAL.light,color:PAL.navy,bold:true,size:9});
+  merged(ws,a+'9:'+b+'11',value,{fill:PAL.light,color:PAL.teal,bold:true,size:19});
+ });
+ section(ws,'A13:R13','ANÁLISE DETALHADA · '+date);
+ section(ws,'A15:I15','CONSUMO POR UNIDADE DE MEDIDA');
+ section(ws,'J15:R15','ALERTAS DE SALDO AO FINAL DO DIA');
+ merged(ws,'A16:I16','Totais separados: não somar unidades incompatíveis.',{color:PAL.muted,size:9});
+ merged(ws,'J16:R16','Somente materiais com retirada registrada.',{color:PAL.muted,size:9});
+ const stockMap=new Map(stock.map(x=>[txt(x.codigo),x]));
+ const unitMap=new Map();
+ for(const m of model.requests||[]){
+  const code=txt(m.codigo),unit=stockMap.get(code)?.unidade||'—';
+  let item=unitMap.get(unit);
+  if(!item){item={unit,codes:new Set(),ops:0,qty:0};unitMap.set(unit,item)}
+  item.codes.add(code);item.ops++;item.qty=round(item.qty+num(m.quantidade));
+ }
+ let at=18;
+ [...unitMap.values()].sort((a,b)=>b.qty-a.qty).slice(0,5).forEach((u,i)=>{
+  const color=i%2?PAL.white:PAL.light;
+  merged(ws,'A'+at+':B'+(at+1),u.unit,{fill:color,color:PAL.teal,bold:true,size:12});
+  merged(ws,'C'+at+':I'+(at+1),
+   u.codes.size+' material(is)  ·  '+u.ops+' retiradas  ·  '+num(u.qty).toLocaleString('pt-BR')+' '+u.unit,
+   {fill:color,color:PAL.ink,size:10});
+  at+=3;
+ });
+ section(ws,'A35:I35','OUTRAS FAIXAS DE CONSUMO');
+ const otherSorted=[...others].sort((a,b)=>b.qty-a.qty).slice(0,5);
+ if(otherSorted.length){
+  otherSorted.forEach((x,i)=>{
+   const row=37+i*2;
+   merged(ws,'A'+row+':F'+row,x.name,{fill:i%2?PAL.white:PAL.light,size:9,wrap:true});
+   merged(ws,'G'+row+':I'+row,num(x.qty).toLocaleString('pt-BR')+' '+x.unit,
+    {fill:i%2?PAL.white:PAL.light,bold:true,color:PAL.teal,align:'right',size:9});
+  });
+ }else merged(ws,'A37:I39','Sem movimentações em outras unidades.',{color:PAL.muted,size:9});
+ section(ws,'A49:I49','OUTRAS RETIRADAS EM '+mainUnit);
+ const extra=ranked.slice(6,10);
+ if(extra.length)extra.forEach((x,i)=>{
+  const row=51+i*2;
+  merged(ws,'A'+row+':F'+row,x.name,{fill:i%2?PAL.white:PAL.light,size:9,wrap:true});
+  merged(ws,'G'+row+':I'+row,num(x.qty).toLocaleString('pt-BR')+' '+mainUnit,
+   {fill:i%2?PAL.white:PAL.light,color:PAL.teal,bold:true,size:9,align:'right'});
+ });
+ else merged(ws,'A51:I53','Nenhuma outra retirada nessa unidade.',{color:PAL.muted,size:9});
+ let alertRow=18;
+ for(const [label,entries,render] of [
+  ['ZERADOS ('+zero.length+')',zero,x=>txt(x.nome)+' · '+txt(x.codigo)],
+  ['RETIRADA ELEVADA ('+pressure.length+')',pressure,x=>txt(x.nome)+' · '+Math.round(num(x.saida)/num(x.inicialCalculado)*100)+'% do saldo inicial'],
+  ['DIVERGÊNCIAS ('+divergent.length+')',divergent,x=>txt(x.nome)+' · código '+txt(x.codigo)]
+ ]){
+  merged(ws,'J'+alertRow+':R'+alertRow,label,{fill:PAL.light,color:PAL.navy,bold:true,size:9});
+  alertRow++;
+  if(!entries.length){
+   merged(ws,'J'+alertRow+':R'+alertRow,'Nenhum registro nesta condição.',{color:PAL.muted,size:9});
+   alertRow+=2;
+  }else{
+   entries.slice(0,4).forEach((x,j)=>{
+    merged(ws,'J'+alertRow+':R'+(alertRow+1),render(x),
+      {fill:j%2?PAL.white:'FFF3DE',size:9,color:PAL.ink,wrap:true});
+    alertRow+=2;
+   });alertRow++;
+  }
+ }
+ section(ws,'J49:R49','CONTROLE DE RECEBIMENTOS');
+ const receipt=model.receiptRows||[],groups=new Map();
+ receipt.forEach(x=>{
+  const key=[x.fornecedor||'',x.pedidoCompra||'',x.notaFiscal||''].join('|');
+  const item=groups.get(key)||{supplier:x.fornecedor||'Fornecedor',received:0,linked:0};
+  item.received++;
+  if(x.entradaConfirmada)item.linked++;
+  groups.set(key,item);
+ });
+ const summary=['Recebimentos documentados: '+num(t.receipts),
+  'Entradas efetivas: '+num(t.stockEntries),
+  'Linhas de material: '+receipt.length,
+  'Aguardando cadastro: '+num(t.pendingCodes)];
+ summary.forEach((x,i)=>merged(ws,'J'+(51+i)+':R'+(51+i),x,{fill:i%2?PAL.white:PAL.light,size:9}));
+ let gr=56;
+ for(const x of [...groups.values()].slice(0,4)){
+  merged(ws,'J'+gr+':R'+gr,txt(x.supplier)+' · '+x.received+' linha(s) · '+x.linked+' vinculada(s)',
+   {fill:gr%2?PAL.white:PAL.light,size:9,wrap:true});
+  gr+=2;
+ }
+ ws.pageSetup.printArea='A1:R'+Math.max(65,gr+3);ws.pageSetup.fitToHeight=1;
+ return ws;
+}
+
 function makeData(book,model,logo){
  const t=model.totals||{},date=prettyDate(model.date),cat=new Map((model.materialCatalog||[]).map(x=>[txt(x.codigo),x]));
  const stockMap=new Map((model.stockRows||[]).map(x=>[txt(x.codigo),x]));
