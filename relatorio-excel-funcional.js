@@ -20,6 +20,7 @@ function loadLibs(){
  return pendingExcel;
 }
 const txt=x=>String(x??''),num=x=>Number.isFinite(Number(x))?Number(x):0;
+const shortGraphName=x=>{const name=txt(x).replace(/\s+/g,' ').trim();return name.length>21?name.slice(0,20)+'…':name;};
 const round=x=>Math.round((num(x)+Number.EPSILON)*10000)/10000;
 const prettyDate=x=>/^\d{4}-\d\d-\d\d$/.test(txt(x))?txt(x).slice(8,10)+'/'+txt(x).slice(5,7)+'/'+txt(x).slice(0,4):txt(x);
 const timeOf=x=>{const m=txt(x?.timeClient||x?.hora).match(/(?:T)?(\d\d:\d\d)/);return m?m[1]:''};
@@ -267,7 +268,25 @@ function intelligenceExecutive(book,model,logo,mainUnit,ranked){
   {size:9,color:PAL.muted});
  merged(ws,'J16:R16','Entradas, retiradas e devoluções registradas no período.',
   {size:9,color:PAL.muted});
- merged(ws,'J37:R38',num(t.requestsLines+t.stockEntries+t.returnLines)+' OPERAÇÕES CONFIRMADAS',
+ const operations=num(t.requestsLines+t.stockEntries+t.returnLines);
+ const operationLabels=[
+  ['RETIRADAS',num(t.requestsLines)],['ENTRADAS',num(t.stockEntries)],
+  ['DEVOLUÇÕES',num(t.returnLines)]
+ ];
+ [['J','L'],['M','O'],['P','R']].forEach(([a,b],i)=>{
+  const [label,value]=operationLabels[i];
+  const percent=operations?Math.round(100*value/operations):0;
+  const valueRef="'Dados Gráficos'!B"+(9+i);
+  const totalRef="SUM('Dados Gráficos'!B9:B11)";
+  const result=label+'  '+value+' ('+percent+'%)';
+  const formula='"'+label+'  "&'+valueRef+'&" ("&IFERROR(TEXT('+valueRef+'/'+totalRef+',"0%"),"0%")&")"';
+  merged(ws,a+'34:'+b+'35',{formula,result},
+   {fill:PAL.light,color:PAL.navy,bold:true,size:9,align:'center'});
+ });
+ merged(ws,'J37:R38',{
+   formula:'SUM(\'Dados Gráficos\'!B9:B11)&" OPERAÇÕES CONFIRMADAS"',
+   result:operations+' OPERAÇÕES CONFIRMADAS'
+ },
   {fill:PAL.light,color:PAL.teal,bold:true,size:16,align:'center'});
  section(ws,'A40:R40','RANKING DE CONSUMO DO DIA');
  ranked.slice(0,6).forEach((v,i)=>{
@@ -476,13 +495,13 @@ function makeData(book,model,logo){
  });
  for(let i=0;i<6;i++){
   const n=9+i,row=main[i];
-  g.getCell('D'+n).value=row?{formula:"'Dados - Consumo'!B"+n,result:row.name}:'';
+  g.getCell('D'+n).value=row?shortGraphName(row.name):'';
   g.getCell('E'+n).value=row?f("'Dados - Consumo'!D"+n,row.qty):0;
  }
  g.mergeCells('A18:F20');g.getCell('A18').value='Edite os registros da planilha. Ao recalcular, os gráficos e indicadores vinculados podem ser atualizados.';
  style(g.getCell('A18'),{wrap:true,color:PAL.muted});
  g.state='hidden';
- return {counts:counts.map(x=>({name:x[0],value:x[2]})),top:main.slice(0,6).map(x=>({name:x.name,value:x.qty})),
+ return {counts:counts.map(x=>({name:x[0],value:x[2]})),top:main.slice(0,6).map(x=>({name:shortGraphName(x.name),value:x.qty})),
   unit:mainUnit,intelligenceSheetIndex:book.worksheets.findIndex(ws=>ws.name==='Inteligência Executiva')+1};
 }
 const escapeXml=s=>txt(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -498,32 +517,48 @@ function chartRef(rows,cols){
   cache(names,true)+'</c:strRef></c:cat><c:val><c:numRef><c:f>'+
   pre+'$'+cols[1]+'$'+first+':$'+cols[1]+'$'+last+'</c:f>'+cache(values,false)+'</c:numRef></c:val>';
 }
+/* Legendas e valores detalhados ficam nas células editáveis.
+   Evita os rótulos automáticos que o Excel sobrepõe às barras e à rosca. */
 function chartXml(type,rows){
  const pre='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
  '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'+
  '<c:lang val="pt-BR"/><c:chart><c:plotArea><c:layout/>';
  let body='';
+ const noLabels='<c:dLbls><c:showLegendKey val="0"/><c:showVal val="0"/>'+
+  '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/></c:dLbls>';
  if(type==='donut'){
   const colors=['12888F','3C86C4','E1A457'];
-  const dots=rows.map((x,i)=>'<c:dPt><c:idx val="'+i+'"/><c:spPr><a:solidFill><a:srgbClr val="'+colors[i%3]+'"/></a:solidFill></c:spPr></c:dPt>').join('');
-  body='<c:doughnutChart><c:varyColors val="1"/><c:ser><c:idx val="0"/><c:order val="0"/>'+
-   '<c:tx><c:v>Operações</c:v></c:tx>'+dots+chartRef(rows,['A','B'])+'</c:ser><c:dLbls><c:showVal val="1"/></c:dLbls>'+
-   '<c:holeSize val="60"/></c:doughnutChart>';
+  const dots=rows.map((x,i)=>'<c:dPt><c:idx val="'+i+'"/><c:spPr>'+
+   '<a:solidFill><a:srgbClr val="'+colors[i%colors.length]+'"/></a:solidFill>'+
+   '</c:spPr></c:dPt>').join('');
+  body='<c:doughnutChart><c:varyColors val="1"/><c:ser><c:idx val="0"/>'+
+   '<c:order val="0"/><c:tx><c:v>Movimentações</c:v></c:tx>'+dots+
+   chartRef(rows,['A','B'])+'</c:ser>'+noLabels+
+   '<c:holeSize val="67"/></c:doughnutChart>';
  }else{
   body='<c:barChart><c:barDir val="bar"/><c:grouping val="clustered"/>'+
-   '<c:ser><c:idx val="0"/><c:order val="0"/><c:tx><c:v>Consumo em '+escapeXml(type)+'</c:v></c:tx>'+
-   '<c:spPr><a:solidFill><a:srgbClr val="15989F"/></a:solidFill></c:spPr>'+
-   chartRef(rows,['D','E'])+'</c:ser><c:dLbls><c:showVal val="1"/></c:dLbls><c:gapWidth val="60"/><c:axId val="924451"/><c:axId val="924452"/></c:barChart>'+
-   '<c:catAx><c:axId val="924451"/><c:scaling><c:orientation val="maxMin"/></c:scaling>'+
-   '<c:axPos val="l"/><c:tickLblPos val="nextTo"/><c:crossAx val="924452"/><c:crosses val="autoZero"/>'+
-   '<c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>'+
-   '<c:valAx><c:axId val="924452"/><c:scaling><c:orientation val="minMax"/></c:scaling>'+
-   '<c:axPos val="b"/><c:majorGridlines/><c:numFmt formatCode="#,##0.##" sourceLinked="0"/>'+
-   '<c:tickLblPos val="nextTo"/><c:crossAx val="924451"/><c:crosses val="autoZero"/>'+
-   '<c:crossBetween val="between"/></c:valAx>';
+   '<c:varyColors val="0"/><c:ser><c:idx val="0"/><c:order val="0"/>'+
+   '<c:tx><c:v>Consumo</c:v></c:tx>'+
+   '<c:spPr><a:solidFill><a:srgbClr val="15989F"/></a:solidFill>'+
+   '</c:spPr>'+chartRef(rows,['D','E'])+'</c:ser>'+noLabels+
+   '<c:gapWidth val="75"/><c:axId val="924451"/><c:axId val="924452"/>'+
+   '</c:barChart>'+
+   '<c:catAx><c:axId val="924451"/>'+
+   '<c:scaling><c:orientation val="maxMin"/></c:scaling>'+
+   '<c:axPos val="l"/><c:tickLblPos val="nextTo"/>'+
+   '<c:crossAx val="924452"/><c:crosses val="autoZero"/>'+
+   '<c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/>'+
+   '</c:catAx>'+
+   '<c:valAx><c:axId val="924452"/>'+
+   '<c:scaling><c:orientation val="minMax"/></c:scaling>'+
+   '<c:axPos val="b"/><c:majorGridlines/>'+
+   '<c:numFmt formatCode="#,##0.##" sourceLinked="0"/>'+
+   '<c:tickLblPos val="nextTo"/><c:crossAx val="924451"/>'+
+   '<c:crosses val="autoZero"/><c:crossBetween val="between"/>'+
+   '</c:valAx>';
  }
- return pre+body+'</c:plotArea>'+(type==='donut'?'<c:legend><c:legendPos val="r"/><c:layout/></c:legend>':'')+
-  '<c:plotVisOnly val="0"/></c:chart></c:chartSpace>';
+ return pre+body+'</c:plotArea><c:plotVisOnly val="0"/>'+
+  '</c:chart></c:chartSpace>';
 }
 function anchor(id,rid,bounds){
  const loc=(name,col,row)=>'<xdr:'+name+'><xdr:col>'+col+'</xdr:col><xdr:colOff>0</xdr:colOff>'+
@@ -580,7 +615,7 @@ export async function exportarExcelFuncional(model,options={}){
  const original=await book.xlsx.writeBuffer();
  const enhanced=await nativeCharts(original,[
   {type:graphs.unit,rows:graphs.top.length?graphs.top:[{name:'Sem dados',value:0}],box:[0,17,9,37],sheetIndex:graphs.intelligenceSheetIndex},
-  {type:'donut',rows:graphs.counts,box:[9,17,18,37],sheetIndex:graphs.intelligenceSheetIndex}
+  {type:'donut',rows:graphs.counts,box:[9,17,18,32],sheetIndex:graphs.intelligenceSheetIndex}
  ],JSZip);
  const blob=new Blob([enhanced],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
   url=URL.createObjectURL(blob),link=document.createElement('a');
