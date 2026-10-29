@@ -20,7 +20,7 @@ function loadLibs(){
  return pendingExcel;
 }
 const txt=x=>String(x??''),num=x=>Number.isFinite(Number(x))?Number(x):0;
-const shortGraphName=x=>{const name=txt(x).replace(/\s+/g,' ').trim();return name.length>21?name.slice(0,20)+'…':name;};
+const shortGraphName=x=>{const name=txt(x).replace(/\s+/g,' ').trim();return name.length>18?name.slice(0,17)+'…':name;};
 const round=x=>Math.round((num(x)+Number.EPSILON)*10000)/10000;
 const prettyDate=x=>/^\d{4}-\d\d-\d\d$/.test(txt(x))?txt(x).slice(8,10)+'/'+txt(x).slice(5,7)+'/'+txt(x).slice(0,4):txt(x);
 const timeOf=x=>{const m=txt(x?.timeClient||x?.hora).match(/(?:T)?(\d\d:\d\d)/);return m?m[1]:''};
@@ -524,8 +524,7 @@ function chartXml(type,rows){
  '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'+
  '<c:lang val="pt-BR"/><c:chart><c:plotArea><c:layout/>';
  let body='';
- const noLabels='<c:dLbls><c:showLegendKey val="0"/><c:showVal val="0"/>'+
-  '<c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/></c:dLbls>';
+ const noLabels=''; // Nenhum rótulo automático: os valores completos estão em células editáveis.
  if(type==='donut'){
   const colors=['12888F','3C86C4','E1A457'];
   const dots=rows.map((x,i)=>'<c:dPt><c:idx val="'+i+'"/><c:spPr>'+
@@ -608,7 +607,7 @@ async function nativeCharts(buffer,graphs,JSZip){
 export async function exportarExcelFuncional(model,options={}){
  const [ExcelJS,JSZip]=await loadLibs(),book=new ExcelJS.Workbook();
  book.creator='New Termisa Almoxarifado';book.title='Relatório Geral · '+prettyDate(model.date);
- book.subject='Excel com fórmulas, filtros e gráficos nativos';
+ book.subject='Excel editável REV5; gráficos sem rótulos sobrepostos; fontes nativas';
  book.created=new Date();book.calcProperties.fullCalcOnLoad=true;
  dashboard(book,model,options.logo);
  const graphs=makeData(book,model,options.logo);
@@ -619,7 +618,7 @@ export async function exportarExcelFuncional(model,options={}){
  ],JSZip);
  const blob=new Blob([enhanced],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
   url=URL.createObjectURL(blob),link=document.createElement('a');
- link.href=url;link.download='NewTermisa_Relatorio_Geral_Funcional_'+model.date+'.xlsx';
+ link.href=url;link.download='NewTermisa_Relatorio_Geral_EDITAVEL_REV5_'+model.date+'.xlsx';
  document.body.appendChild(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),30000);
  return {sheets:book.worksheets.length,charts:2,editable:true};
