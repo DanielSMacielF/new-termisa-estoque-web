@@ -761,7 +761,7 @@ function closeView(){
  return '<div class="nt-rc-head"><div class="nt-rc-eyebrow">NEW TERMISA · ALMOXARIFADO</div><h2>Central de Relatórios</h2><p class="small">Documentos organizados e atualizados pelos registros do Firebase no momento da emissão.</p></div>'+
  '<div class="nt-rc-date card"><div class="field"><label for="dateInput">Data dos relatórios diários</label><input type="date" id="dateInput" value="'+esc(dateFilter)+'"></div></div>'+
  '<div class="nt-rc-group">Operação diária</div><div class="nt-rc-grid">'+
- ntCenterCard('Relatório Geral do Dia','Todos os setores em um documento: produção, pedidos, fornecedores, saldos e conferência.','Automático + dados manuais',button('nt-geral-pdf','PDF completo')+button('nt-geral-excel','Excel igual ao PDF (.xlsx)','alt'))+
+ ntCenterCard('Relatório Geral do Dia','Todos os setores em um documento: produção, pedidos, fornecedores, saldos e conferência.','Automático + dados manuais',button('nt-geral-pdf','PDF completo')+button('nt-geral-excel','Excel editável no padrão do PDF (.xlsx)','alt'))+
  ntCenterCard('Comunicação Interna','Pedidos e entregas de materiais do dia '+date+'.','Automático',button('nt-requests-pdf','Gerar PDF'))+
  ntCenterCard('QR Codes · Materiais Entregues','Um QR por código retirado na data selecionada, saldo atual conferido no Firebase e avisos de repetição.','Automático · leitura',button('nt-daily-qr-pdf','Gerar PDF com QR Codes'))+
  ntCenterCard('Fechamento Diário','Entradas, saídas, devoluções e saldos antes e depois de cada movimentação.','Automático',button('nt-saldos-pdf','Gerar PDF'))+
@@ -3687,8 +3687,8 @@ async function ntGeneralDayOpenExcel(){
   const date=dateFilter;
   const model=await ntGeneralDayFetch(date);
   if(!ntReportConfirm(model,'general')){notice('Exportação cancelada: '+ntReportWarnings(model,'general').slice(0,2).join(' '),true);return}
-  const result=await ntDayExportVisualExcel(model);
-  notice('Excel espelho do PDF gerado: '+result.pages+' páginas com a mesma apresentação, mais '+(result.sheets-result.pages)+' abas de dados editáveis. Nenhum saldo foi alterado.');
+  const result=await exportarExcelFuncional(model,{logo:NT_LOGO});
+  notice('Excel editável gerado: '+result.sheets+' abas com células, fórmulas e '+result.charts+' gráficos nativos. Os dados do Firebase não foram alterados.');
  }catch(err){notice('Não foi possível exportar Excel: '+String(err.message||err),true)}
  finally{loader(false)}
 }
