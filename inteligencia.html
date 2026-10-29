@@ -313,48 +313,76 @@ function ntIntelligencePDF(){
  const printReflowScript=`
  (function(){
   let done=false;
+  function compactPages(className){
+   const sheets=Array.from(document.querySelectorAll('.sheet.'+className));
+   if(!sheets.length)return;
+   const allRows=sheets.flatMap(sheet=>Array.from(sheet.querySelectorAll('tbody tr')));
+   // Reúne todos os registros antes da distribuição; nenhum material é descartado.
+   sheets.forEach(sheet=>sheet.querySelector('tbody').replaceChildren());
+   let pageIndex=0;
+   function pageAt(index){
+    if(index>=sheets.length){
+     const clone=sheets[sheets.length-1].cloneNode(true);
+     clone.querySelector('tbody').replaceChildren();
+     sheets[sheets.length-1].after(clone);
+     sheets.push(clone);
+    }
+    return sheets[index];
+   }
+   for(const row of allRows){
+    let safety=0;
+    while(safety++<=allRows.length+2){
+     const sheet=pageAt(pageIndex),tbody=sheet.querySelector('tbody');
+     const note=sheet.querySelector('.note'),footer=sheet.querySelector('.foot');
+     tbody.append(row);
+     // O rodapé deve ficar livre, inclusive para nomes com múltiplas linhas.
+     const noteBottom=note.getBoundingClientRect().bottom;
+     const footerTop=footer.getBoundingClientRect().top;
+     if(noteBottom <= footerTop-18)break;
+     // Um registro isolado não pode ser dividido entre páginas.
+     if(tbody.rows.length===1)break;
+     tbody.removeChild(row);
+     pageIndex++;
+    }
+   }
+   // Remove as páginas vazias que sobraram após compactar os registros.
+   sheets.slice(pageIndex+1).forEach(sheet=>sheet.remove());
+   const remaining=sheets.slice(0,pageIndex+1);
+   remaining.forEach((sheet,i)=>{
+    const subtitle=sheet.querySelector('.subtitle');
+    if(!subtitle)return;
+    const title=subtitle.textContent;
+    const divider=title.lastIndexOf(' · ');
+    if(divider>=0)subtitle.textContent=title.slice(0,divider)+' · '+(i+1)+' de '+remaining.length;
+   });
+   const count=remaining.reduce((total,sheet)=>total+sheet.querySelectorAll('tbody tr').length,0);
+   if(count!==allRows.length)throw Error('Paginação perdeu linhas.');
+  }
   function adjust(){
    if(done)return;
    done=true;
-   const sheets=Array.from(document.querySelectorAll('.sheet-ranking'));
-   let moves=0;
-   for(let i=0;i<sheets.length;i++){
-    const sheet=sheets[i],body=sheet.querySelector('tbody');
-    const note=sheet.querySelector('.note'),footer=sheet.querySelector('.foot');
-    if(!body||!note||!footer)continue;
-    while(body.rows.length>1 &&
-      note.getBoundingClientRect().bottom > footer.getBoundingClientRect().top - 12){
-     let next=sheets[i+1];
-     if(!next){
-      next=sheet.cloneNode(true);
-      next.querySelector('tbody').innerHTML='';
-      sheet.after(next);
-      sheets.push(next);
-     }
-     next.querySelector('tbody').prepend(body.lastElementChild);
-     if(++moves>1000)break;
-    }
+   try{
+    compactPages('sheet-idle');
+    compactPages('sheet-ranking');
+    const all=Array.from(document.querySelectorAll('.sheet'));
+    all.forEach((sheet,i)=>{
+     const foot=sheet.querySelector('.foot span:last-child');
+     if(foot)foot.textContent='PÁGINA '+(i+1)+' DE '+all.length;
+    });
+    const btn=document.getElementById('intel-pdf-print');
+    if(btn)btn.disabled=false;
+   }catch(error){
+    const btn=document.getElementById('intel-pdf-print');
+    if(btn){btn.disabled=true;btn.textContent='Falha na paginação; atualize a consulta';}
+    console.error('Erro ao paginar o PDF da Inteligência:',error);
    }
-   const all=Array.from(document.querySelectorAll('.sheet'));
-   all.forEach((sheet,i)=>{
-    const last=sheet.querySelector('.foot span:last-child');
-    if(last)last.textContent='PÁGINA '+(i+1)+' DE '+all.length;
-   });
-   sheets.forEach((sheet,i)=>{
-    const sub=sheet.querySelector('.subtitle');
-    if(sub)sub.textContent=sub.textContent.replace(/\\s*·\\s*\\d+\\s+de\\s+\\d+\\s*$/,
-      ' · '+(i+1)+' de '+sheets.length);
-   });
-   const button=document.getElementById('intel-pdf-print');
-   if(button)button.disabled=false;
   }
   const ready=()=>Promise.resolve(document.fonts?.ready).then(()=>requestAnimationFrame(adjust));
   if(document.readyState==='complete')ready();
   else window.addEventListener('load',ready,{once:true});
   window.addEventListener('beforeprint',adjust);
  })();`;
-
- const body=pages.map((p,i)=>'<section class="sheet '+(p.title==='RANKING DE MOVIMENTAÇÃO'?'sheet-ranking':'')+'">'+header(p.title,p.subtitle)+p.body+
+ const body=pages.map((p,i)=>'<section class="sheet '+(p.title==='RANKING DE MOVIMENTAÇÃO'?'sheet-ranking':p.title==='ESTOQUE SEM CONSUMO'?'sheet-idle':'')+'">'+header(p.title,p.subtitle)+p.body+
  '<div class="foot"><span>NEW TERMISA | ALMOXARIFADO · CENTRAL DE INTELIGÊNCIA</span>'+
  '<span>PÁGINA '+(i+1)+' DE '+pages.length+'</span></div></section>').join('');
  win.document.open();win.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'+
