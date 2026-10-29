@@ -349,11 +349,12 @@ function makeData(book,model,logo){
   const ws=createSheet(book,name,title,date+' · '+description,widths,logo);
   table(ws,headers,rows,options);return ws;
  };
- tab('Movimentações','Movimentações do Estoque','Saídas, entradas e devoluções reais, sem conferência física',
+ const sourceMoves=tab('Dados - Movimentos','Movimentações do Estoque','Saídas, entradas e devoluções reais, sem conferência física',
   [12,17,17,43,16,27,20,26],
   ['HORA','CÓDIGO','TIPO','MATERIAL','QUANTIDADE','SOLICITANTE','PEDIDO','ID'],
   (model.operationalRows||[]).map(x=>[timeOf(x),txt(x.codigo),x.tipo,x.nome||'',num(x.quantidade),
    x.solicitante||'',x.pedido||'',x.id||'']),{codes:[1],wrap:3});
+ sourceMoves.state='hidden';
  if((model.machineRows||[]).length)tab('Produção','Produção de Máquinas','Máquinas concluídas e lotes',
   [16,18,44,12,17,25],
   ['DATA','CÓDIGO','PRODUTO','UN.','QTDE.','LOTE / OPÇÃO'],
@@ -393,37 +394,41 @@ function makeData(book,model,logo){
  const main=all.filter(x=>x.unit===mainUnit).sort((a,b)=>b.qty-a.qty||a.name.localeCompare(b.name,'pt-BR'));
  const other=all.filter(x=>x.unit!==mainUnit).sort((a,b)=>String(a.unit).localeCompare(String(b.unit))||b.qty-a.qty);
  const rows=[...main,...other];
- tab('Inteligência','Inteligência do Estoque','Consumo separado por unidade de medida',
+ const sourceConsumption=tab('Dados - Consumo','Consumo detalhado','Consumo separado por unidade de medida',
   [18,46,14,19,20,25],
   ['CÓDIGO','MATERIAL','UN.','CONSUMO','RETIRADAS','CATEGORIA'],
-  rows.map(x=>[x.code,x.name,x.unit,x.qty,x.ops,x.unit===mainUnit?'GRÁFICO PRINCIPAL':'OUTRA UNIDADE']),
+  rows.map((x,i)=>[x.code,x.name,x.unit,f('SUMIF(\'Materiais Entregues\'!B9:B2000,A'+(i+9)+',\'Materiais Entregues\'!E9:E2000)',x.qty),x.ops,x.unit===mainUnit?'GRÁFICO PRINCIPAL':'OUTRA UNIDADE']),
   {codes:[0],wrap:1});
+ sourceConsumption.state='hidden';
  tab('Conferência Entradas','Conferência de Entradas','Entradas documentadas e efetivas',
   [18,46,13,20,21,19,39],
   ['CÓDIGO','MATERIAL','UN.','RECEBIDO NF','ENTRADAS ESTOQUE','DIFERENÇA','SITUAÇÃO'],
   (model.comparisons||[]).map((x,i)=>[txt(x.codigo),x.nome||'',x.unidade||'',num(x.recebido),
    num(x.entradas),f('D'+(i+9)+'-E'+(i+9),round(num(x.recebido)-num(x.entradas))),x.situacao||'']),
   {codes:[0],wrap:1});
+ intelligenceExecutive(book,model,logo,mainUnit,main);
+ intelligenceDetailed(book,model,logo,mainUnit,main,other);
  const g=createSheet(book,'Dados Gráficos','Dados dos Gráficos',
-  'Fontes editáveis dos gráficos nativos do dashboard',[23,20,5,46,22,18],logo);
+  'Fontes auxiliares dos gráficos de inteligência',[23,20,5,46,22,18],logo);
  ['A8','B8','D8','E8'].forEach((a,i)=>{g.getCell(a).value=['OPERAÇÃO','QUANTIDADE','MATERIAL ('+mainUnit+')','CONSUMO'][i];style(g.getCell(a),
    {fill:PAL.navy,color:PAL.white,bold:true});});
  const counts=[['Retiradas','SAIDA',num(t.requestsLines)],['Entradas','ENTRADA',num(t.stockEntries)],
   ['Devoluções','DEVOLUCAO',num(t.returnLines)]];
  counts.forEach((x,i)=>{
   const n=9+i;g.getCell('A'+n).value=x[0];
-  g.getCell('B'+n).value=f('COUNTIF(\'Movimentações\'!C9:C1000,"'+x[1]+'")',x[2]);
+  g.getCell('B'+n).value=f('COUNTIF(\'Dados - Movimentos\'!C9:C1000,"'+x[1]+'")',x[2]);
   style(g.getCell('B'+n),{numeric:true,fill:PAL.light});
  });
  for(let i=0;i<6;i++){
   const n=9+i,row=main[i];
-  g.getCell('D'+n).value=row?{formula:"'Inteligência'!B"+n,result:row.name}:'';
-  g.getCell('E'+n).value=row?f("'Inteligência'!D"+n,row.qty):0;
+  g.getCell('D'+n).value=row?{formula:"'Dados - Consumo'!B"+n,result:row.name}:'';
+  g.getCell('E'+n).value=row?f("'Dados - Consumo'!D"+n,row.qty):0;
  }
  g.mergeCells('A18:F20');g.getCell('A18').value='Edite os registros da planilha. Ao recalcular, os gráficos e indicadores vinculados podem ser atualizados.';
  style(g.getCell('A18'),{wrap:true,color:PAL.muted});
+ g.state='hidden';
  return {counts:counts.map(x=>({name:x[0],value:x[2]})),top:main.slice(0,6).map(x=>({name:x.name,value:x.qty})),
-  unit:mainUnit};
+  unit:mainUnit,intelligenceSheetIndex:book.worksheets.findIndex(ws=>ws.name==='Inteligência Executiva')+1};
 }
 const escapeXml=s=>txt(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function cache(values,isText){
