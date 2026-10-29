@@ -293,7 +293,7 @@ function intelligenceExecutive(book,model,logo,mainUnit,ranked){
  ranked.slice(0,6).forEach((x,i)=>{
   const first=19+i*3,last=first+2,code=txt(x.code),name=txt(x.name);
   merged(ws,'A'+first+':C'+last,
-   (i+1)+'. '+name+'\\n'+num(x.qty).toLocaleString('pt-BR')+' '+mainUnit,
+   (i+1)+'. '+name+'\n'+num(x.qty).toLocaleString('pt-BR')+' '+mainUnit,
    {fill:i%2?PAL.white:PAL.light,color:PAL.navy,bold:true,size:9,wrap:true});
  });
  section(ws,'A40:R40','RANKING DE CONSUMO DO DIA');
