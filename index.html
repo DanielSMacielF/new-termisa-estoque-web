@@ -3006,7 +3006,7 @@ function ntQrSelectionOpen(){
  ntQrSelectionRows();
  document.getElementById('ntq-date-add').addEventListener('click',()=>{
   const d=document.getElementById('ntq-pick-day').value;
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(d)||d>day()){notice('Escolha uma data válida, até hoje.',true);return}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||d>day()){notice('Escolha uma data válida, até hoje.',true);return}
   if(ntQrSelectedDays.size>=20&&!ntQrSelectedDays.has(d)){notice('Máximo de 20 dias.',true);return}
   ntQrSelectedDays.add(d);ntQrSelectionRows();
  });
@@ -3044,7 +3044,7 @@ function ntQrMultiData(dates,materialRows,allMoves,stamp){
  if(invalid.length)throw Error('Não foi possível confirmar o saldo histórico dos códigos: '+
   invalid.slice(0,12).join(', ')+'. A exportação foi bloqueada para evitar quantidades incorretas.');
  itens.sort((a,b)=>b.lastDay.localeCompare(a.lastDay)||a.nome.localeCompare(b.nome,'pt-BR'));
- return {date:end,datas:ordered,periodo:ordered.map(ntDate).join(' · '),historico:true,
+ return {date:end,datas:ordered,periodo:ordered.length===1?ntDate(from):ntDate(from)+' a '+ntDate(end)+' ('+ordered.length+' dias escolhidos)',historico:true,
   previous:from,consultadoEm:stamp,itens,retiradas:[...selected.values()].reduce((n,x)=>n+x.ocorrencias,0),
   repetidosAntes:itens.filter(x=>x.dias.length>1).length,repetidosNoDia:itens.filter(x=>x.ocorrencias>1).length};
 }
