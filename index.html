@@ -2690,41 +2690,69 @@ function ntGeneralReceiptPages(records,date,marker){
  const totalLines=allRecords.reduce((n,r)=>n+(r.itens||[]).length,0);
  const metrics='<div class="metrics nt-rx-metrics">'+[['DATA DE REFERÊNCIA',ntDate(date)],['ENTREGAS',allRecords.length],['LINHAS DE MATERIAL',totalLines],['DIVERGÊNCIAS',divergences]].map(x=>
   '<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
- // Orçamento conservador de altura: reserva área para cabeçalho, métricas, rodapé e nota final.
- // Alturas em milímetros, medidas conservadoramente para o layout impresso:
- // a primeira página tem cartões de indicadores e precisa de reserva maior.
- // Duas entregas por folha, reservando cabecalho, indicadores, observacoes e rodape.
- // Em caso de entrega extensa, continua os itens em outra folha sem omissoes.
- const budget=index=>index===0?110:122;
+ // Paginação automática: até 3 entregas por folha se couberem, sem reduzir
+ // letras, blocos, tabelas ou a reserva para a observação e o rodapé.
+ // A primeira folha tem indicadores que consomem parte da altura disponível.
+ const budget=index=>index===0?114:122;
  const rowHeight=x=>{
   const size=Math.max(String(x.nome||'').length/39,String(x.codigo||'').length/13);
   const warning=x.semCadastro||!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada||''));
   return 8.7+Math.max(0,Math.ceil(size)-1)*4.2+(warning?3.6:0);
  };
  const cost=items=>29+items.reduce((n,x)=>n+rowHeight(x),0);
- let current={parts:[],used:0};
- const nextPage=()=>{if(current.parts.length)sheets.push(current);current={parts:[],used:0}};
- // Regra fixa solicitada: no maximo DOIS recebimentos distintos em cada pagina.
- // A altura estimada controla separadamente entregas com muitos materiais.
- const maxDeliveriesPerPage=2;
+ const maxDeliveriesPerPage=3;
+ // A divisão de uma entrega extensa conserva todos os itens na ordem original.
+ const segments=[];
  for(let ri=0;ri<allRecords.length;ri++){
   const r=allRecords[ri],all=Array.isArray(r.itens)?r.itens:[];
-  if(current.parts.length&&new Set(current.parts.map(p=>p.ri)).size>=maxDeliveriesPerPage)nextPage();
   let offset=0;
   do{
+   const capacity=ri===0&&offset===0?budget(0):budget(1);
    let chunk=all.length?all.slice(offset,offset+14):[];
-   // Mantém a entrega inteira na mesma página quando possível.
-   if(current.parts.length&&current.used+cost(chunk)>budget(sheets.length))nextPage();
-   // Nomes longos e avisos de pendência podem exigir mais espaço por linha.
-   while(chunk.length>1&&cost(chunk)>budget(sheets.length))chunk.pop();
-   if(current.parts.length&&current.used+cost(chunk)>budget(sheets.length))nextPage();
-   current.parts.push({r,ri,chunk,continuation:offset>0});
-   current.used+=cost(chunk);
+   while(chunk.length>1&&cost(chunk)>capacity)chunk.pop();
+   segments.push({r,ri,chunk,continuation:offset>0,weight:cost(chunk)});
    offset+=chunk.length;
   }while(offset<all.length);
  }
- nextPage();
- if(!sheets.length)sheets.push({parts:[],used:0});
+ // Escolhe a distribuição global: (1) menor número de folhas;
+ // (2) menos páginas com uma única entrega; (3) melhor equilíbrio visual.
+ // Ex.: 7 entregas pequenas => 2/2/3 ou 2/3/2, não 3/3/1.
+ const n=segments.length,dp=Array(n+1).fill(null);
+ dp[n]={pages:0,singles:0,slack:0,next:n};
+ for(let i=n-1;i>=0;i--){
+  let used=0,seen=new Set();
+  for(let j=i;j<Math.min(n,i+maxDeliveriesPerPage);j++){
+   const part=segments[j];
+   if(!seen.has(part.ri)&&seen.size>=maxDeliveriesPerPage)break;
+   seen.add(part.ri);used+=part.weight;
+   if(used>budget(i===0?0:1)+.001)break;
+   const following=dp[j+1];if(!following)continue;
+   const candidate={
+    pages:1+following.pages,
+    singles:following.singles+(seen.size===1&&n>1?1:0),
+    slack:following.slack+Math.pow(budget(i===0?0:1)-used,2),
+    next:j+1
+   };
+   const prior=dp[i];
+   if(!prior||candidate.pages<prior.pages||
+    (candidate.pages===prior.pages&&(candidate.singles<prior.singles||
+    (candidate.singles===prior.singles&&candidate.slack<prior.slack)))){
+    dp[i]=candidate;
+   }
+  }
+  // Mesmo quando uma linha extraordinária ultrapassa a estimativa,
+  // sua informação não é omitida.
+  if(!dp[i]&&dp[i+1])dp[i]={
+   pages:1+dp[i+1].pages,singles:dp[i+1].singles+1,
+   slack:dp[i+1].slack,next:i+1
+  };
+ }
+ for(let i=0;i<n;){
+  const next=dp[i]?.next||i+1;
+  const parts=segments.slice(i,next);
+  sheets.push({parts,used:parts.reduce((t,p)=>t+p.weight,0)});
+  i=next;
+ }
  for(let pageIndex=0;pageIndex<sheets.length;pageIndex++){
   const parts=sheets[pageIndex].parts;
   const heading=ntTop('RECEBIMENTO DE MATERIAIS','Consolidado diário · entregas identificadas por fornecedor, nota e pedido.',date);
@@ -2761,14 +2789,9 @@ function ntGeneralReceiptPages(records,date,marker){
    content+='<div class="nt-rx-note">'+(divergences?(divergences===1?'Divergência encontrada: <b>':'Divergências encontradas: <b>')+ntReportCount(divergences,'linha','linhas')+'</b>. ':'Sem divergências entre quantidades de nota fiscal e recebidas. ')+
     'A diferença corresponde à quantidade recebida menos a quantidade da NF. Entradas integradas de materiais cadastrados atualizam o estoque; itens sem cadastro ficam pendentes.</div>';
   }
-  // Recebimentos curtos podem ocupar a folha verticalmente; a folha inicial
-  // usa espacamento menor por incluir os indicadores de resumo.
-  const lineCount=parts.reduce((n,p)=>n+p.chunk.length,0);
-  const hasAlerts=parts.some(p=>p.chunk.some(x=>x.semCadastro||
-   (x.statusEntrada&&!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada)))));
-  const sparse=parts.length<=2&&lineCount<=3&&!hasAlerts;
-  const densityClass=sparse?' nt-rx-sparse'+(pageIndex===0?' nt-rx-first':''):'';
-  const body=sparse?'<div class="nt-rx-stack">'+content+'</div>':content;
+  // Usar as mesmas dimensões visuais aprovadas para 1, 2 ou 3 entregas.
+  const densityClass=' nt-rx-sparse'+(pageIndex===0?' nt-rx-first':'');
+  const body='<div class="nt-rx-stack">'+content+'</div>';
   pages.push('<section class="page landscape nt-general-receipt'+densityClass+'">'+heading+(pageIndex===0?metrics:'')+body+marker+'</section>');
  }
  return pages;
