@@ -39,6 +39,16 @@ function makeBlank(original,anchor,first){
 }
 function paginateTable(group){
  const rows=group.flatMap(p=>qa(p,'table tbody > tr')).map(r=>r.cloneNode(true));
+ // Em relatórios volumosos, reduz no máximo 2px do espaço vertical de
+ // cada célula, sem diminuir letras nem alterar nenhum valor ou descrição.
+ if(rows.length>=24){
+  for(const row of rows)for(const td of qa(row,'td')){
+   const cs=getComputedStyle(group[0].querySelector('td')||td);
+   const top=Math.max(2,parseFloat(cs.paddingTop)-2),bottom=Math.max(2,parseFloat(cs.paddingBottom)-2);
+   td.style.setProperty('padding-top',top+'px','important');
+   td.style.setProperty('padding-bottom',bottom+'px','important');
+  }
+ }
  if(!rows.length)return [];
  // Observações especiais de auditoria nunca são descartadas ou fundidas.
  const notes=p=>qa(p,'.note').map(n=>n.innerHTML).join('||');
