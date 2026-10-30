@@ -1234,7 +1234,7 @@ function ntHtml(title,pages){
  // tipografia, espaçamentos e posicionamento interno dos relatórios.
  // Somente a barra de impressão e a sombra da prévia são diferentes.
  const previewCss=printCss
-  .replace(/@page\\{size:A4 (?:portrait|landscape);margin:0\\}/,'')
+  .replace('@page{size:A4 '+orientation+';margin:0}','')
   .replace('@media print{','@media screen{')
   .replace('.toolbar{display:none!important}', '.toolbar{display:block!important}')
   .replace('.page{margin:0!important;box-shadow:none!important;break-inside:avoid-page!important;page-break-inside:avoid!important}',
