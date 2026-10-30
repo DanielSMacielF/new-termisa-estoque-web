@@ -992,16 +992,15 @@ function ntReportCSS(){return `<style>
  /* Recebimento: fornecedor, NF e linhas nunca devem quebrar no rodapé. */
  .nt-general-receipt .nt-rx-entry{break-inside:avoid;page-break-inside:avoid}
  .nt-general-receipt .footer{z-index:1;background:#fff}
- /* Recebimento: paginas com 3 entregas preservam fonte 10pt, paginas
-    com 1 ou 2 entregas curtas usam blocos amplos como o modelo aprovado. */
- .nt-general-receipt.nt-rx-dense .nt-rx-banner{min-height:16mm!important;margin:2.1mm 0 1.2mm!important}
- .nt-general-receipt.nt-rx-dense .nt-rx-body{padding:1.5mm 3.2mm 1.5mm 4mm!important}
- .nt-general-receipt.nt-rx-dense .nt-rx-table th{font-size:9.2pt!important;padding:1.5mm 1.3mm!important}
- .nt-general-receipt.nt-rx-dense .nt-rx-table td{font-size:10pt!important;padding:1.4mm 1.3mm!important;line-height:1.25!important}
- .nt-general-receipt.nt-rx-sparse .nt-rx-banner{min-height:25mm!important;margin:4mm 0 3mm!important}
- .nt-general-receipt.nt-rx-sparse .nt-rx-body{padding:4mm 4mm 4mm 5mm!important}
- .nt-general-receipt.nt-rx-sparse .nt-rx-table th{font-size:9.7pt!important;padding:2.6mm 1.5mm!important}
- .nt-general-receipt.nt-rx-sparse .nt-rx-table td{font-size:10.5pt!important;padding:3mm 1.5mm!important;line-height:1.35!important}
+ /* Duas entregas por folha; quando ha poucos materiais, ampliamos blocos,
+    espacamento e linhas sem diminuir fonte ou alterar os dados impressos. */
+ .nt-general-receipt.nt-rx-sparse .nt-rx-banner{min-height:27mm!important;margin:4mm 0 3mm!important}
+ .nt-general-receipt.nt-rx-sparse .nt-rx-body{padding:4.5mm 4.5mm 4.5mm 5mm!important}
+ .nt-general-receipt.nt-rx-sparse .nt-rx-badge{font-size:12pt!important}
+ .nt-general-receipt.nt-rx-sparse .nt-rx-vendor strong{font-size:11pt!important}
+ .nt-general-receipt.nt-rx-sparse .nt-rx-table th{font-size:10pt!important;padding:2.8mm 1.5mm!important}
+ .nt-general-receipt.nt-rx-sparse .nt-rx-table td{font-size:10.5pt!important;padding:3.2mm 1.5mm!important;line-height:1.35!important}
+ .nt-general-receipt.nt-rx-sparse .nt-rx-entry + .nt-rx-entry{margin-top:5mm!important}
  .nt-general-receipt.nt-rx-sparse .nt-rx-note{margin-top:5mm!important}
 
 /* Padronização aprovada: todos os campos das tabelas dos PDFs centralizados.
@@ -2681,9 +2680,9 @@ function ntGeneralReceiptPages(records,date,marker){
  // Orçamento conservador de altura: reserva área para cabeçalho, métricas, rodapé e nota final.
  // Alturas em milímetros, medidas conservadoramente para o layout impresso:
  // a primeira página tem cartões de indicadores e precisa de reserva maior.
- // Tamanho calculado para o A4: 3 entregas curtas cabem sem invadir o rodape.
- // A primeira folha reserva margem para os indicadores de recebimento.
- const budget=index=>index===0?125:135;
+ // Duas entregas por folha, reservando cabecalho, indicadores, observacoes e rodape.
+ // Em caso de entrega extensa, continua os itens em outra folha sem omissoes.
+ const budget=index=>index===0?110:122;
  const rowHeight=x=>{
   const size=Math.max(String(x.nome||'').length/39,String(x.codigo||'').length/13);
   const warning=x.semCadastro||!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada||''));
@@ -2692,17 +2691,12 @@ function ntGeneralReceiptPages(records,date,marker){
  const cost=items=>29+items.reduce((n,x)=>n+rowHeight(x),0);
  let current={parts:[],used:0};
  const nextPage=()=>{if(current.parts.length)sheets.push(current);current={parts:[],used:0}};
- // Equilibrar o numero de entregas sem gerar ultima pagina quase vazia.
- // Quatro entregas sao 2+2; seis sao 3+3, se as linhas couberem.
- const plannedPages=Math.max(1,Math.ceil(allRecords.length/3));
- let pageGroupLimit=Math.min(3,Math.ceil(allRecords.length/plannedPages));
+ // Regra fixa solicitada: no maximo DOIS recebimentos distintos em cada pagina.
+ // A altura estimada controla separadamente entregas com muitos materiais.
+ const maxDeliveriesPerPage=2;
  for(let ri=0;ri<allRecords.length;ri++){
   const r=allRecords[ri],all=Array.isArray(r.itens)?r.itens:[];
-  if(current.parts.length&&new Set(current.parts.map(p=>p.ri)).size>=pageGroupLimit)nextPage();
-  if(!current.parts.length){
-   const remainingPages=Math.max(1,plannedPages-sheets.length);
-   pageGroupLimit=Math.min(3,Math.max(1,Math.ceil((allRecords.length-ri)/remainingPages)));
-  }
+  if(current.parts.length&&new Set(current.parts.map(p=>p.ri)).size>=maxDeliveriesPerPage)nextPage();
   let offset=0;
   do{
    let chunk=all.length?all.slice(offset,offset+14):[];
@@ -2755,7 +2749,7 @@ function ntGeneralReceiptPages(records,date,marker){
   }
   // Preenche a area de cada folha sem diminuir a fonte nem alterar os dados.
   const lineCount=parts.reduce((n,p)=>n+p.chunk.length,0);
-  const densityClass=parts.length>=3?' nt-rx-dense':parts.length<=2&&lineCount<=3?' nt-rx-sparse':'';
+  const densityClass=parts.length<=2&&lineCount<=3?' nt-rx-sparse':'';
   pages.push('<section class="page landscape nt-general-receipt'+densityClass+'">'+heading+(pageIndex===0?metrics:'')+content+marker+'</section>');
  }
  return pages;
