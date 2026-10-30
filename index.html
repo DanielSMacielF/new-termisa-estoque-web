@@ -1239,7 +1239,7 @@ function ntHtml(title,pages){
   .replace('.toolbar{display:none!important}', '.toolbar{display:block!important}')
   .replace('.page{margin:0!important;box-shadow:none!important;break-inside:avoid-page!important;page-break-inside:avoid!important}',
    '.page{margin:18px auto!important;box-shadow:0 2px 16px #0002!important;break-inside:avoid-page!important;page-break-inside:avoid!important}');
- return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${ntPlain(title)}</title>${ntReportCSS()}${previewCss}${printCss}</head><body><div class="toolbar"><button onclick="window.print()">Imprimir / Salvar em PDF</button>Para impressão: <strong>A4 · ${orientationLabel}</strong>. Confirme a orientação e escolha <strong>Salvar como PDF</strong>.</div>${pages.join('')}</body></html>`;
+ return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${ntPlain(title)}</title>${ntReportCSS()}${previewCss}${printCss}</head><body><div class="toolbar"><button onclick="window.ntSafePrint ? window.ntSafePrint() : alert('A paginação ainda está sendo verificada.')">Imprimir / Salvar em PDF</button>Para impressão: <strong>A4 · ${orientationLabel}</strong>. Confirme a orientação e escolha <strong>Salvar como PDF</strong>.<span class="nt-layout-status"> · Conferindo paginação...</span></div>${pages.join('')}<script src="https://danielsmacielf.github.io/new-termisa-estoque-web/relatorio-layout-adaptativo.js?v=20261030v1" defer><\/script></body></html>`;
 }
 
 function ntCIIcon(kind){
