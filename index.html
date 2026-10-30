@@ -992,16 +992,23 @@ function ntReportCSS(){return `<style>
  /* Recebimento: fornecedor, NF e linhas nunca devem quebrar no rodapé. */
  .nt-general-receipt .nt-rx-entry{break-inside:avoid;page-break-inside:avoid}
  .nt-general-receipt .footer{z-index:1;background:#fff}
- /* Duas entregas por folha; quando ha poucos materiais, ampliamos blocos,
-    espacamento e linhas sem diminuir fonte ou alterar os dados impressos. */
+ /* Recebimentos curtos: distribuicao vertical sem encostar no rodape.
+    A primeira folha possui indicadores e precisa de blocos mais contidos. */
+ .nt-general-receipt.nt-rx-sparse .nt-rx-stack{display:flex;flex-direction:column;justify-content:space-evenly;min-height:118mm}
+ .nt-general-receipt.nt-rx-sparse.nt-rx-first .nt-rx-stack{min-height:96mm}
  .nt-general-receipt.nt-rx-sparse .nt-rx-banner{min-height:27mm!important;margin:4mm 0 3mm!important}
  .nt-general-receipt.nt-rx-sparse .nt-rx-body{padding:4.5mm 4.5mm 4.5mm 5mm!important}
  .nt-general-receipt.nt-rx-sparse .nt-rx-badge{font-size:12pt!important}
  .nt-general-receipt.nt-rx-sparse .nt-rx-vendor strong{font-size:11pt!important}
  .nt-general-receipt.nt-rx-sparse .nt-rx-table th{font-size:10pt!important;padding:2.8mm 1.5mm!important}
  .nt-general-receipt.nt-rx-sparse .nt-rx-table td{font-size:10.5pt!important;padding:3.2mm 1.5mm!important;line-height:1.35!important}
- .nt-general-receipt.nt-rx-sparse .nt-rx-entry + .nt-rx-entry{margin-top:5mm!important}
- .nt-general-receipt.nt-rx-sparse .nt-rx-note{margin-top:5mm!important}
+ .nt-general-receipt.nt-rx-sparse .nt-rx-entry + .nt-rx-entry{margin-top:0!important}
+ .nt-general-receipt.nt-rx-sparse .nt-rx-note{margin-top:3mm!important}
+ /* Primeira folha: evitar que 2a entrega sobreponha a borda do rodape. */
+ .nt-general-receipt.nt-rx-sparse.nt-rx-first .nt-rx-banner{min-height:19mm!important;margin:2mm 0 1.5mm!important}
+ .nt-general-receipt.nt-rx-sparse.nt-rx-first .nt-rx-body{padding:1.5mm 3.5mm 1.5mm 4mm!important}
+ .nt-general-receipt.nt-rx-sparse.nt-rx-first .nt-rx-table th{padding:1.7mm 1.3mm!important;font-size:9.2pt!important}
+ .nt-general-receipt.nt-rx-sparse.nt-rx-first .nt-rx-table td{padding:2mm 1.3mm!important;font-size:10pt!important;line-height:1.28!important}
 
 /* Padronização aprovada: todos os campos das tabelas dos PDFs centralizados.
    Especificidade intencional: sobrescreve alinhamentos antigos de números,
@@ -2747,10 +2754,15 @@ function ntGeneralReceiptPages(records,date,marker){
    content+='<div class="nt-rx-note">'+(divergences?'Divergências encontradas: <b>'+divergences+'</b> linha(s). ':'Sem divergências entre quantidades de nota fiscal e recebidas. ')+
     'A diferença corresponde à quantidade recebida menos a quantidade da NF. Entradas integradas de materiais cadastrados atualizam o estoque; itens sem cadastro ficam pendentes.</div>';
   }
-  // Preenche a area de cada folha sem diminuir a fonte nem alterar os dados.
+  // Recebimentos curtos podem ocupar a folha verticalmente; a folha inicial
+  // usa espacamento menor por incluir os indicadores de resumo.
   const lineCount=parts.reduce((n,p)=>n+p.chunk.length,0);
-  const densityClass=parts.length<=2&&lineCount<=3?' nt-rx-sparse':'';
-  pages.push('<section class="page landscape nt-general-receipt'+densityClass+'">'+heading+(pageIndex===0?metrics:'')+content+marker+'</section>');
+  const hasAlerts=parts.some(p=>p.chunk.some(x=>x.semCadastro||
+   (x.statusEntrada&&!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada)))));
+  const sparse=parts.length<=2&&lineCount<=3&&!hasAlerts;
+  const densityClass=sparse?' nt-rx-sparse'+(pageIndex===0?' nt-rx-first':''):'';
+  const body=sparse?'<div class="nt-rx-stack">'+content+'</div>':content;
+  pages.push('<section class="page landscape nt-general-receipt'+densityClass+'">'+heading+(pageIndex===0?metrics:'')+body+marker+'</section>');
  }
  return pages;
 }
