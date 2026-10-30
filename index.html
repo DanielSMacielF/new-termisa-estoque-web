@@ -1008,7 +1008,7 @@ function ntReportCSS(){return `<style>
  /* Na folha com indicadores, conservar a disposição já aprovada (página 6).
     Nas seguintes, alinhar a primeira entrega ao início dos indicadores
     (3.5mm após o subtítulo, sem o espaçamento artificial do flex). */
- .nt-general-receipt.nt-rx-sparse.nt-rx-first .nt-rx-stack{display:flex;flex-direction:column;justify-content:space-evenly;min-height:96mm}
+ .nt-general-receipt.nt-rx-sparse.nt-rx-first .nt-rx-stack{display:block;min-height:0;padding-top:0}
  .nt-general-receipt.nt-rx-sparse:not(.nt-rx-first) .nt-rx-stack{padding-top:1.5mm}
 
 
@@ -2709,7 +2709,9 @@ function ntGeneralReceiptPages(records,date,marker){
   const warning=x.semCadastro||!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada||''));
   return 8.7+Math.max(0,Math.ceil(size)-1)*4.2+(warning?3.6:0);
  };
- const cost=items=>29+items.reduce((n,x)=>n+rowHeight(x),0);
+ const cost=(items,record)=>29+
+  (String(record?.fornecedor||'').length>55?6:0)+
+  items.reduce((n,x)=>n+rowHeight(x),0);
  const maxDeliveriesPerPage=3;
  // A página com resumo exige mais espaço para os indicadores e nunca recebe
  // três entregas, independentemente da estimativa de altura.
@@ -2722,8 +2724,8 @@ function ntGeneralReceiptPages(records,date,marker){
   do{
    const capacity=ri===0&&offset===0?budget(0):budget(1);
    let chunk=all.length?all.slice(offset,offset+14):[];
-   while(chunk.length>1&&cost(chunk)>capacity)chunk.pop();
-   segments.push({r,ri,chunk,continuation:offset>0,weight:cost(chunk)});
+   while(chunk.length>1&&cost(chunk,r)>capacity)chunk.pop();
+   segments.push({r,ri,chunk,continuation:offset>0,weight:cost(chunk,r)});
    offset+=chunk.length;
   }while(offset<all.length);
  }
@@ -2744,12 +2746,17 @@ function ntGeneralReceiptPages(records,date,marker){
     pages:1+following.pages,
     singles:following.singles+(seen.size===1&&n>1?1:0),
     slack:following.slack+Math.pow(budget(i===0?0:1)-used,2),
+    firstPageCount:i===0?seen.size:0,
     next:j+1
    };
    const prior=dp[i];
+   // Em empate, preencher primeiro a folha de indicadores com DUAS
+   // entregas quando couber. Evita o defeito de 1/2 e o grande vazio.
    if(!prior||candidate.pages<prior.pages||
     (candidate.pages===prior.pages&&(candidate.singles<prior.singles||
-    (candidate.singles===prior.singles&&candidate.slack<prior.slack)))){
+    (candidate.singles===prior.singles&&(
+     (i===0&&candidate.firstPageCount>prior.firstPageCount)||
+     ((i!==0||candidate.firstPageCount===prior.firstPageCount)&&candidate.slack<prior.slack)))))){
     dp[i]=candidate;
    }
   }
