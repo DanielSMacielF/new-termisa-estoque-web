@@ -2819,9 +2819,9 @@ function ntGeneralRequestsPages(model,date,marker){
   measureByCode=new Map((model.stockRows||[]).map(x=>[String(x.codigo),{unidadeMedida:x.unidade}])),
   empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
  // A4 paisagem: mesma legibilidade do Saldo de Almoxarifado.
- // Distribuição mais compacta: até 15 materiais/folha em A4 paisagem.
- // Mantém as letras, sem retirar material; nomes extensos têm espaço para quebrar.
- const capacity=15;
+ // Distribuição equilibrada em A4 paisagem: até 14 itens por folha.
+ // Mantém fontes legíveis e margem para descrições longas sem atingir o rodapé.
+ const capacity=14;
  const sheets=Math.max(1,Math.ceil(requests.length/capacity));
  const perPage=Math.max(1,Math.ceil(requests.length/sheets));
  for(let i=0;i<sheets;i++){
