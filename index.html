@@ -965,8 +965,8 @@ function ntReportCSS(){return `<style>
 .nt-general-requests .sectionline{margin:2mm 0 2mm}
 .nt-general-requests table{font-size:9.25pt;line-height:1.3}
 .nt-general-requests th{padding:2.8mm 1.4mm;font-size:8.5pt;font-weight:600}
-.nt-general-requests td{padding:2.7mm 1.4mm;line-height:1.32;font-size:9.2pt}
-.nt-general-requests .note{margin-top:4mm;font-size:9pt;line-height:1.35}
+.nt-general-requests td{padding:2.15mm 1.4mm;line-height:1.32;font-size:9.2pt}
+.nt-general-requests .note{margin-top:3mm;font-size:9pt;line-height:1.35}
 .nt-general-requests td:nth-child(1),.nt-general-requests th:nth-child(1),
 .nt-general-requests td:nth-child(4),.nt-general-requests th:nth-child(4){text-align:center}
 .nt-general-requests td:nth-child(5),.nt-general-requests th:nth-child(5){text-align:right;font-variant-numeric:tabular-nums}
@@ -2819,8 +2819,9 @@ function ntGeneralRequestsPages(model,date,marker){
   measureByCode=new Map((model.stockRows||[]).map(x=>[String(x.codigo),{unidadeMedida:x.unidade}])),
   empty=message=>'<p class="note" style="margin-top:8mm">'+ntPlain(message)+'</p>';
  // A4 paisagem: mesma legibilidade do Saldo de Almoxarifado.
- // Páginas equilibradas com até 13 materiais para preservar descrições longas.
- const capacity=13;
+ // Distribuição equilibrada em A4 paisagem: até 14 itens por folha.
+ // Mantém fontes legíveis e margem para descrições longas sem atingir o rodapé.
+ const capacity=14;
  const sheets=Math.max(1,Math.ceil(requests.length/capacity));
  const perPage=Math.max(1,Math.ceil(requests.length/sheets));
  for(let i=0;i<sheets;i++){
