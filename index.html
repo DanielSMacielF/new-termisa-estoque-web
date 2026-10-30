@@ -2678,7 +2678,7 @@ async function ntGeneralDayFetchFresh(date){
 }
 function ntReportCount(value,singular,plural){
  const n=Number(value)||0;
- return String(value)+' '+(n===1?singular:plural);
+ return fmt(value)+' '+(n===1?singular:plural);
 }
 function ntGeneralReceiptPages(records,date,marker){
  // Layout aprovado: várias entregas no mesmo A4 quando couber; nunca omite itens.
@@ -2844,7 +2844,7 @@ function ntGeneralStockPages(stock,date,marker){
   const audit=(outliers.length?'<p class="note" style="color:#8b5435"><b>Diferenças para conferência (fora dos movimentos listados):</b> '+
    outliers.map(x=>ntPlain(x.codigo)+' ('+ntPlain(x.nome)+'): '+ntPlain(fmt(x.residual))+' '+ntPlain(x.unidade)).join(' · ')+
    '. Consulte o histórico das contagens e ajustes.</p>':'')+
-   (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+unconfirmed.length+' material(is) sem dados suficientes para confirmar a conciliação.</p>':'');
+   (unconfirmed.length?'<p class="note"><b>Saldos históricos incompletos:</b> '+ntReportCount(unconfirmed.length,'material','materiais')+' sem dados suficientes para confirmar a conciliação.</p>':'');
   const body='<div class="sectionline"><span>ESTOQUE · MOVIMENTAÇÕES E SALDOS</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
    table+audit+
    '<p class="note">Inicial = saldo final registrado + saídas − entradas − devoluções. É uma reconstituição do período, não uma contagem física feita no início do dia. O saldo final é a posição registrada; correções físicas ficam no histórico interno e não são movimentações operacionais.</p>';
@@ -3437,7 +3437,7 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
     '<div class="nt-deep-panel"><h2>CONSUMO POR UNIDADE DE MEDIDA</h2>'+
      '<p>Totais separados: não somar unidades incompatíveis.</p>'+
      '<div class="nt-deep-unitlist">'+(groupRows||blank)+'</div>'+
-     (groups.length>6?'<p class="nt-deep-muted">'+ntReportCount(groups.length-6,'Outra unidade também foi movimentada.','Outras unidades também foram movimentadas.').replace(/^\d+ /,'')+'</p>':'')+
+     (groups.length>6?'<p class="nt-deep-muted">'+((groups.length-6)===1?'Mais uma unidade também foi movimentada.':'Outras '+fmt(groups.length-6)+' unidades também foram movimentadas.')+'</p>':'')+
      '<h2 class="nt-deep-subhead">OUTRAS FAIXAS DE CONSUMO</h2>'+
      (otherCharts||moreMain||'<p class="nt-deep-muted">Todas as retiradas com unidade conhecida foram da mesma medida.</p>')+
      (others.length>2?'<p class="nt-deep-muted">Outras unidades adicionais detalhadas no cadastro e nas movimentações.</p>':'')+
@@ -3535,7 +3535,7 @@ function ntGeneralDayPDF(model){
  ];
  const blocks='<div class="metrics">'+highlights.map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
  const lines=[
-  ['PRODUÇÃO',ntReportCount(fmt(totals.machines),'máquina concluída','máquinas concluídas')+'.'],
+  ['PRODUÇÃO',ntReportCount(totals.machines,'máquina concluída','máquinas concluídas')+'.'],
   ['MATERIAIS ENTREGUES',ntReportCount(totals.requestsLines,'retirada realizada','retiradas realizadas')+' de '+ntReportCount(totals.requestsMaterials,'material diferente','materiais diferentes')+'.'],
   ['RECEBIMENTOS',ntReportCount(totals.receipts,'entrega documentada','entregas documentadas')+', envolvendo '+ntReportCount(totals.receiptLines,'linha de material','linhas de material')+'.'],
   ['REPOSIÇÕES',(totals.reposReports||0)
