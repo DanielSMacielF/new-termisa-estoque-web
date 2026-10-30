@@ -1182,11 +1182,11 @@ function ntHtml(title,pages){
    html,body{margin:0!important;padding:0!important;background:#fff!important}
    .toolbar{display:none!important}
    .page{margin:0!important;box-shadow:none!important;break-inside:avoid-page!important;page-break-inside:avoid!important}
-   .page.landscape{width:297mm!important;height:196mm!important;min-height:196mm!important;padding-top:7mm!important;padding-bottom:13mm!important}
+   .page.landscape{width:297mm!important;height:204mm!important;min-height:204mm!important;padding-top:7mm!important;padding-bottom:13mm!important}
    .page.portrait{height:283mm!important;min-height:283mm!important;padding-bottom:17mm!important}
    ${mixedFix}
    ${landscape&&portrait?'.page.portrait{height:196mm!important;min-height:196mm!important}':''}
-   .page.landscape .footer{bottom:6mm!important}
+   .page.landscape .footer{bottom:3mm!important}
    .page.portrait .footer{bottom:9mm!important}
    /* A folha A4 não exige microtexto: usar fonte de leitura e altura de linha
       proporcional. A compressão antiga de 0,75mm encolhia a página PDF. */
@@ -1215,7 +1215,7 @@ function ntHtml(title,pages){
    .nt-general-stock-deep .nt-di-footnote{margin-top:1mm!important;padding-top:.8mm!important}
    /* A4 horizontal: rodape reservado e espacos seguros nas folhas de Inteligencia. */
    .page.landscape.nt-general-stock-intel,
-   .page.landscape.nt-general-stock-deep{height:196mm!important;min-height:196mm!important;padding-top:6mm!important;padding-bottom:18mm!important}
+   .page.landscape.nt-general-stock-deep{height:204mm!important;min-height:204mm!important;padding-top:6mm!important;padding-bottom:18mm!important}
    .nt-general-stock-intel .nt-di-panel{min-height:60mm!important}
    .nt-general-stock-intel .nt-di-donut{width:42mm!important;height:42mm!important}
    .nt-general-stock-intel .nt-di-insight{min-height:0!important;padding:1.6mm 2.6mm!important}
@@ -1228,9 +1228,18 @@ function ntHtml(title,pages){
    .nt-general-stock-deep .nt-deep-rx-metrics{gap:.6mm!important}
    .nt-general-stock-deep .nt-di-footnote{font-size:7pt!important;line-height:1.17!important}
    .page.landscape.nt-general-stock-intel .footer,
-   .page.landscape.nt-general-stock-deep .footer{bottom:6mm!important;background:#fff!important}
+   .page.landscape.nt-general-stock-deep .footer{bottom:3mm!important;background:#fff!important}
  }</style>`;
- return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${ntPlain(title)}</title>${ntReportCSS()}${printCss}</head><body><div class="toolbar"><button onclick="window.print()">Imprimir / Salvar em PDF</button>Para impressão: <strong>A4 · ${orientationLabel}</strong>. Confirme a orientação e escolha <strong>Salvar como PDF</strong>.</div>${pages.join('')}</body></html>`;
+ // A tela e o PDF seguem exatamente as mesmas regras de dimensões,
+ // tipografia, espaçamentos e posicionamento interno dos relatórios.
+ // Somente a barra de impressão e a sombra da prévia são diferentes.
+ const previewCss=printCss
+  .replace(/@page\\{size:A4 (?:portrait|landscape);margin:0\\}/,'')
+  .replace('@media print{','@media screen{')
+  .replace('.toolbar{display:none!important}', '.toolbar{display:block!important}')
+  .replace('.page{margin:0!important;box-shadow:none!important;break-inside:avoid-page!important;page-break-inside:avoid!important}',
+   '.page{margin:18px auto!important;box-shadow:0 2px 16px #0002!important;break-inside:avoid-page!important;page-break-inside:avoid!important}');
+ return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${ntPlain(title)}</title>${ntReportCSS()}${previewCss}${printCss}</head><body><div class="toolbar"><button onclick="window.print()">Imprimir / Salvar em PDF</button>Para impressão: <strong>A4 · ${orientationLabel}</strong>. Confirme a orientação e escolha <strong>Salvar como PDF</strong>.</div>${pages.join('')}</body></html>`;
 }
 
 function ntCIIcon(kind){
