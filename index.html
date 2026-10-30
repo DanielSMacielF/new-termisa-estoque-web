@@ -2676,6 +2676,10 @@ async function ntGeneralDayFetchFresh(date){
  model.catalogConsultedAt=new Date().toISOString();
  return model;
 }
+function ntReportCount(value,singular,plural){
+ const n=Number(value)||0;
+ return String(value)+' '+(n===1?singular:plural);
+}
 function ntGeneralReceiptPages(records,date,marker){
  // Layout aprovado: várias entregas no mesmo A4 quando couber; nunca omite itens.
  const pages=[],sheets=[],allRecords=Array.isArray(records)?records:[];
@@ -2752,7 +2756,7 @@ function ntGeneralReceiptPages(records,date,marker){
   if(!parts.length)content='<p class="note">Não foram registrados recebimentos nesta data.</p>';
   if(parts.length){
    // Repetir a observação em cada folha de recebimento, não apenas na última.
-   content+='<div class="nt-rx-note">'+(divergences?'Divergências encontradas: <b>'+divergences+'</b> linha(s). ':'Sem divergências entre quantidades de nota fiscal e recebidas. ')+
+   content+='<div class="nt-rx-note">'+(divergences?(divergences===1?'Divergência encontrada: <b>':'Divergências encontradas: <b>')+ntReportCount(divergences,'linha','linhas')+'</b>. ':'Sem divergências entre quantidades de nota fiscal e recebidas. ')+
     'A diferença corresponde à quantidade recebida menos a quantidade da NF. Entradas integradas de materiais cadastrados atualizam o estoque; itens sem cadastro ficam pendentes.</div>';
   }
   // Recebimentos curtos podem ocupar a folha verticalmente; a folha inicial
@@ -2774,7 +2778,7 @@ function ntGeneralReceiptPagesAudited(records,receiptRows,date,marker){
  const unlinked=(receiptRows||[]).filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO'&&!x.entradaConfirmada).length;
  if(unlinked&&pages.length){
   const note='<p class="nt-rx-footnote" style="margin-top:3mm;color:#8b5a32"><b>Conferência de vínculo:</b> '+
-   unlinked+' linha(s) documental(is) não puderam ser vinculadas individualmente à movimentação de entrada. '+
+   ntReportCount(unlinked,'linha documental','linhas documentais')+(unlinked===1?' não pôde ser vinculada':' não puderam ser vinculadas')+' individualmente à movimentação de entrada. '+
    'Confira o histórico; quantidades iguais não comprovam o vínculo com a NF.</p>';
   const last=pages.length-1;pages[last]=pages[last].replace(marker,note+marker);
  }
@@ -2812,9 +2816,9 @@ function ntGeneralProductionPages(machineRows,date,marker){
    part.map(x=>[x.codigoMaquina,x.produto,x.unidade,fmt(x.concluida),x.lote])):
    empty('Nenhuma máquina registrada como produzida nesta data.');
   const unknown=part.filter(x=>x.codigoMaquina==='—'||x.unidade==='—').length;
-  const observation=unknown?'<p class="note">Há '+unknown+' registro(s) antigos sem código da máquina ou unidade cadastrados. Os campos não foram preenchidos automaticamente para evitar informações incorretas.</p>':'';
+  const observation=unknown?'<p class="note">Há '+ntReportCount(unknown,'registro antigo','registros antigos')+' sem código da máquina ou unidade cadastrada. Os campos não foram preenchidos automaticamente para evitar informações incorretas.</p>':'';
   const body=summaries+
-   '<div class="sectionline"><span>RELAÇÃO DE PRODUTOS FABRICADOS</span><span>'+part.length+' máquina(s) nesta página</span></div>'+
+   '<div class="sectionline"><span>RELAÇÃO DE PRODUTOS FABRICADOS</span><span>'+ntReportCount(part.length,'máquina nesta página','máquinas nesta página')+'</span></div>'+
    table+observation+
    '<p class="note">Produção informada pelo setor responsável. Este relatório não realiza movimentações de estoque.</p>';
   pages.push('<section class="page landscape nt-general-production">'+ntTop('PRODUÇÃO DE MÁQUINAS','Produção concluída, identificada por produto, código e lote.',date)+body+marker+'</section>');
@@ -3337,16 +3341,16 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
   ['MAIOR CONSUMO EM '+(primary?.unit||'—'),lead?
    lead.nome+': '+fmt(lead.quantidade)+' '+lead.unidade+' ('+leadShare.toFixed(1).replace('.',',')+
    '% do consumo em '+lead.unidade+').':'Nenhuma saída com unidade definida.'],
-  ['FREQUÊNCIA DE RETIRADAS',onlyOnce+' material(is) retirado(s) uma vez; '+repeated+
+  ['FREQUÊNCIA DE RETIRADAS',ntReportCount(onlyOnce,'material retirado','materiais retirados')+' uma vez; '+ntReportCount(repeated,'material','materiais')+
    ' com duas ou mais operações no dia.'],
-  ['ATENÇÃO AO SALDO',zero.length?zero.length+' material(is) movimentado(s) terminaram o dia com saldo zerado.':
+  ['ATENÇÃO AO SALDO',zero.length?ntReportCount(zero.length,'material','materiais')+' com saldo final zerado após retirada.':
    'Nenhum material retirado terminou o dia com saldo histórico igual a zero.']
  ];
  const diagnose='<div class="nt-di-insighthead">DIAGNÓSTICOS DO DIA</div>'+
   '<div class="nt-di-insights">'+messages.map(([title,body])=>
    '<div class="nt-di-insight"><small>'+plain(title)+'</small><p>'+plain(body)+'</p></div>').join('')+'</div>';
  const overview=metrics([
-  ['RETIRADAS (OPERAÇÕES)',totalOperations],['MATERIAIS DISTINTOS',used.size],
+  ['RETIRADAS (OPERAÇÕES)',totalOperations],['MATERIAIS COM SAÍDA',used.size],
   ['ENTRADAS (OPERAÇÕES)',stockIn],['DEVOLUÇÕES (OPERAÇÕES)',returns]
  ]);
  const chartTitle=primary?'MAIORES RETIRADAS EM '+plain(primary.unit):'QUANTIDADES RETIRADAS';
@@ -3358,13 +3362,13 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
    '<div class="nt-di-panel"><h2>MOVIMENTAÇÕES OPERACIONAIS</h2>'+
     '<p>Entradas, retiradas e devoluções registradas no período.</p>'+
     '<div class="nt-di-ringbox">'+donut+'<div class="nt-di-legend">'+legend+'</div></div>'+
-    '<div class="nt-di-usage"><span>Uma retirada</span><b>'+onlyOnce+' materiais</b>'+
-    '<span>Duas ou mais</span><b>'+repeated+' materiais</b></div>'+
+    '<div class="nt-di-usage"><span>Uma retirada</span><b>'+ntReportCount(onlyOnce,'material','materiais')+'</b>'+
+    '<span>Duas ou mais</span><b>'+ntReportCount(repeated,'material','materiais')+'</b></div>'+
     '<div class="nt-di-unitnote"><b>Leitura correta:</b> 1 retirada de 1.000 UN conta como uma operação.'+
     ' As quantidades aparecem no ranking ao lado.</div></div></div>'+diagnose+
   '<div class="nt-di-footnote">Fonte: retiradas confirmadas do dia no Firebase. Ranking por quantidade '+
   'dentro de cada unidade de medida, sem somar UN, KG, M ou L. '+
-  (missing.length?missing.length+' material(is) sem unidade válida ficaram fora dos gráficos de quantidade. ':'')+
+  (missing.length?ntReportCount(missing.length,'material','materiais')+' sem unidade válida '+(missing.length===1?'ficou':'ficaram')+' fora dos gráficos de quantidade. ':'')+
   'Outras unidades e riscos de estoque constam na análise detalhada quando aplicável.</div>';
  const pages=['<section class="page landscape nt-general-stock-intel">'+
   ntTop('INTELIGÊNCIA DO ESTOQUE','Visão executiva diária · volumes, operações e sinais de atenção.',date)+
@@ -3373,8 +3377,8 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
  const detail=used.size>6||groups.length>1||zero.length>0||pressure.length>0||notReconciled>0||counted>0||(Array.isArray(model.receipts)&&model.receipts.length>0);
  if(detail){
   const groupRows=groups.slice(0,6).map(g=>
-   '<div class="nt-deep-unitrow"><b>'+plain(g.unit)+'</b><span>'+g.items.length+' item(ns)</span>'+
-   '<span>'+g.operations+' retiradas</span><strong>'+num(g.total)+' '+plain(g.unit)+'</strong></div>').join('');
+   '<div class="nt-deep-unitrow"><b>'+plain(g.unit)+'</b><span>'+ntReportCount(g.items.length,'item','itens')+'</span>'+
+   '<span>'+ntReportCount(g.operations,'retirada','retiradas')+'</span><strong>'+num(g.total)+' '+plain(g.unit)+'</strong></div>').join('');
   const extraGroups=others.slice(0,2);
   const otherCharts=extraGroups.map(g=>'<div class="nt-deep-section"><h3>MAIORES SAÍDAS EM '+plain(g.unit)+'</h3>'+
    '<div class="nt-di-bars">'+g.items.slice(0,2).map(item=>bar(item,g.items[0].quantidade)).join('')+
@@ -3402,10 +3406,10 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
    const awaiting=rows.filter(pending).length;
    const linked=rows.filter(x=>x.entradaConfirmada).length;
    const review=Math.max(0,rows.length-awaiting-linked);
-   const state=[linked?linked+' vinculada(s)':'',awaiting?awaiting+' aguard. cadastro':'',
+   const state=[linked?ntReportCount(linked,'vinculada','vinculadas'):'',awaiting?awaiting+' aguard. cadastro':'',
     review?review+' a conferir':''].filter(Boolean).join(' · ')||'Sem itens';
    return '<div class="nt-deep-rx-row"><b>'+plain(r.fornecedor||'Fornecedor não informado')+
-    '</b><span>'+num(rows.length)+' linha(s)</span><em>'+plain(state)+'</em></div>';
+    '</b><span>'+ntReportCount(rows.length,'linha','linhas')+'</span><em>'+plain(state)+'</em></div>';
   }).join('');
   const receiptBox='<div class="nt-deep-rx">'+
    '<div><h2>CONTROLE DE RECEBIMENTOS</h2>'+
@@ -3418,9 +3422,9 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
    '</div></div><div><div class="nt-deep-rx-subhead">SITUAÇÃO DOS DOCUMENTOS NO DIA</div>'+
    (receiptSummaries||'<p class="nt-deep-rx-help">Nenhum recebimento documentado nesta data.</p>')+
    (receiptDocs.length>3?'<p class="nt-deep-rx-help">Outros '+num(receiptDocs.length-3)+
-    ' recebimento(s) constam no relatório de recebimentos.</p>':'')+
-   '<p class="nt-deep-rx-help">'+num(linkedCount)+
-   ' linha(s) com vínculo confirmado. Materiais sem cadastro não entram automaticamente no estoque.'+
+    ' '+((receiptDocs.length-3)===1?'recebimento consta':'recebimentos constam')+' no relatório de recebimentos.</p>':'')+
+   '<p class="nt-deep-rx-help">'+ntReportCount(linkedCount,'linha','linhas')+
+   ' com vínculo confirmado. Materiais sem cadastro não entram automaticamente no estoque.'+
    '</p></div></div>';
   const pageTwo='<div class="nt-di-eyebrow">ANÁLISE DETALHADA · '+plain(ntDate(date))+'</div>'+
    metrics([
@@ -3433,22 +3437,22 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
     '<div class="nt-deep-panel"><h2>CONSUMO POR UNIDADE DE MEDIDA</h2>'+
      '<p>Totais separados: não somar unidades incompatíveis.</p>'+
      '<div class="nt-deep-unitlist">'+(groupRows||blank)+'</div>'+
-     (groups.length>6?'<p class="nt-deep-muted">Outras '+(groups.length-6)+' unidade(s) também foram movimentadas.</p>':'')+
+     (groups.length>6?'<p class="nt-deep-muted">'+ntReportCount(groups.length-6,'Outra unidade também foi movimentada.','Outras unidades também foram movimentadas.').replace(/^\d+ /,'')+'</p>':'')+
      '<h2 class="nt-deep-subhead">OUTRAS FAIXAS DE CONSUMO</h2>'+
      (otherCharts||moreMain||'<p class="nt-deep-muted">Todas as retiradas com unidade conhecida foram da mesma medida.</p>')+
      (others.length>2?'<p class="nt-deep-muted">Outras unidades adicionais detalhadas no cadastro e nas movimentações.</p>':'')+
      (otherCharts&&moreMain?moreMain:'')+
      (missing.length?'<div class="nt-deep-muted">'+missing.length+
-      ' material(is) não classificados por ausência de unidade ou quantidade válida.</div>':'')+
+      ' '+(missing.length===1?'material não classificado':'materiais não classificados')+' por ausência de unidade ou quantidade válida.</div>':'')+
     '</div>'+
     '<div class="nt-deep-panel"><h2>ALERTAS DE SALDO AO FINAL DO DIA</h2>'+
      '<p>Somente materiais que tiveram saídas registradas.</p>'+
      '<h3 class="nt-deep-subhead">ZERADOS ('+zero.length+')</h3>'+
      (zeroRows||'<p class="nt-deep-muted">Nenhum saldo final zerado entre os materiais retirados.</p>')+
-     (zero.length>3?'<p class="nt-deep-muted">Mais '+(zero.length-3)+' item(ns) zerado(s); confira os saldos detalhados.</p>':'')+
+     (zero.length>3?'<p class="nt-deep-muted">Mais '+ntReportCount(zero.length-3,'item zerado','itens zerados')+'; confira os saldos detalhados.</p>':'')+
      '<h3 class="nt-deep-subhead">RETIRADA ELEVADA EM RELAÇÃO AO INICIAL ('+pressure.length+')</h3>'+
      (pressureRows||'<p class="nt-deep-muted">Sem consumo ≥ 50% com saldo inicial e histórico conciliados.</p>')+
-     (pressure.length>3?'<p class="nt-deep-muted">Mais '+(pressure.length-3)+' item(ns) com retirada elevada; consulte a tabela de saldos.</p>':'')+
+     (pressure.length>3?'<p class="nt-deep-muted">Mais '+ntReportCount(pressure.length-3,'item','itens')+' com retirada elevada; consulte a tabela de saldos.</p>':'')+
     '</div>'+
    '</div>'+
    receiptBox; // A nota detalhada foi suprimida: preserva o rodape A4 e evita texto solto na ultima pagina.
@@ -3527,25 +3531,25 @@ function ntGeneralDayPDF(model){
   ['RETIRADAS',String(totals.requestsLines)],
   ['RECEBIMENTOS',String(totals.receipts)],
   ['REPOSIÇÕES SOLICITADAS',String(totals.reposReports||0)],
-  ['MATERIAIS DISTINTOS',String(totals.stockItems)]
+  ['MATERIAIS MOVIMENTADOS',String(totals.stockItems)]
  ];
  const blocks='<div class="metrics">'+highlights.map(x=>'<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
  const lines=[
-  ['PRODUÇÃO',fmt(totals.machines)+' máquina(s) concluída(s).'],
-  ['MATERIAIS ENTREGUES',totals.requestsLines+' retirada(s) realizadas de '+totals.requestsMaterials+' material(is) diferente(s).'],
-  ['RECEBIMENTOS',totals.receipts+' entrega(s) documentada(s), envolvendo '+totals.receiptLines+' linha(s) de material.'],
+  ['PRODUÇÃO',ntReportCount(fmt(totals.machines),'máquina concluída','máquinas concluídas')+'.'],
+  ['MATERIAIS ENTREGUES',ntReportCount(totals.requestsLines,'retirada realizada','retiradas realizadas')+' de '+ntReportCount(totals.requestsMaterials,'material diferente','materiais diferentes')+'.'],
+  ['RECEBIMENTOS',ntReportCount(totals.receipts,'entrega documentada','entregas documentadas')+', envolvendo '+ntReportCount(totals.receiptLines,'linha de material','linhas de material')+'.'],
   ['REPOSIÇÕES',(totals.reposReports||0)
-    ?totals.reposReports+' solicitação(ões) de reposição emitida(s), com '+totals.reposLines+' linha(s) de material. Confira os documentos após o recebimento.'
+    ?ntReportCount(totals.reposReports,'solicitação de reposição emitida','solicitações de reposição emitidas')+', com '+ntReportCount(totals.reposLines,'linha de material','linhas de material')+'. Consulte as solicitações para análise de compra.'
     :'Nenhuma solicitação de reposição emitida nesta data. Isso não significa que não haja materiais precisando de compra.'],
-  ['MOVIMENTAÇÕES DO ESTOQUE',(totals.requestsLines+totals.stockEntries+totals.returnLines)+' operações confirmadas: '+totals.requestsLines+' retirada(s), '+totals.stockEntries+' entrada(s) e '+totals.returnLines+' devolução(ões), envolvendo '+totals.stockItems+' material(is) distinto(s).']
+  ['MOVIMENTAÇÕES DO ESTOQUE',ntReportCount(totals.requestsLines+totals.stockEntries+totals.returnLines,'operação confirmada','operações confirmadas')+': '+ntReportCount(totals.requestsLines,'retirada','retiradas')+', '+ntReportCount(totals.stockEntries,'entrada','entradas')+' e '+ntReportCount(totals.returnLines,'devolução','devoluções')+', envolvendo '+ntReportCount(totals.stockItems,'material distinto','materiais distintos')+'.']
  ];
- if(totals.cancelledMoves)lines.push(['RETIFICAÇÕES OPERACIONAIS',totals.cancelledMoves+' movimentação(ões) excluída(s) das contagens após estorno de estoque auditado. Os saldos históricos das demais operações permanecem registrados como eram no dia.']);
+ if(totals.cancelledMoves)lines.push(['RETIFICAÇÕES OPERACIONAIS',ntReportCount(totals.cancelledMoves,'movimentação excluída','movimentações excluídas')+' das contagens após estorno de estoque auditado. Os saldos históricos das demais operações permanecem registrados como eram no dia.']);
  const executive='<div class="nt-day-summary-rows">'+lines.map(([label,message])=>
   '<div class="nt-day-summary-row"><strong>'+ntPlain(label)+'</strong><span>'+ntPlain(message)+'</span></div>').join('')+'</div>';
  const alarms=[];
- if(totals.receiptDifferences>0)alarms.push(totals.receiptDifferences+' diferença(s) entre NF e recebimento.');
- if(totals.pendingCodes>0)alarms.push(totals.pendingCodes+' item(ns) recebido(s) sem cadastro.');
- if(totals.stockNotReconciled>0)alarms.push(totals.stockNotReconciled+' saldo(s) com divergência histórica a conferir.');
+ if(totals.receiptDifferences>0)alarms.push(ntReportCount(totals.receiptDifferences,'diferença','diferenças')+' entre NF e recebimento.');
+ if(totals.pendingCodes>0)alarms.push(ntReportCount(totals.pendingCodes,'item recebido','itens recebidos')+' sem cadastro.');
+ if(totals.stockNotReconciled>0)alarms.push(ntReportCount(totals.stockNotReconciled,'saldo','saldos')+' com divergência histórica a conferir.');
  const concerns=alarms.length?'<div class="nt-day-summary-warn"><strong>PONTOS DE ATENÇÃO</strong><p>'+alarms.map(ntPlain).join(' ')+'</p></div>':'';
  const readout='<div class="sectionline"><span>PANORAMA DO DIA</span><span>'+ntPlain(ntDate(date))+'</span></div>'+
  executive+concerns+
@@ -3879,13 +3883,13 @@ function ntReportWarnings(model,scope='general'){
  }
  if(scope==='general'||scope==='receipt'){
   const unlinked=(model.receiptRows||[]).filter(x=>x.statusEntrada==='ESTOQUE_ATUALIZADO'&&!x.entradaConfirmada).length;
-  if(unlinked)warnings.push(unlinked+' linha(s) de recebimento com entrada no estoque sem vínculo individual confirmado.');
+  if(unlinked)warnings.push(ntReportCount(unlinked,'linha','linhas')+' de recebimento com entrada no estoque sem vínculo individual confirmado.');
  }
  if((scope==='general'||scope==='stock')&&Number(model.totals?.cancelledMoves||0)>0)
-  warnings.push(model.totals.cancelledMoves+' movimento(s) estornado(s) nesta data. As contagens foram retificadas, mas os saldos históricos antes/depois dos outros lançamentos não foram reescritos.');
+  warnings.push(ntReportCount(model.totals.cancelledMoves,'movimento estornado','movimentos estornados')+' nesta data. As contagens foram retificadas, mas os saldos históricos antes/depois dos outros lançamentos não foram reescritos.');
  if(scope==='general'||scope==='stock'){
   const mismatched=(model.stockRows||[]).filter(x=>x.validar).length;
-  if(mismatched)warnings.push(mismatched+' material(is) com saldo histórico a conferir.');
+  if(mismatched)warnings.push(ntReportCount(mismatched,'material','materiais')+' com saldo histórico a conferir.');
  }
  return [...new Set(warnings)];
 }
