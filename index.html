@@ -2699,10 +2699,11 @@ function ntGeneralReceiptPages(records,date,marker){
  const totalLines=allRecords.reduce((n,r)=>n+(r.itens||[]).length,0);
  const metrics='<div class="metrics nt-rx-metrics">'+[['DATA DE REFERÊNCIA',ntDate(date)],['ENTREGAS',allRecords.length],['LINHAS DE MATERIAL',totalLines],['DIVERGÊNCIAS',divergences]].map(x=>
   '<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
- // Paginação automática: até 3 entregas por folha se couberem, sem reduzir
- // letras, blocos, tabelas ou a reserva para a observação e o rodapé.
- // A primeira folha tem indicadores que consomem parte da altura disponível.
- const budget=index=>index===0?114:122;
+ // Paginação com reserva obrigatória para observação e rodapé.
+ // A folha 1 possui quatro indicadores: nela cabem no máximo duas entregas.
+ // Nas seguintes, três entregas pequenas podem caber sem reduzir as fontes.
+ // Orçamentos em milímetros já descontam margens, título, nota e rodapé.
+ const budget=index=>index===0?90:118;
  const rowHeight=x=>{
   const size=Math.max(String(x.nome||'').length/39,String(x.codigo||'').length/13);
   const warning=x.semCadastro||!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada||''));
@@ -2710,6 +2711,9 @@ function ntGeneralReceiptPages(records,date,marker){
  };
  const cost=items=>29+items.reduce((n,x)=>n+rowHeight(x),0);
  const maxDeliveriesPerPage=3;
+ // A página com resumo exige mais espaço para os indicadores e nunca recebe
+ // três entregas, independentemente da estimativa de altura.
+ const maxPartsOnPage=index=>index===0?2:maxDeliveriesPerPage;
  // A divisão de uma entrega extensa conserva todos os itens na ordem original.
  const segments=[];
  for(let ri=0;ri<allRecords.length;ri++){
@@ -2730,7 +2734,7 @@ function ntGeneralReceiptPages(records,date,marker){
  dp[n]={pages:0,singles:0,slack:0,next:n};
  for(let i=n-1;i>=0;i--){
   let used=0,seen=new Set();
-  for(let j=i;j<Math.min(n,i+maxDeliveriesPerPage);j++){
+  for(let j=i;j<Math.min(n,i+maxPartsOnPage(i===0?0:1));j++){
    const part=segments[j];
    if(!seen.has(part.ri)&&seen.size>=maxDeliveriesPerPage)break;
    seen.add(part.ri);used+=part.weight;
