@@ -984,6 +984,9 @@ function ntReportCSS(){return `<style>
  .nt-general-receipt .nt-rx-table td{padding:1.8mm 1.5mm;line-height:1.2}
  .nt-general-receipt .nt-rx-table th{padding:2.1mm 1.5mm}
  .nt-general-receipt .nt-rx-note{margin-top:3mm}
+ /* Recebimento: fornecedor, NF e linhas nunca devem quebrar no rodapé. */
+ .nt-general-receipt .nt-rx-entry{break-inside:avoid;page-break-inside:avoid}
+ .nt-general-receipt .footer{z-index:1;background:#fff}
 
 /* Padronização aprovada: todos os campos das tabelas dos PDFs centralizados.
    Especificidade intencional: sobrescreve alinhamentos antigos de números,
@@ -2649,7 +2652,11 @@ function ntGeneralReceiptPages(records,date,marker){
  const metrics='<div class="metrics nt-rx-metrics">'+[['DATA DE REFERÊNCIA',ntDate(date)],['ENTREGAS',allRecords.length],['LINHAS DE MATERIAL',totalLines],['DIVERGÊNCIAS',divergences]].map(x=>
   '<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
  // Orçamento conservador de altura: reserva área para cabeçalho, métricas, rodapé e nota final.
- const budget=index=>index===0?128:152; // A4 paisagem: cabeçalho, indicadores e rodapé reservados
+ // Alturas em milímetros, medidas conservadoramente para o layout impresso:
+ // a primeira página tem cartões de indicadores e precisa de reserva maior.
+ // Os valores antigos (128/152) permitiam a terceira entrega invadir o rodapé.
+ // Mantém os blocos fornecedor + tabela juntos e preserva integralmente as linhas.
+ const budget=index=>index===0?78:114;
  const rowHeight=x=>{
   const size=Math.max(String(x.nome||'').length/39,String(x.codigo||'').length/13);
   const warning=x.semCadastro||!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada||''));
@@ -2700,10 +2707,10 @@ function ntGeneralReceiptPages(records,date,marker){
      '<td class="nt-rx-numeric">'+ntPlain(fmt(x.quantidadeRecebida))+'</td>'+
      '<td class="nt-rx-numeric'+(diff?' nt-rx-diff':'')+'">'+ntPlain(fmt(diff))+'</td></tr>';
    }).join('');
-   content+=banner+'<table class="nt-rx-table"><colgroup><col style="width:16%"><col style="width:38%">'+
+   content+='<div class="nt-rx-entry">'+banner+'<table class="nt-rx-table"><colgroup><col style="width:16%"><col style="width:38%">'+
     '<col style="width:7%"><col style="width:13%"><col style="width:13%"><col style="width:13%"></colgroup>'+
     '<thead><tr><th>CÓDIGO</th><th>MATERIAL</th><th>UN.</th><th>QTD. NF</th><th>RECEBIDO</th><th>DIF.</th></tr></thead>'+
-    '<tbody>'+(rows||'<tr><td colspan="6" class="empty">Nenhum material informado.</td></tr>')+'</tbody></table>';
+    '<tbody>'+(rows||'<tr><td colspan="6" class="empty">Nenhum material informado.</td></tr>')+'</tbody></table></div>';
   }
   if(!parts.length)content='<p class="note">Não foram registrados recebimentos nesta data.</p>';
   if(pageIndex===sheets.length-1&&parts.length){
