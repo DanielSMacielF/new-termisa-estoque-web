@@ -2673,7 +2673,7 @@ function ntGeneralReceiptPages(records,date,marker){
  // Mantém os blocos fornecedor + tabela juntos e preserva integralmente as linhas.
  // A4 paisagem, primeiro papel tem cartões. Nos seguintes a diagramação
  // compacta do fornecedor permite acomodar quatro entregas com folga.
- const budget=index=>index===0?76:130;
+ const budget=index=>index===0?108:116;
  const rowHeight=x=>{
   const size=Math.max(String(x.nome||'').length/39,String(x.codigo||'').length/13);
   const warning=x.semCadastro||!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada||''));
