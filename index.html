@@ -2750,7 +2750,8 @@ function ntGeneralReceiptPages(records,date,marker){
     '<tbody>'+(rows||'<tr><td colspan="6" class="empty">Nenhum material informado.</td></tr>')+'</tbody></table></div>';
   }
   if(!parts.length)content='<p class="note">Não foram registrados recebimentos nesta data.</p>';
-  if(pageIndex===sheets.length-1&&parts.length){
+  if(parts.length){
+   // Repetir a observação em cada folha de recebimento, não apenas na última.
    content+='<div class="nt-rx-note">'+(divergences?'Divergências encontradas: <b>'+divergences+'</b> linha(s). ':'Sem divergências entre quantidades de nota fiscal e recebidas. ')+
     'A diferença corresponde à quantidade recebida menos a quantidade da NF. Entradas integradas de materiais cadastrados atualizam o estoque; itens sem cadastro ficam pendentes.</div>';
   }
