@@ -979,11 +979,15 @@ function ntReportCSS(){return `<style>
  .nt-general-summary .metrics{margin:6mm 0 5mm}
  .nt-general-summary .note{margin-top:3mm}
  .nt-general-receipt .metrics{margin:5mm 0 5mm}
- .nt-general-receipt .nt-rx-banner{grid-template-columns:34mm minmax(0,1fr);margin:3mm 0 2mm;min-height:20mm}
+ .nt-general-receipt .nt-rx-banner{grid-template-columns:34mm minmax(0,1fr);margin:1.6mm 0 1.2mm;min-height:14mm}
  .nt-general-receipt .nt-rx-badge{font-size:10.5pt}
- .nt-general-receipt .nt-rx-table td{padding:1.8mm 1.5mm;line-height:1.2}
- .nt-general-receipt .nt-rx-table th{padding:2.1mm 1.5mm}
- .nt-general-receipt .nt-rx-note{margin-top:3mm}
+ .nt-general-receipt .nt-rx-table td{padding:1.15mm 1.3mm;line-height:1.22;font-size:9.5pt}
+ .nt-general-receipt .nt-rx-table th{padding:1.25mm 1.3mm;font-size:9pt}
+ .nt-general-receipt .nt-rx-note{margin-top:2mm;font-size:8.5pt;line-height:1.3}
+ .nt-general-receipt .nt-rx-body{padding:1.3mm 3mm 1.3mm 4mm}
+ .nt-general-receipt .nt-rx-vendor strong{font-size:10.2pt}
+ .nt-general-receipt .nt-rx-table{font-size:9.5pt;margin-bottom:.6mm}
+ .nt-general-receipt .nt-rx-code{font-size:9.4pt!important}
  /* Recebimento: fornecedor, NF e linhas nunca devem quebrar no rodapé. */
  .nt-general-receipt .nt-rx-entry{break-inside:avoid;page-break-inside:avoid}
  .nt-general-receipt .footer{z-index:1;background:#fff}
@@ -1164,9 +1168,20 @@ function ntHtml(title,pages){
    ${landscape&&portrait?'.page.portrait{height:196mm!important;min-height:196mm!important}':''}
    .page.landscape .footer{bottom:6mm!important}
    .page.portrait .footer{bottom:9mm!important}
-   .nt-general-requests td{padding:.75mm 1.4mm!important;line-height:1.17!important}
-   .nt-general-requests th{padding:1.6mm 1.4mm!important}
-   .nt-general-stock td{padding:1.25mm 1.5mm!important;line-height:1.25!important}
+   /* A folha A4 não exige microtexto: usar fonte de leitura e altura de linha
+      proporcional. A compressão antiga de 0,75mm encolhia a página PDF. */
+   .nt-general-requests td{font-size:10.2pt!important;padding:2.05mm 1.4mm!important;line-height:1.26!important}
+   .nt-general-requests th{font-size:9pt!important;padding:2.0mm 1.4mm!important}
+   .nt-general-stock td{font-size:10pt!important;padding:2mm 1.5mm!important;line-height:1.26!important}
+   .nt-general-stock th{font-size:9pt!important;padding:2mm 1.5mm!important}
+   .nt-general-production td{font-size:10pt!important;padding:1.9mm 1.4mm!important;line-height:1.23!important}
+   .nt-general-production th{font-size:9pt!important;padding:2.2mm 1.4mm!important}
+   .nt-general-receipt .nt-rx-banner{min-height:14mm!important;margin:1.6mm 0 1.2mm!important}
+   .nt-general-receipt .nt-rx-body{padding:1.3mm 3mm 1.3mm 4mm!important}
+   .nt-general-receipt .nt-rx-table th{font-size:9pt!important;padding:1.25mm 1.3mm!important}
+   .nt-general-receipt .nt-rx-table td{font-size:9.5pt!important;padding:1.15mm 1.3mm!important;line-height:1.22!important}
+   .nt-general-receipt .nt-rx-table td.nt-rx-code{font-size:9.2pt!important}
+   .nt-general-receipt .nt-rx-note{margin-top:2mm!important}
    .nt-general-requests .note,.nt-general-stock .note{margin-top:2mm!important}
    .nt-general-stock-deep .nt-deep-panel{min-height:0!important;padding:2mm 3mm!important}
    .nt-general-stock-deep .nt-deep-unitrow{padding:.55mm 0!important}
@@ -2656,13 +2671,15 @@ function ntGeneralReceiptPages(records,date,marker){
  // a primeira página tem cartões de indicadores e precisa de reserva maior.
  // Os valores antigos (128/152) permitiam a terceira entrega invadir o rodapé.
  // Mantém os blocos fornecedor + tabela juntos e preserva integralmente as linhas.
- const budget=index=>index===0?78:114;
+ // A4 paisagem, primeiro papel tem cartões. Nos seguintes a diagramação
+ // compacta do fornecedor permite acomodar quatro entregas com folga.
+ const budget=index=>index===0?76:130;
  const rowHeight=x=>{
   const size=Math.max(String(x.nome||'').length/39,String(x.codigo||'').length/13);
   const warning=x.semCadastro||!['ESTOQUE_ATUALIZADO',''].includes(String(x.statusEntrada||''));
   return 7.7+Math.max(0,Math.ceil(size)-1)*3.5+(warning?4:0);
  };
- const cost=items=>26+items.reduce((n,x)=>n+rowHeight(x),0);
+ const cost=items=>24+items.reduce((n,x)=>n+rowHeight(x),0);
  let current={parts:[],used:0};
  const nextPage=()=>{if(current.parts.length)sheets.push(current);current={parts:[],used:0}};
  for(let ri=0;ri<allRecords.length;ri++){
