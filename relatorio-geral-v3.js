@@ -41,6 +41,21 @@ function htmlSig(p){return qa(p,'.note').map(x=>x.textContent.trim()).join(' / '
 function paginateTable(group,type){
  const original=group.flatMap(p=>qa(p,'table tbody > tr')).map(n=>n.cloneNode(true));
  if(!original.length)return group;
+ // Acima de 20 registros, recuperar até 2px de padding vertical por lado.
+ // A fonte, as descrições e as medidas continuam exatamente iguais.
+ // O espaço de cada linha continua sujeito à medição real da página.
+ if(original.length>20&&(type==='nt-general-stock'||type==='nt-general-requests')){
+  const sample=q(group[0],'table tbody td');
+  const computed=sample?getComputedStyle(sample):null;
+  if(computed){
+   const top=Math.max(2,parseFloat(computed.paddingTop)-2);
+   const bottom=Math.max(2,parseFloat(computed.paddingBottom)-2);
+   for(const tr of original)for(const td of qa(tr,'td')){
+    td.style.setProperty('padding-top',top+'px','important');
+    td.style.setProperty('padding-bottom',bottom+'px','important');
+   }
+  }
+ }
  // Páginas de produção/requisições/estoque têm sempre a mesma observação.
  // Em caso de textos diferentes, não é seguro fundi-las.
  if(group.some(p=>htmlSig(p)!==htmlSig(group[0])))return group;
