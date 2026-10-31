@@ -204,6 +204,18 @@ function audit(){
   throw Error('Página '+(i+1)+' ficou fora da área imprimível: '+Math.round(free(pp[i]))+' px');
  }
 }
+function checksum(){
+ const values=[];
+ // Confere TODOS os registros que serão impressos, inclusive código,
+ // descrição, unidade e quantidade, na ordem original de cada seção.
+ for(const section of pageTypes){
+  values.push(section);
+  for(const page of allPages().filter(p=>p.classList.contains(section))){
+   for(const row of qa(page,'table tbody > tr'))values.push(row.textContent.replace(/\s+/g,' ').trim());
+  }
+ }
+ return JSON.stringify(values);
+}
 function setToolbar(message,alertUser){
  const toolbar=q(document,'.toolbar');if(!toolbar)return;
  let label=q(toolbar,'.nt-v3-label');
@@ -215,6 +227,7 @@ function rebuild(){
  if(ready||running)return ready;
  running=true;
  const backups=allPages().map(n=>n.cloneNode(true));
+ const originalRows=checksum();
  try{
   const old=allPages();
   let i=0;
@@ -228,7 +241,9 @@ function rebuild(){
    fresh.forEach(p=>type==='nt-general-receipt'?fillReceipts(p):fillTable(p));
    i=end;
   }
-  renumber();audit();ready=true;issue='';
+  renumber();audit();
+  if(checksum()!==originalRows)throw Error('A diagramação modificou a lista de materiais; impressão bloqueada.');
+  ready=true;issue='';
   document.documentElement.dataset.ntV3='ready';
   setToolbar('Diagramação conferida',false);return true;
  }catch(e){
