@@ -3,7 +3,7 @@
    Saída: páginas A4 consistentes; nunca altera materiais, códigos ou quantidades. */
 (function(){
 'use strict';
-const SAFE=24, maxReceiptEntries=4;
+const SAFE=14, maxReceiptEntries=4;
 const q=(n,s)=>n.querySelector(s), qa=(n,s)=>Array.from(n.querySelectorAll(s));
 const pageTypes=['nt-general-production','nt-general-requests','nt-general-receipt',
  'nt-general-repos','nt-general-stock'];
