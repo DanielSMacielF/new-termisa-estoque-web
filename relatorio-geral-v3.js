@@ -26,6 +26,9 @@ function blank(base,anchor,type,first){
  p.style.setProperty('min-height','204mm','important');
  if(type==='nt-general-receipt'){
   qa(p,'.nt-rx-entry').forEach(n=>n.remove());
+  // A observação de auditoria entra uma única vez, ao final da seção,
+  // evitando duplicação quando uma entrega ocupa várias páginas.
+  qa(p,'.nt-rx-footnote').forEach(n=>n.remove());
   if(!first)qa(p,'.nt-rx-metrics').forEach(n=>n.remove());
  }else {
   const body=q(p,'table tbody');
