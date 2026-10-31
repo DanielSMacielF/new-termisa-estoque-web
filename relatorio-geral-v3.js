@@ -188,6 +188,49 @@ function fillReceipts(p){
  }
  if(!ok(p))for(const [c,before] of edits)c.style.marginTop=before;
 }
+
+/* Intelligence pages are complex dashboards, not ordinary tables.
+ * Compact only their whitespace before checking print bounds.
+ * Never hide text or reduce font sizes to force a fit. */
+function fitIntelligence(page){
+ if(ok(page))return true;
+ const isDetail=page.classList.contains('nt-general-stock-deep');
+ const isOverview=page.classList.contains('nt-general-stock-intel');
+ if(!isDetail&&!isOverview)return false;
+ page.classList.add('nt-v3-compact-intelligence');
+ if(ok(page))return true;
+ page.classList.add('nt-v3-tight-intelligence');
+ if(ok(page))return true;
+ if(isDetail){
+  // A full analysis + receiving-control box cannot always share one A4.
+  // Move only the receiving-control card to its own page; never clip it.
+  const card=q(page,'.nt-deep-rx');
+  if(card){
+   const continuation=page.cloneNode(true);
+   continuation.classList.add('nt-v3-intelligence-continuation');
+   for(const el of Array.from(continuation.children)){
+    if(['rhead','line','heading','desc','footer'].some(c=>el.classList.contains(c)))continue;
+    el.remove();
+   }
+   const head=q(continuation,'.heading'),desc=q(continuation,'.desc');
+   if(head)head.textContent='INTELIGÊNCIA DO ESTOQUE · RECEBIMENTOS';
+   if(desc)desc.textContent='Conferência de documentos e entradas registradas no dia.';
+   continuation.insertBefore(card,q(continuation,'.footer'));
+   page.parentNode.insertBefore(continuation,page.nextSibling);
+   if(ok(page)&&ok(continuation))return true;
+   page.insertBefore(card,q(page,'.footer'));
+   continuation.remove();
+  }
+ }
+ return false;
+}
+function prepareStaticPages(){
+ for(const page of [...allPages()]){
+  if(!page.classList.contains('nt-general-stock-deep')&&!page.classList.contains('nt-general-stock-intel'))continue;
+  if(!fitIntelligence(page))throw Error('Inteligência do Estoque não coube com segurança no A4.');
+ }
+}
+
 function renumber(){
  const pp=allPages();
  for(let i=0;i<pp.length;i++){
@@ -241,6 +284,7 @@ function rebuild(){
    fresh.forEach(p=>type==='nt-general-receipt'?fillReceipts(p):fillTable(p));
    i=end;
   }
+  prepareStaticPages();
   renumber();audit();
   if(checksum()!==originalRows)throw Error('A diagramação modificou a lista de materiais; impressão bloqueada.');
   ready=true;issue='';
