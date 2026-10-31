@@ -51,8 +51,11 @@ function paginateTable(group,type){
   const sample=q(group[0],'table tbody td');
   const computed=sample?getComputedStyle(sample):null;
   if(computed){
-   const top=Math.max(2,parseFloat(computed.paddingTop)-2);
-   const bottom=Math.max(2,parseFloat(computed.paddingBottom)-2);
+   // Nas folhas de saldos longas, o ajuste de 3px cria espaço para uma
+   // linha a mais sem diminuir a fonte ou esconder a observação inferior.
+   const saving=type==='nt-general-stock'&&original.length>=30?3.6:2;
+   const top=Math.max(2.6,parseFloat(computed.paddingTop)-saving);
+   const bottom=Math.max(2.6,parseFloat(computed.paddingBottom)-saving);
    for(const tr of original)for(const td of qa(tr,'td')){
     td.style.setProperty('padding-top',top+'px','important');
     td.style.setProperty('padding-bottom',bottom+'px','important');
@@ -73,6 +76,19 @@ function paginateTable(group,type){
    if(!tbody.children.length)throw Error('Linha de material maior que a área da página');
    page=make();tbody=q(page,'table tbody');tbody.appendChild(row);
    if(!ok(page))throw Error('Linha longa demais para imprimir com segurança');
+  }
+  // Balancear as duas folhas: 32 linhas devem ficar 16/16, quando
+  // os blocos couberem de verdade. A validação de espaço permanece ativa.
+  if(type==='nt-general-stock'&&made.length===2){
+   const first=q(made[0],'table tbody'),second=q(made[1],'table tbody');
+   while(first.children.length>second.children.length+1){
+    const row=first.lastElementChild;second.insertBefore(row,second.firstChild);
+    if(!ok(made[1])){first.appendChild(row);break;}
+   }
+   while(second.children.length>first.children.length+1){
+    const row=second.firstElementChild;first.appendChild(row);
+    if(!ok(made[0])){second.insertBefore(row,second.firstChild);break;}
+   }
   }
   if(!made.every(ok))throw Error('Tabela ultrapassou o rodapé');
   group.forEach(p=>p.remove());
@@ -120,9 +136,14 @@ function paginateReceipts(group){
     const copy=src.cloneNode(true),tbody=q(copy,'tbody');
     tbody.replaceChildren();
     if(isContinuation)appendContinue(copy);
+    // Terceira entrega pequena: ativar cartões compactos SOMENTE se a
+    // medição da página provar que ela pode ficar junto às duas primeiras.
+    const tryTriple=distinct===2&&made.length===1&&!isContinuation;
+    if(tryTriple)page.classList.add('nt-v3-triple-receipt');
     stack.insertBefore(copy,note);
     if(!ok(page)){
      copy.remove();
+     if(tryTriple)page.classList.remove('nt-v3-triple-receipt');
      if(distinct===0)throw Error('Cabeçalho do recebimento não cabe na página');
      newPage();continue;
     }
@@ -136,6 +157,7 @@ function paginateReceipts(group){
     }
     if(!added){
      copy.remove();
+     if(tryTriple)page.classList.remove('nt-v3-triple-receipt');
      if(distinct===0)throw Error('Material do recebimento não cabe no A4');
      newPage();continue;
     }
