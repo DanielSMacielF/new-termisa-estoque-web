@@ -244,18 +244,25 @@ export function createFinancialClosing(d){
    pages.map((p,i)=>p.replace(marker,d.ntFooter(i+1,pages.length))));
   return html.replace('</head>',css()+'</head>');
  }
- function popupHtml(html){
+ async function openPDF(date=today(),id=''){
+  checkReady();
+  // Abrir ANTES da primeira operação assíncrona (necessário no Chrome Android).
   const pop=window.open('','_blank');
   if(!pop)throw Error('Permita pop-ups do New Termisa para abrir o PDF.');
-  pop.document.open();pop.document.write(html);pop.document.close();
- }
- async function openPDF(date=today(),id=''){
-  checkReady();d.loader(true);
+  pop.document.open();
+  pop.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:24px">Consultando o fechamento financeiro MANUAL no Firebase...</body></html>');
+  pop.document.close();
+  d.loader(true);
   try{
    const list=await readAll();
    const record=id?list.find(x=>x.numero===id):latest(list,date);
-   if(!record){d.notice('Ainda não existe fechamento financeiro manual nesta data.',true);return;}
-   popupHtml(individualHTML(record));
+   if(!record)throw Error('Ainda não existe fechamento financeiro manual nesta data.');
+   pop.document.open();pop.document.write(individualHTML(record));pop.document.close();
+  }catch(e){
+   pop.document.open();
+   pop.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="font:16px Arial;padding:24px"><h2>Relatório financeiro não disponível</h2><p>Consulte o histórico no sistema e tente novamente. Nenhum dado foi modificado.</p></body></html>');
+   pop.document.close();
+   throw e;
   }finally{d.loader(false);}
  }
  function summary(record){
