@@ -124,8 +124,8 @@ export function createFinancialClosing(d){
     '<div style="background:#e7f1f2;padding:12px;border-radius:6px"><b>CONSUMO TOTAL: '+
     brl(x.consumoTotal)+'</b><div class="small">Valor estimado das máquinas: '+brl(x.valorMaquinas)+
     '</div><div class="small">Diferença das máquinas em relação à MP: <b>'+
-    brl(x.diferencaMP)+'</b></div><div class="small">Diferença em relação a MP + UC: <b>'+
-    brl(x.diferencaTotal)+'</b></div></div>'+
+    (x.maquinas.length?brl(x.diferencaMP):'não aplicável')+'</b></div><div class="small">Diferença em relação a MP + UC: <b>'+
+    (x.maquinas.length?brl(x.diferencaTotal):'não aplicável')+'</b></div></div>'+
     '<p class="small" style="margin-top:8px">Comparação gerencial: diferença não comprova lucro, prejuízo ou erro.</p>';
   }catch(e){el.innerHTML='<strong>Prévia do fechamento diário</strong><p class="small">Preencha os valores iniciais, entradas e finais de MP e UC para visualizar o cálculo.</p>';}
  }
@@ -255,22 +255,22 @@ export function createFinancialClosing(d){
   const comparisonAmounts=[
    ['CONSUMO DE MP',mp.consumo],
    ['VALOR ESTIMADO DAS MÁQUINAS',x.valorMaquinas],
-   ['DIFERENÇA (MÁQUINAS − MP)',x.diferencaMP]
+   ['DIFERENÇA (MÁQUINAS − MP)',x.maquinas.length?x.diferencaMP:null]
   ];
   const comparison='<div class="nt-fin-label">3. CONFERÊNCIA COM A PRODUÇÃO</div>'+
    '<div class="nt-fin-comparison">'+comparisonAmounts.map(([label,val])=>
-    '<div><small>'+d.ntPlain(label)+'</small><b'+(val<0?' class="nt-fin-negative"':'')+'>'+
-    d.ntPlain(brl(val))+'</b></div>').join('')+'</div>'+
+    '<div><small>'+d.ntPlain(label)+'</small><b'+(val!==null&&val<0?' class="nt-fin-negative"':'')+'>'+
+    (val===null?'NÃO APLICÁVEL':d.ntPlain(brl(val)))+'</b></div>').join('')+'</div>'+
    '<div class="nt-fin-reconcile">'+
-   '<div class="nt-fin-formula">'+d.ntPlain(brl(x.valorMaquinas))+' − '+d.ntPlain(brl(mp.consumo))+
-   ' = '+money(x.diferencaMP)+'</div>'+
+   '<div class="nt-fin-formula">'+(x.maquinas.length?d.ntPlain(brl(x.valorMaquinas))+' − '+d.ntPlain(brl(mp.consumo))+
+   ' = '+money(x.diferencaMP):'Comparação não disponível')+'</div>'+
    '<div><strong>'+(!x.maquinas.length?'SEM MÁQUINAS INFORMADAS':
     x.diferencaMP===0?'VALORES IGUAIS':'DIFERENÇA A CONFERIR')+'</strong>'+
    (!x.maquinas.length?': registre as máquinas para comparar os valores.':
     x.diferencaMP===0?': valor estimado das máquinas igual ao consumo de MP.':
     ': confira a estimativa por máquina e o consumo de MP.')+'</div>'+
    '<div>O consumo adicional de Uso e Consumo (UC) é '+money(uc.consumo)+
-   '. Considerando MP + UC, a diferença estimada fica em '+money(x.diferencaTotal)+'.</div>'+
+   '. Considerando MP + UC, a diferença estimada fica em '+(x.maquinas.length?money(x.diferencaTotal):'não aplicável (sem máquinas informadas)')+'.</div>'+
    '<div class="nt-fin-smallnote">Essa diferença não comprova erro, lucro ou prejuízo: os valores das máquinas são estimados e podem incluir outros custos.</div>'+
    '</div>';
   // A primeira página contém o resumo completo: limitar linhas de máquinas
