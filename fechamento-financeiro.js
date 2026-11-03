@@ -48,7 +48,7 @@ export function createFinancialClosing(d){
    const s=record.categorias[k];
    const initial=Number(s.inicialCentavos),input=Number(s.entradasCentavos),final=Number(s.finalCentavos);
    if(![initial,input,final].every(Number.isSafeInteger)||[initial,input,final].some(x=>x<0))throw Error('Confira o valor manual de '+k+'.');
-   section[k]={inicial:initial,entradas:input,final,consumo:initial+input-final};
+   section[k]={inicial:initial,entradas:input,disponivel:initial+input,final,consumo:initial+input-final,variacao:final-initial};
   }
   const maquinas=(record.maquinas||[]).map(x=>{
    const quantity=Number(x.quantidade),unit=Number(x.valorUnitarioCentavos);
@@ -60,9 +60,15 @@ export function createFinancialClosing(d){
   });
   const valorMaquinas=maquinas.reduce((a,x)=>a+x.totalCentavos,0);
   const consumoTotal=section.MP.consumo+section.UC.consumo;
-  if(!Number.isSafeInteger(valorMaquinas)||!Number.isSafeInteger(consumoTotal))throw Error('Total financeiro excedeu o limite seguro.');
-  return {sections:section,maquinas,valorMaquinas,consumoTotal,diferencaMP:valorMaquinas-section.MP.consumo,
-   diferencaTotal:valorMaquinas-consumoTotal,qtdMaquinas:maquinas.reduce((a,x)=>a+x.quantidade,0)};
+  const variacaoTotal=section.MP.variacao+section.UC.variacao;
+  const estoqueInicialTotal=section.MP.inicial+section.UC.inicial;
+  const entradasTotal=section.MP.entradas+section.UC.entradas;
+  const estoqueFinalTotal=section.MP.final+section.UC.final;
+  if(![valorMaquinas,consumoTotal,variacaoTotal,estoqueInicialTotal,entradasTotal,estoqueFinalTotal].every(Number.isSafeInteger))
+   throw Error('Total financeiro excedeu o limite seguro.');
+  return {sections:section,maquinas,valorMaquinas,consumoTotal,variacaoTotal,estoqueInicialTotal,entradasTotal,estoqueFinalTotal,
+   diferencaMP:valorMaquinas-section.MP.consumo,diferencaTotal:valorMaquinas-consumoTotal,
+   qtdMaquinas:maquinas.reduce((a,x)=>a+x.quantidade,0)};
  }
  async function readAll(){
   checkReady();
@@ -109,11 +115,17 @@ export function createFinancialClosing(d){
   const el=document.getElementById('ntFin_preview');if(!el)return;
   try{
    const x=calc(parseForm(false));
-   el.innerHTML='<strong>Prévia dos valores digitados</strong><div class="nt-fin-mini">'+
-    [['Consumo MP',x.sections.MP.consumo],['Consumo UC',x.sections.UC.consumo],
-     ['Consumo MP + UC',x.consumoTotal],['Máquinas (estimado)',x.valorMaquinas],
-     ['Diferença (máquinas − MP)',x.diferencaMP],['Diferença (máquinas − MP − UC)',x.diferencaTotal]]
-     .map(([name,value])=>'<div><small>'+name+'</small><b>'+brl(value)+'</b></div>').join('')+'</div>';
+   el.innerHTML='<strong>Resultado dos valores digitados manualmente</strong><div class="nt-fin-mini">'+
+    [['Consumo MP (material utilizado)',x.sections.MP.consumo],
+     ['Consumo UC (material utilizado)',x.sections.UC.consumo],
+     ['Consumo total do dia',x.consumoTotal],
+     ['Variação do estoque (final − inicial)',x.variacaoTotal],
+     ['Máquinas (valor estimado)',x.valorMaquinas],
+     ['Diferença máquinas − consumo total',x.diferencaTotal]]
+     .map(([name,value])=>'<div><small>'+esc(name)+'</small><b style="'+(value<0?'color:#b45309':'')+'">'+brl(value)+'</b></div>').join('')+'</div>'+
+     '<p class="small" style="margin-top:8px">Consumo = Inicial + Entradas − Final. Variação do estoque = Final − Inicial.'+
+     (x.variacaoTotal<0?' O valor negativo indica redução do estoque.':'')+
+     ' O comparativo com máquinas não representa lucro nem prejuízo contábil.</p>';
   }catch(e){el.innerHTML='<strong>Prévia dos cálculos</strong><p class="small">Preencha os seis valores de MP e UC para visualizar os resultados.</p>';}
  }
  function modal(){
@@ -136,7 +148,7 @@ export function createFinancialClosing(d){
    '<div id="ntFin_machineRows">'+machineRows+'</div><button type="button" class="btn alt" data-action="nt-fin-add">+ Acrescentar modelo</button></div>'+
    '<div class="field"><label for="ntFin_obs">Observações (opcional)</label><textarea id="ntFin_obs" rows="2">'+esc(draft.observacao)+'</textarea></div>'+
    '<div class="card" id="ntFin_preview" aria-live="polite"></div>'+
-   '<p class="small"><b>Consumo = estoque inicial + entradas − estoque final.</b> A diferença com o valor das máquinas é apenas uma comparação: o valor estimado das máquinas pode conter mão de obra, margem e outros custos.</p>'+
+   '<p class="small"><b>Consumo = Inicial + Entradas − Final.</b> Consumo positivo significa material utilizado. <b>Variação = Final − Inicial</b>; se for negativa, o estoque diminuiu. A comparação com as máquinas não representa lucro ou prejuízo contábil.</p>'+
    '<div class="buttons"><button class="btn" data-action="nt-fin-save">Salvar MP e UC no Firebase</button><button class="btn ghost" data-action="close">Fechar</button></div></div>');
   preview();
  }
@@ -268,8 +280,12 @@ export function createFinancialClosing(d){
  function summary(record){
   if(!record)return '';
   const x=calc(record);
-  return 'Fechamento manual — MP: '+brl(x.sections.MP.consumo)+'; UC: '+brl(x.sections.UC.consumo)+
-   '; máquinas estimadas: '+brl(x.valorMaquinas)+'.';
+  return 'Fechamento manual — consumo MP: '+brl(x.sections.MP.consumo)+
+   '; consumo UC: '+brl(x.sections.UC.consumo)+
+   '; variação do estoque: '+brl(x.variacaoTotal)+
+   '; máquinas estimadas: '+brl(x.valorMaquinas)+
+   '; diferença máquinas − consumo total: '+brl(x.diferencaTotal)+
+   '. Valores independentes do cadastro de materiais.';
  }
  async function action(a,button){
   if(a==='nt-fin-open')return open();
