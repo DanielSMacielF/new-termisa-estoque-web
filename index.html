@@ -195,6 +195,7 @@ setTimeout(function(){
 },12000);
 </script><script type="module">
 import {exportarExcelFuncional} from './relatorio-excel-funcional.js?v=20261029r6';
+import {createFinancialClosing} from './fechamento-financeiro.js?v=20261103m1';
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import {getFirestore,collection,doc,setDoc,getDocsFromServer,getDocFromServer,onSnapshot,query,where,orderBy,limit,writeBatch,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
@@ -810,6 +811,7 @@ function closeView(){
  '<div class="nt-rc-date card"><div class="field"><label for="dateInput">Data dos relatórios diários</label><input type="date" id="dateInput" value="'+esc(dateFilter)+'"></div></div>'+
  '<div class="nt-rc-group">Operação diária</div><div class="nt-rc-grid">'+
  ntCenterCard('Relatório Geral do Dia','Todos os setores em um documento: produção, pedidos, fornecedores, saldos e conferência.','Automático + dados manuais',button('nt-geral-pdf','PDF completo')+button('nt-geral-excel','Excel (.xlsx)','alt'))+
+ ntCenterCard('Conciliação Financeira do Estoque','Preenchimento 100% manual: valor inicial, entradas e final de MP e UC; consumo calculado e comparativo das máquinas. Não usa preços dos materiais.','Manual · MP e UC',button('nt-fin-open','Lançar / corrigir valores')+button('nt-fin-pdf','PDF financeiro','alt')+button('nt-fin-history','Histórico','ghost'))+
  ntCenterCard('Comunicação Interna','Pedidos e entregas de materiais do dia '+date+'.','Automático',button('nt-requests-pdf','Gerar PDF'))+
  ntCenterCard('QR Codes · Materiais Entregues','Selecione vários dias de retirada. Um QR por material, com saldo registrado até a última data.','Automático · leitura',button('nt-daily-qr-pdf','Selecionar datas e gerar QR Codes'))+
  ntCenterCard('Fechamento Diário','Entradas, saídas, devoluções e saldos antes e depois de cada movimentação.','Automático',button('nt-saldos-pdf','Gerar PDF'))+
@@ -822,6 +824,14 @@ function closeView(){
  '</div><div class="nt-rc-note"><strong>Segurança dos dados</strong><p>Gerar PDFs não altera o estoque. Recebimento e Produção geram registros administrativos independentes; entradas e saídas reais são feitas em Movimentar.</p></div>'+
  '<div class="nt-rc-lines"><details><summary>Histórico de movimentações em '+date+'</summary><p class="small">Os relatórios automáticos consultam registros atuais do servidor e preservam os saldos oficiais.</p>'+button('csv-history','Histórico do dia · CSV','ghost')+'</details></div>';
 }
+
+/* Valores financeiros independentes e digitados manualmente. */
+const ntFin=createFinancialClosing({
+ esc,ntPlain,ntDate,ntTop,ntFooter,ntHtml,
+ getDb:()=>db,getUser:()=>user,isReady:()=>serverReady,getDate:()=>dateFilter,
+ panel,close,notice,loader,
+ collection,doc,query,where,getDocsFromServer,getDocFromServer,setDoc,serverTimestamp
+});
 
 // New Termisa - relatórios profissionais aprovados (somente leitura do Firestore).
 // Este bloco nao modifica saldos, historicos, pedidos ou autenticacao.
@@ -2671,13 +2681,14 @@ async function ntGeneralDayFetch(date){
 async function ntGeneralDayFetchFresh(date){
  if(!user||!serverReady||!navigator.onLine)throw Error('Sem conexão confirmada com o Firebase. Não foi possível consultar o relatório.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))throw Error('Escolha uma data válida.');
- const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap,reposSnap]=await Promise.all([
+ const [materialSnap,moveSnap,receiptSnap,productionSnap,correctionSnap,reposSnap,finDocument]=await Promise.all([
   getDocsFromServer(collection(db,'nt_web_materiais')),
   getDocsFromServer(query(collection(db,'nt_web_movimentos'),where('dia','==',date))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_RECEIPT_ACTION))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_PRODUCTION_ACTION))),
   getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_MANUAL_EDIT_ACTION))),
-  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_REPOS_ACTION)))
+  getDocsFromServer(query(collection(db,'nt_web_auditoria'),where('acao','==',NT_REPOS_ACTION))),
+  ntFin.latestForDate(date)
  ]);
  const materials=materialSnap.docs.map(x=>x.data());
  const corrections=correctionSnap.docs.map(x=>({...x.data(),numero:x.id}));
@@ -2687,6 +2698,7 @@ async function ntGeneralDayFetchFresh(date){
  const repos=ntManualApplyEdits(reposSnap.docs.map(d=>({...d.data(),numero:d.id})).filter(r=>Array.isArray(r.itens)),corrections);
  const model=ntGeneralDayModel(date,materials,moves,receipts,production,repos);
  model.catalogConsultedAt=new Date().toISOString();
+ model.financeiroManual=finDocument;
  return model;
 }
 function ntReportCount(value,singular,plural){
@@ -3590,6 +3602,7 @@ function ntGeneralDayLegacyPDF(model){
     :'Nenhuma solicitação de reposição emitida nesta data. Isso não significa que não haja materiais precisando de compra.'],
   ['MOVIMENTAÇÕES DO ESTOQUE',ntReportCount(totals.requestsLines+totals.stockEntries+totals.returnLines,'operação confirmada','operações confirmadas')+': '+ntReportCount(totals.requestsLines,'retirada','retiradas')+', '+ntReportCount(totals.stockEntries,'entrada','entradas')+' e '+ntReportCount(totals.returnLines,'devolução','devoluções')+', envolvendo '+ntReportCount(totals.stockItems,'material distinto','materiais distintos')+'.']
  ];
+ if(model.financeiroManual)lines.push(['CONCILIAÇÃO FINANCEIRA (MANUAL)',ntFin.summary(model.financeiroManual)]);
  if(totals.cancelledMoves)lines.push(['RETIFICAÇÕES OPERACIONAIS',ntReportCount(totals.cancelledMoves,'movimentação excluída','movimentações excluídas')+' das contagens após estorno de estoque auditado. Os saldos históricos das demais operações permanecem registrados como eram no dia.']);
  const executive='<div class="nt-day-summary-rows">'+lines.map(([label,message])=>
   '<div class="nt-day-summary-row"><strong>'+ntPlain(label)+'</strong><span>'+ntPlain(message)+'</span></div>').join('')+'</div>';
@@ -3615,6 +3628,7 @@ function ntGeneralDayLegacyPDF(model){
  }
  if(model.repos?.length)pages.push(...ntGeneralReposPages(model.repos,date,marker,model.materialCatalog,model.catalogConsultedAt));
  if(model.stockRows?.length)pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
+ if(model.financeiroManual)pages.push(...ntFin.reportPages(model.financeiroManual,date,marker));
  if(model.stockRows?.length||model.requests?.length||model.receipts?.length)pages.push(...ntGeneralDailyIntelligencePages(model,date,marker));
  return ntHtml('Relatório Geral do Dia · '+ntDate(date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
@@ -3633,7 +3647,7 @@ function ntGeneralDayPDF(model){
   '@media print{.page.landscape{height:204mm!important;min-height:204mm!important;page-break-after:always!important}.page:last-of-type{page-break-after:auto!important}}'+
   '@media screen{.page.landscape{height:204mm!important;min-height:204mm!important}}'+
   '.page.nt-v3-page{overflow:visible!important}</style>';
- return html.slice(0,from).replace('</head>',css+'</head>')+
+ return html.slice(0,from).replace('</head>',(model.financeiroManual?ntFin.css():'')+css+'</head>')+
   '<script>'+ntGeneralV3Engine+scriptEndTag+html.slice(to+scriptEndTag.length);
 }
 
@@ -4192,6 +4206,7 @@ async function openQr(target){
 }
 
 async function handleActions(e){const act=e.target.closest('[data-action]');if(!act)return;const a=act.dataset.action;try{if(a==='nt-daily-qr-pdf'){ntQrSelectionOpen();return}if(a==='nt-requests-pdf'){await ntRequestsIndividualOpen();return}if(a==='nt-saldos-pdf'){await ntSaldosIndividualOpen();return}
+if(a&&a.startsWith('nt-fin-')){await ntFin.action(a,act);return}
 if(a==='nt-geral-pdf'){ntGeneralDayOpenPDF();return}if(a==='nt-intelligence-pdf'){await ntDailyIntelligenceIndividualOpen();return}if(a==='nt-geral-excel'){await ntGeneralDayOpenExcel();return}
 if(a==='nt-repos-suggest'){ntReposSuggest();return}
 if(a==='nt-receipt-new'){await ntReceiptNew();return}if(a==='nt-receipt-mode'){ntReceiptCapture();ntReceiptManualMode=act.dataset.mode==='unknown';draw();return}
