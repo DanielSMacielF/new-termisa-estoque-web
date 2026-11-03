@@ -115,18 +115,19 @@ export function createFinancialClosing(d){
   const el=document.getElementById('ntFin_preview');if(!el)return;
   try{
    const x=calc(parseForm(false));
-   el.innerHTML='<strong>Resultado dos valores digitados manualmente</strong><div class="nt-fin-mini">'+
-    [['Consumo MP (material utilizado)',x.sections.MP.consumo],
-     ['Consumo UC (material utilizado)',x.sections.UC.consumo],
-     ['Consumo total do dia',x.consumoTotal],
-     ['Variação do estoque (final − inicial)',x.variacaoTotal],
-     ['Máquinas (valor estimado)',x.valorMaquinas],
-     ['Diferença máquinas − consumo total',x.diferencaTotal]]
-     .map(([name,value])=>'<div><small>'+esc(name)+'</small><b style="'+(value<0?'color:#b45309':'')+'">'+brl(value)+'</b></div>').join('')+'</div>'+
-     '<p class="small" style="margin-top:8px">Consumo = Inicial + Entradas − Final. Variação do estoque = Entradas − Consumo = Final − Inicial.'+
-     (x.variacaoTotal<0?' O valor negativo indica redução do estoque.':'')+
-     ' O comparativo com máquinas não representa lucro nem prejuízo contábil.</p>';
-  }catch(e){el.innerHTML='<strong>Prévia dos cálculos</strong><p class="small">Preencha os seis valores de MP e UC para visualizar os resultados.</p>';}
+   const part=(name,r)=>'<div style="background:#eef6f7;border-left:3px solid #1d9da4;padding:10px;margin:8px 0;border-radius:6px">'+
+    '<strong>'+esc(name)+'</strong><div class="small">Inicial: '+brl(r.inicial)+' + Entradas: '+brl(r.entradas)+
+    ' = Disponível: '+brl(r.disponivel)+'</div><div class="small">Disponível: '+brl(r.disponivel)+
+    ' − Final: '+brl(r.final)+'</div><b>Consumo: '+brl(r.consumo)+'</b></div>';
+   el.innerHTML='<h3>Prévia do fechamento diário</h3>'+
+    part('Matéria-Prima (MP)',x.sections.MP)+part('Uso e Consumo (UC)',x.sections.UC)+
+    '<div style="background:#e7f1f2;padding:12px;border-radius:6px"><b>CONSUMO TOTAL: '+
+    brl(x.consumoTotal)+'</b><div class="small">Valor estimado das máquinas: '+brl(x.valorMaquinas)+
+    '</div><div class="small">Diferença das máquinas em relação à MP: <b>'+
+    brl(x.diferencaMP)+'</b></div><div class="small">Diferença em relação a MP + UC: <b>'+
+    brl(x.diferencaTotal)+'</b></div></div>'+
+    '<p class="small" style="margin-top:8px">Comparação gerencial: diferença não comprova lucro, prejuízo ou erro.</p>';
+  }catch(e){el.innerHTML='<strong>Prévia do fechamento diário</strong><p class="small">Preencha os valores iniciais, entradas e finais de MP e UC para visualizar o cálculo.</p>';}
  }
  function modal(){
   if(!draft)return;
@@ -274,8 +275,8 @@ export function createFinancialClosing(d){
    '</div>';
   // A primeira página contém o resumo completo: limitar linhas de máquinas
   // para proteger a observação e o rodapé. Modelos adicionais têm continuação.
-  const groups=[machineItems.slice(0,3)];
-  for(let i=3;i<machineItems.length;i+=9)groups.push(machineItems.slice(i,i+9));
+  const groups=[machineItems.slice(0,2)];
+  for(let i=2;i<machineItems.length;i+=8)groups.push(machineItems.slice(i,i+8));
   const machineTable=items=>'<div class="nt-fin-machines">'+
    '<div class="nt-fin-label">2. MÁQUINAS BAIXADAS NO DIA · VALORES MANUAIS</div>'+
    '<table class="nt-fin-table"><colgroup><col style="width:44%"><col style="width:15%">'+
