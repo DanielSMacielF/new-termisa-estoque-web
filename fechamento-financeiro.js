@@ -123,7 +123,7 @@ export function createFinancialClosing(d){
      ['Máquinas (valor estimado)',x.valorMaquinas],
      ['Diferença máquinas − consumo total',x.diferencaTotal]]
      .map(([name,value])=>'<div><small>'+esc(name)+'</small><b style="'+(value<0?'color:#b45309':'')+'">'+brl(value)+'</b></div>').join('')+'</div>'+
-     '<p class="small" style="margin-top:8px">Consumo = Inicial + Entradas − Final. Variação do estoque = Final − Inicial.'+
+     '<p class="small" style="margin-top:8px">Consumo = Inicial + Entradas − Final. Variação do estoque = Entradas − Consumo = Final − Inicial.'+
      (x.variacaoTotal<0?' O valor negativo indica redução do estoque.':'')+
      ' O comparativo com máquinas não representa lucro nem prejuízo contábil.</p>';
   }catch(e){el.innerHTML='<strong>Prévia dos cálculos</strong><p class="small">Preencha os seis valores de MP e UC para visualizar os resultados.</p>';}
@@ -148,7 +148,7 @@ export function createFinancialClosing(d){
    '<div id="ntFin_machineRows">'+machineRows+'</div><button type="button" class="btn alt" data-action="nt-fin-add">+ Acrescentar modelo</button></div>'+
    '<div class="field"><label for="ntFin_obs">Observações (opcional)</label><textarea id="ntFin_obs" rows="2">'+esc(draft.observacao)+'</textarea></div>'+
    '<div class="card" id="ntFin_preview" aria-live="polite"></div>'+
-   '<p class="small"><b>Consumo = Inicial + Entradas − Final.</b> Consumo positivo significa material utilizado. <b>Variação = Final − Inicial</b>; se for negativa, o estoque diminuiu. A comparação com as máquinas não representa lucro ou prejuízo contábil.</p>'+
+   '<p class="small"><b>Consumo = Inicial + Entradas − Final.</b> Consumo positivo significa material utilizado. <b>Variação = Entradas − Consumo = Final − Inicial</b>; se for negativa, o estoque diminuiu. A comparação com as máquinas não representa lucro ou prejuízo contábil.</p>'+
    '<div class="buttons"><button class="btn" data-action="nt-fin-save">Salvar MP e UC no Firebase</button><button class="btn ghost" data-action="close">Fechar</button></div></div>');
   preview();
  }
@@ -250,10 +250,10 @@ export function createFinancialClosing(d){
    '<b>Consumo:</b> Inicial + Entradas − Final = '+d.ntPlain(brl(x.estoqueInicialTotal))+' + '+
    d.ntPlain(brl(x.entradasTotal))+' − '+d.ntPlain(brl(x.estoqueFinalTotal))+
    ' = <b>'+d.ntPlain(brl(x.consumoTotal))+'</b>.</div>'+
-   '<div><b>Variação:</b> Final − Inicial = '+d.ntPlain(brl(x.estoqueFinalTotal))+
-   ' − '+d.ntPlain(brl(x.estoqueInicialTotal))+
-   ' = <b>'+moneyCell(x.variacaoTotal)+'</b>. '+d.ntPlain(variationText)+'</div>'+
-   '<div>O consumo pode superar as entradas porque parte dos materiais veio do estoque inicial.</div></div>';
+   '<div><b>Variação:</b> Entradas − Consumo = '+d.ntPlain(brl(x.entradasTotal))+
+   ' − '+d.ntPlain(brl(x.consumoTotal))+
+   ' = <b>'+moneyCell(x.variacaoTotal)+'</b>. É o mesmo que estoque final − inicial.</div>'+
+   '<div>'+d.ntPlain(variationText)+' O consumo pode superar as entradas porque parte dos materiais veio do estoque inicial.</div></div>';
   const machines=x.maquinas;
   const groups=[];for(let i=0;i<machines.length;i+=6)groups.push(machines.slice(i,i+6));
   if(!groups.length)groups.push([]);
