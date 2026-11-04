@@ -5,6 +5,8 @@
 export function createFinancialClosing(d){
  'use strict';
  const ACTION='RELATORIO_CONCILIACAO_FINANCEIRA_MANUAL_V1';
+ const HIDE_ACTION='RELATORIO_CONCILIACAO_FINANCEIRA_OCULTAR_V1';
+ const RESTORE_ACTION='RELATORIO_CONCILIACAO_FINANCEIRA_RESTAURAR_V1';
  const categories=[['MP','Matéria-Prima'],['UC','Uso e Consumo']];
  let draft=null,history=[];
  const esc=s=>d.esc(String(s??''));
@@ -73,13 +75,57 @@ export function createFinancialClosing(d){
   return {sections:section,totals,maquinas,valorMaquinas,
    diferencaGeral,qtdMaquinas};
  }
- async function readAll(){
+ async function readAll(includeHidden=false){
   checkReady();
-  const snap=await d.getDocsFromServer(d.query(d.collection(d.getDb(),'nt_web_auditoria'),d.where('acao','==',ACTION)));
+  // Exclusões/restaurações são eventos de auditoria: o lançamento original
+  // permanece intacto, mas deixa de aparecer nos PDFs e no histórico comum.
+  const snap=await d.getDocsFromServer(d.query(d.collection(d.getDb(),'nt_web_auditoria'),
+   d.where('acao','in',[ACTION,HIDE_ACTION,RESTORE_ACTION])));
   if(snap.metadata?.fromCache)throw Error('Não foi possível confirmar o histórico no servidor.');
-  return snap.docs.map(x=>({...x.data(),numero:x.id}))
+  const docs=snap.docs.map(x=>({...x.data(),numero:x.id}));
+  const excluded=new Set();
+  docs.filter(x=>x.acao===HIDE_ACTION||x.acao===RESTORE_ACTION)
+   .sort((a,b)=>String(a.criadoEmLocal||'').localeCompare(String(b.criadoEmLocal||''))||
+    String(a.numero).localeCompare(String(b.numero)))
+   .forEach(ev=>(Array.isArray(ev.registros)?ev.registros:[]).forEach(id=>{
+    if(ev.acao===HIDE_ACTION)excluded.add(String(id));
+    else excluded.delete(String(id));
+   }));
+  return docs.filter(x=>x.acao===ACTION)
    .filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x.dia||''))&&x.categorias?.MP&&x.categorias?.UC)
-   .sort((a,b)=>String(b.criadoEmLocal||'').localeCompare(String(a.criadoEmLocal||''))||String(b.numero).localeCompare(String(a.numero)));
+   .map(x=>({...x,oculto:excluded.has(String(x.numero))}))
+   .filter(x=>includeHidden||!x.oculto)
+   .sort((a,b)=>String(b.criadoEmLocal||'').localeCompare(String(a.criadoEmLocal||''))||
+    String(b.numero).localeCompare(String(a.numero)));
+ }
+ async function setDayVisibility(date,hide){
+  checkReady();
+  const all=await readAll(true);
+  const entries=all.filter(x=>x.dia===date&&Boolean(x.oculto)!==hide);
+  if(!entries.length){d.notice('Não há lançamentos a '+(hide?'excluir':'restaurar')+' nessa data.',true);return;}
+  const verb=hide?'EXCLUIR DO HISTÓRICO E DOS RELATÓRIOS':'RESTAURAR NO HISTÓRICO E NOS RELATÓRIOS';
+  if(!confirm(verb+' os '+entries.length+' lançamento(s) da data '+dateLabel(date)+'?\n\n'+
+   (hide?'Os registros serão ocultados dos PDFs e do histórico comum, inclusive do Relatório Geral. '+
+    'Os originais permanecem guardados para auditoria. ':
+    'Os registros voltarão a aparecer nos relatórios. ')+
+   'Nenhum saldo, material ou movimentação de estoque será alterado.'))return;
+  const ref=d.doc(d.collection(d.getDb(),'nt_web_auditoria'));
+  const event={
+   acao:hide?HIDE_ACTION:RESTORE_ACTION,dia:date,
+   registros:entries.map(x=>String(x.numero)),
+   origem:'CONCILIACAO_FINANCEIRA',semImpactoNoEstoque:true,
+   criadoEmLocal:new Date().toISOString(),criadoEm:d.serverTimestamp(),
+   operador:String(d.getUser()?.email||''),uid:String(d.getUser()?.uid||'')
+  };
+  d.loader(true);
+  try{
+   await d.setDoc(ref,event);
+   const check=await d.getDocFromServer(ref);
+   if(!check.exists())throw Error('A exclusão/restauração pode ter sido registrada; consulte o histórico antes de repetir.');
+   history=[];
+   d.notice(hide?'Lançamentos da data ocultados com auditoria preservada.':'Lançamentos restaurados no histórico e nos relatórios.');
+  }finally{d.loader(false);}
+  await showHistory();
  }
  function latest(items,date){return items.find(x=>x.dia===date)||null;}
  async function latestForDate(date){return latest(await readAll(),date);}
@@ -193,15 +239,29 @@ export function createFinancialClosing(d){
  async function showHistory(){
   d.loader(true);
   try{
-   history=await readAll();
-   const list=history.map(r=>'<div class="nt-repos-history"><div><b>'+esc(dateLabel(r.dia))+'</b>'+
-    '<div class="small">'+esc(new Date(r.criadoEmLocal||Date.now()).toLocaleString('pt-BR'))+
+   const all=await readAll(true);
+   history=all.filter(x=>!x.oculto);
+   const hidden=all.filter(x=>x.oculto);
+   const fmtRow=(r,hiddenRow)=>'<div class="nt-repos-history"><div><b>'+esc(dateLabel(r.dia))+
+    (hiddenRow?' · OCULTO':'')+'</b><div class="small">'+
+    esc(new Date(r.criadoEmLocal||Date.now()).toLocaleString('pt-BR'))+
     ' · '+esc(r.operador||'')+' · '+esc(r.numero)+'</div></div><div class="buttons">'+
-    '<button class="btn alt" data-action="nt-fin-edit" data-code="'+esc(r.numero)+'">Editar valores</button>'+
-    '<button class="btn ghost" data-action="nt-fin-history-pdf" data-code="'+esc(r.numero)+'">PDF desta versão</button></div></div>').join('');
-   d.panel('<h2>Histórico · Conciliação Financeira</h2><p class="small">Cada salvamento preserva a versão anterior. O Relatório Geral utiliza apenas a versão mais recente de cada data.</p>'+
-    '<div class="card" style="max-height:58vh;overflow-y:auto">'+(list||'<p>Nenhum fechamento financeiro cadastrado.</p>')+'</div>'+
-    '<div class="buttons"><button class="btn" data-action="nt-fin-open">Novo / editar data selecionada</button><button class="btn ghost" data-action="close">Fechar</button></div>');
+    (hiddenRow?'<button class="btn alt" data-action="nt-fin-restore-day" data-day="'+esc(r.dia)+
+      '">Restaurar dia</button>':
+      '<button class="btn alt" data-action="nt-fin-edit" data-code="'+esc(r.numero)+'">Editar valores</button>'+
+      '<button class="btn ghost" data-action="nt-fin-history-pdf" data-code="'+esc(r.numero)+'">PDF desta versão</button>'+
+      '<button class="btn danger" data-action="nt-fin-hide-day" data-day="'+esc(r.dia)+'">Excluir histórico do dia</button>')+
+    '</div></div>';
+   const activeList=history.map(r=>fmtRow(r,false)).join('');
+   const hiddenList=hidden.map(r=>fmtRow(r,true)).join('');
+   d.panel('<h2>Histórico · Conciliação Financeira</h2>'+
+    '<p class="small">A versão mais recente de cada data é usada nos relatórios. Excluir o histórico de um dia oculta TODAS as versões dessa data dos PDFs individual e geral. O registro de auditoria é preservado e pode ser restaurado.</p>'+
+    '<div class="card" style="max-height:48vh;overflow-y:auto">'+
+    (activeList||'<p>Nenhum fechamento financeiro ativo.</p>')+'</div>'+
+    (hidden.length?'<details class="card" style="margin:9px 0"><summary>Excluídos · auditoria ('+hidden.length+')</summary>'+
+     '<div style="max-height:22vh;overflow-y:auto">'+hiddenList+'</div></details>':'')+
+    '<div class="buttons"><button class="btn" data-action="nt-fin-open">Novo / editar data selecionada</button>'+
+    '<button class="btn ghost" data-action="close">Fechar</button></div>');
   }finally{d.loader(false);}
  }
  function css(){return '<style>'+
@@ -214,8 +274,8 @@ export function createFinancialClosing(d){
   '.nt-fin-report .nt-fin-stock-table tbody td:first-child{text-align:center;font-weight:400}'+
   '.nt-fin-report .nt-fin-machine-table tbody td:first-child{text-align:left;font-weight:700}'+
   '.nt-fin-report .nt-fin-table tbody tr.nt-fin-total td:last-child{font-size:11pt;color:#127e88;font-weight:800}'+
-  '.nt-fin-report .nt-fin-combined-table tbody{background:#dcebef;font-weight:800}'+
-  '.nt-fin-report .nt-fin-combined-table tbody td:last-child{color:#127e88;font-size:10.5pt;font-weight:800}'+
+  '.nt-fin-report .nt-fin-grand-total{display:flex;align-items:center;justify-content:space-between;gap:5mm;background:#dcebef;border-left:2px solid #159ca4;border-radius:4px;padding:2.5mm 3mm;margin:2mm 0 3mm;color:#194b59;font-size:9pt;font-weight:800}'+
+  '.nt-fin-report .nt-fin-grand-total b{font-size:12pt;color:#087e89;white-space:nowrap}'+
   '.nt-fin-report .nt-fin-machine-table tbody td{padding:2mm 1.5mm}'+
   '.nt-fin-report .nt-fin-machine-table td:nth-child(2){text-align:center}'+
   '.nt-fin-report .nt-fin-machine-table td:nth-child(n+3){text-align:right}'+
@@ -246,17 +306,15 @@ export function createFinancialClosing(d){
    '</tr></tbody></table>';
   const stock=stockSection('MATÉRIA-PRIMA (MP)',mp)+
    stockSection('USO E CONSUMO (UC)',uc)+
-   '<div class="nt-fin-section">TOTAL GERAL · MATÉRIA-PRIMA + USO E CONSUMO</div>'+
-   '<table class="nt-fin-table nt-fin-stock-table nt-fin-combined-table"><colgroup>'+
-   '<col style="width:25%"><col style="width:25%"><col style="width:25%"><col style="width:25%"></colgroup>'+
-   '<thead><tr><th>INICIAL</th><th>ENTRADAS</th><th>FINAL</th><th>CONSUMO TOTAL</th></tr></thead>'+
-   '<tbody><tr>'+[x.totals.inicial,x.totals.entradas,x.totals.final,x.totals.consumo].map(v=>'<td>'+currency(v)+'</td>').join('')+
-   '</tr></tbody></table>';
+   '<div class="nt-fin-grand-total"><span>CONSUMO TOTAL · MATÉRIA-PRIMA + USO E CONSUMO</span><b>'+
+    currency(x.totals.consumo)+'</b></div>';
   const machineItems=x.maquinas;
-  // As linhas são distribuídas antes de imprimir: evita sobrepor o rodapé
-  // e preserva o nome, quantidade e valor de cada máquina.
-  const groups=[machineItems.slice(0,7)];
-  for(let i=7;i<machineItems.length;i+=12)groups.push(machineItems.slice(i,i+12));
+  // Folha 1 contém MP, UC e resumo. Limitar máquinas para preservar o rodapé.
+  // Nas continuações reservar espaço ao último quadro de conferência.
+  const firstCap=machineItems.length>2?3:machineItems.length;
+  const otherCap=7;
+  const groups=[machineItems.slice(0,firstCap)];
+  for(let i=firstCap;i<machineItems.length;i+=otherCap)groups.push(machineItems.slice(i,i+otherCap));
   const machineTable=items=>'<div class="nt-fin-section">MÁQUINAS PRODUZIDAS · VALORES ESTIMADOS</div>'+
    '<table class="nt-fin-table nt-fin-machine-table">'+
    '<colgroup><col style="width:43%"><col style="width:13%"><col style="width:22%"><col style="width:22%"></colgroup>'+
@@ -342,6 +400,8 @@ export function createFinancialClosing(d){
   if(a==='nt-fin-add'){snapshotForm();draft.maquinas.push({modelo:'',quantidade:'',valorUnitario:''});return modal();}
   if(a==='nt-fin-remove'){snapshotForm();draft.maquinas.splice(Number(button.dataset.index),1);if(!draft.maquinas.length)draft.maquinas.push({modelo:'',quantidade:'',valorUnitario:''});return modal();}
   if(a==='nt-fin-save')return save();
+  if(a==='nt-fin-hide-day')return setDayVisibility(String(button.dataset.day||''),true);
+  if(a==='nt-fin-restore-day')return setDayVisibility(String(button.dataset.day||''),false);
   if(a==='nt-fin-edit'){const found=history.find(x=>x.numero===button.dataset.code);return open(found?.dia||today(),button.dataset.code);}
   if(a==='nt-fin-history-pdf')return openPDF(history.find(x=>x.numero===button.dataset.code)?.dia||today(),button.dataset.code);
  }
