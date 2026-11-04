@@ -167,18 +167,14 @@ export function createFinancialClosing(d){
    const part=(name,r)=>'<div style="background:#eef6f7;border-left:3px solid #1d9da4;padding:10px;margin:8px 0;border-radius:6px">'+
     '<strong>'+esc(name)+'</strong><div class="small">Inicial: '+brl(r.inicial)+
     ' · Entradas: '+brl(r.entradas)+' · Final: '+brl(r.final)+'</div>'+
-    '<b>Consumo calculado: '+brl(r.consumo)+'</b></div>';
+    '<b>Consumo: '+brl(r.consumo)+'</b></div>';
    el.innerHTML='<h3>Prévia do fechamento diário</h3>'+
     part('Matéria-Prima (MP)',x.sections.MP)+part('Uso e Consumo (UC)',x.sections.UC)+
-    '<div style="background:#dcebef;border-left:3px solid #168f99;padding:12px;border-radius:6px;margin:8px 0">'+
-    '<strong>TOTAL GERAL · MP + UC</strong><div class="small">Inicial: '+brl(x.totals.inicial)+
-    ' · Entradas: '+brl(x.totals.entradas)+' · Final: '+brl(x.totals.final)+'</div>'+
-    '<b>Consumo total: '+brl(x.totals.consumo)+'</b></div>'+
-    '<div style="background:#e7f1f2;padding:12px;border-radius:6px"><b>Valor estimado das máquinas: '+
-    brl(x.valorMaquinas)+'</b><div class="small">Diferença das máquinas em relação ao consumo total de MP + UC: <b>'+
-    (x.maquinas.length?brl(x.diferencaGeral):'não aplicável')+'</b></div></div>'+
-    '<p class="small" style="margin-top:8px">Os consumos de MP e UC são calculados separadamente e somados apenas no total geral. A diferença é um comparativo gerencial, não lucro ou prejuízo contábil.</p>';
-  }catch(e){el.innerHTML='<strong>Prévia do fechamento diário</strong><p class="small">Preencha os valores iniciais, entradas e finais de MP e UC para visualizar os resultados separados e o total geral.</p>';}
+    '<div style="background:#e7f1f2;padding:12px;border-radius:6px"><b>Consumo combinado: '+brl(x.totals.consumo)+
+    '</b><div class="small">Valor estimado das máquinas: '+brl(x.valorMaquinas)+
+    ' · Diferença para conferência: <b>'+(x.maquinas.length?brl(x.diferencaGeral):'não aplicável')+'</b></div></div>'+
+    '<p class="small">O consumo conjunto de MP e UC é comparado ao valor estimado das máquinas. A diferença não comprova lucro ou prejuízo.</p>';
+  }catch(e){el.innerHTML='<strong>Prévia do fechamento diário</strong><p class="small">Preencha os valores iniciais, entradas e finais de MP e UC para visualizar os resultados separados e o comparativo.</p>';}
  }
  function modal(){
   if(!draft)return;
@@ -265,108 +261,107 @@ export function createFinancialClosing(d){
   }finally{d.loader(false);}
  }
  function css(){return '<style>'+
-  '.nt-fin-report .nt-fin-section{font-size:10pt;color:#153f4d;font-weight:700;margin:4mm 0 2mm;line-height:1.3}'+
-  '.nt-fin-report .nt-fin-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:9.5pt;line-height:1.3;margin:0 0 3mm;font-variant-numeric:tabular-nums}'+
-  '.nt-fin-report .nt-fin-table thead th{background:#194b59;color:#fff;font-size:8.5pt;font-weight:700;padding:2.6mm 1.5mm;text-align:center;white-space:normal}'+
-  '.nt-fin-report .nt-fin-table tbody td{padding:2.6mm 1.5mm;border-bottom:1px solid #d3e2e6;text-align:center;vertical-align:middle;overflow-wrap:anywhere}'+
+  '.nt-fin-report .desc{margin-bottom:3mm}'+
+  '.nt-fin-report .nt-fin-section{font-size:10.6pt;color:#153f4d;font-weight:700;margin:3mm 0 2mm;line-height:1.25}'+
+  '.nt-fin-report .nt-fin-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3mm;margin:2mm 0 4mm}'+
+  '.nt-fin-report .nt-fin-stat{background:#eff6f7;border:1px solid #cfdee1;border-radius:2.3mm;padding:3mm 3.2mm;min-height:21mm}'+
+  '.nt-fin-report .nt-fin-stat:last-child{background:#e6f1f2;border-color:#9dced0}'+
+  '.nt-fin-report .nt-fin-stat small{display:block;font-size:8.2pt;font-weight:700;color:#4c6771;line-height:1.25}'+
+  '.nt-fin-report .nt-fin-stat b{display:block;font-size:13.5pt;font-weight:800;color:#153f4d;margin-top:2mm;white-space:nowrap;font-variant-numeric:tabular-nums}'+
+  '.nt-fin-report .nt-fin-stat:last-child b{color:#0f8388}'+
+  '.nt-fin-report .nt-fin-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:10.2pt;line-height:1.22;font-variant-numeric:tabular-nums;margin:0 0 1.5mm}'+
+  '.nt-fin-report .nt-fin-table thead th{background:#194b59;color:#fff;font-size:9pt;font-weight:700;padding:2.1mm 1.6mm;text-align:center}'+
+  '.nt-fin-report .nt-fin-table tbody td{padding:2.2mm 1.6mm;border-bottom:1px solid #d3e2e6;text-align:center;vertical-align:middle;overflow-wrap:anywhere}'+
   '.nt-fin-report .nt-fin-table tbody tr:nth-child(even){background:#eff5f6}'+
-  '.nt-fin-report .nt-fin-table tbody tr.nt-fin-total{background:#dcebef;font-weight:800}'+
-  '.nt-fin-report .nt-fin-stock-table tbody td:first-child{text-align:center;font-weight:400}'+
   '.nt-fin-report .nt-fin-machine-table tbody td:first-child{text-align:left;font-weight:700}'+
-  '.nt-fin-report .nt-fin-table tbody tr.nt-fin-total td:last-child{font-size:11pt;color:#127e88;font-weight:800}'+
-  '.nt-fin-report .nt-fin-grand-total{display:flex;align-items:center;justify-content:space-between;gap:5mm;background:#dcebef;border-left:2px solid #159ca4;border-radius:4px;padding:2.5mm 3mm;margin:2mm 0 3mm;color:#194b59;font-size:9pt;font-weight:800}'+
-  '.nt-fin-report .nt-fin-grand-total b{font-size:12pt;color:#087e89;white-space:nowrap}'+
-  '.nt-fin-report .nt-fin-machine-table tbody td{padding:2mm 1.5mm}'+
-  '.nt-fin-report .nt-fin-machine-table td:nth-child(2){text-align:center}'+
-  '.nt-fin-report .nt-fin-machine-table td:nth-child(n+3){text-align:right}'+
-  '.nt-fin-report .nt-fin-machine-table td:last-child{font-weight:700}'+
-  '.nt-fin-report .nt-fin-figures{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3mm;margin:3mm 0}'+
-  '.nt-fin-report .nt-fin-figure{background:#e5f1f3;border-left:2px solid #16a3a9;border-radius:5px;padding:2.7mm 3mm;min-height:18mm}'+
-  '.nt-fin-report .nt-fin-figure small{display:block;font-size:8pt;font-weight:700;line-height:1.3;color:#436573}'+
-  '.nt-fin-report .nt-fin-figure b{display:block;font-size:13pt;line-height:1.3;color:#156475;margin-top:1.3mm;font-weight:800}'+
-  '.nt-fin-report .nt-fin-figure.nt-fin-difference{background:#fff5e6;border-left-color:#ca873d}'+
-  '.nt-fin-report .nt-fin-figure.nt-fin-difference b{color:#87531f}'+
-  '.nt-fin-report .nt-fin-machine-total{display:flex;justify-content:space-between;align-items:center;gap:3mm;background:#e5f1f3;border-left:2px solid #16a3a9;border-radius:4px;padding:2.8mm 3.5mm;margin:2mm 0;font-size:9pt;color:#194b59;font-weight:700}'+
-  '.nt-fin-report .nt-fin-machine-total b{font-size:12pt;font-weight:800;color:#087e89}'+
-  '.nt-fin-report .nt-fin-status{font-size:9pt;font-weight:700;color:#244c59;margin:2mm 0 0}'+
-  '.nt-fin-report .nt-fin-remark{font-size:8pt;color:#526d79;line-height:1.34;margin:3mm 0}'+
-  /* Ajustes validados no Chrome A4: compactação moderada sem reduzir as colunas ou ocultar linhas. */
-  '.nt-fin-report .desc{margin-bottom:2mm}'+
-  '.nt-fin-report .nt-fin-section{margin:2mm 0 1mm;font-size:9pt}'+
-  '.nt-fin-report .nt-fin-table{margin-bottom:1.5mm;line-height:1.2}'+
-  '.nt-fin-report .nt-fin-table thead th{padding:1.7mm 1.3mm;font-size:8.2pt}'+
-  '.nt-fin-report .nt-fin-table tbody td{padding:1.7mm 1.2mm;line-height:1.2}'+
-  '.nt-fin-report .nt-fin-machine-table tbody td{padding:1.4mm 1mm;line-height:1.2}'+
-  '.nt-fin-report .nt-fin-grand-total{padding:1.5mm 2.5mm;margin:1.1mm 0 1.5mm}'+
-  '.nt-fin-report .nt-fin-machine-total{padding:1.5mm 2.5mm;margin:1mm 0;min-height:0}'+
-  '.nt-fin-report .nt-fin-figures{margin:1.5mm 0}'+
-  '.nt-fin-report .nt-fin-figure{min-height:15mm;padding:1.5mm 2.5mm}'+
-  '.nt-fin-report .nt-fin-figure small{font-size:7.5pt}'+
-  '.nt-fin-report .nt-fin-figure b{font-size:12pt;margin-top:1mm}'+
-  '.nt-fin-report .nt-fin-status{margin:1mm 0 0;font-size:8pt}'+
-  '.nt-fin-report .nt-fin-remark{margin:1mm 0;font-size:7.5pt;line-height:1.2}'+
-  '.nt-fin-report .nt-fin-muted{color:#536e79;font-size:8.5pt;line-height:1.35;margin:2mm 0}'+
+  '.nt-fin-report .nt-fin-machine-table tbody td:last-child{text-align:right;font-weight:700}'+
+  '.nt-fin-report .nt-fin-machine-total{display:flex;justify-content:space-between;align-items:center;gap:3mm;background:#e5f1f3;border-radius:2mm;padding:2.5mm 3.4mm;margin:1.7mm 0 3mm;color:#153f4d;font-size:9.5pt;font-weight:700}'+
+  '.nt-fin-report .nt-fin-machine-total b{font-size:12pt;color:#087e89}'+
+  '.nt-fin-report .nt-fin-figures{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3mm;margin:2mm 0}'+
+  '.nt-fin-report .nt-fin-figure{background:#eff6f7;border:1px solid #cfdee1;border-radius:2.3mm;padding:3mm 3.4mm;min-height:20mm}'+
+  '.nt-fin-report .nt-fin-figure small{display:block;font-size:8.1pt;font-weight:700;color:#4c6771;line-height:1.25}'+
+  '.nt-fin-report .nt-fin-figure b{display:block;font-size:15pt;color:#153f4d;margin-top:2mm;font-weight:800;white-space:nowrap}'+
+  '.nt-fin-report .nt-fin-figure.nt-fin-difference{background:#fff3f0;border-color:#e5b8ac}'+
+  '.nt-fin-report .nt-fin-figure.nt-fin-difference small,.nt-fin-report .nt-fin-figure.nt-fin-difference b{color:#a14a3e}'+
+  '.nt-fin-report .nt-fin-status{font-size:8.9pt;font-weight:700;color:#a14a3e;margin:2mm 0 1mm}'+
+  '.nt-fin-report .nt-fin-remark{font-size:8.2pt;color:#526d79;line-height:1.32;margin:1mm 0 2mm}'+
   '@media print{.nt-fin-report table tr{break-inside:avoid;page-break-inside:avoid}}'+
   '</style>';}
  function reportPages(record,date,marker){
   if(!record||record.dia!==date)return [];
-  const x=calc(record),mp=x.sections.MP,uc=x.sections.UC;
-  const currency=value=>d.ntPlain(brl(value));
-  // MP e UC em quadros individuais; o quadro TOTAL GERAL aparece somente abaixo dos dois.
-  const stockSection=(name,r)=>'<div class="nt-fin-section">'+d.ntPlain(name)+' · MOVIMENTAÇÕES E SALDOS</div>'+
-   '<table class="nt-fin-table nt-fin-stock-table"><colgroup>'+
-   '<col style="width:25%"><col style="width:25%"><col style="width:25%"><col style="width:25%"></colgroup>'+
-   '<thead><tr><th>INICIAL</th><th>ENTRADAS</th><th>FINAL</th><th>CONSUMO</th></tr></thead>'+
-   '<tbody><tr>'+[r.inicial,r.entradas,r.final,r.consumo].map(v=>'<td>'+currency(v)+'</td>').join('')+
-   '</tr></tbody></table>';
-  const stock=stockSection('MATÉRIA-PRIMA (MP)',mp)+
-   stockSection('USO E CONSUMO (UC)',uc)+
-   '<div class="nt-fin-grand-total"><span>CONSUMO TOTAL · MATÉRIA-PRIMA + USO E CONSUMO</span><b>'+
-    currency(x.totals.consumo)+'</b></div>';
-  const machineItems=x.maquinas;
-  // Folha 1 contém MP, UC e resumo. Limitar máquinas para preservar o rodapé.
-  // Nas continuações reservar espaço ao último quadro de conferência.
-  const firstCap=machineItems.length>2?3:machineItems.length;
-  const otherCap=7;
-  const groups=[machineItems.slice(0,firstCap)];
-  for(let i=firstCap;i<machineItems.length;i+=otherCap)groups.push(machineItems.slice(i,i+otherCap));
-  const machineTable=items=>'<div class="nt-fin-section">MÁQUINAS PRODUZIDAS · VALORES ESTIMADOS</div>'+
+  const x=calc(record),money=v=>d.ntPlain(brl(v));
+  const stockSection=(name,r,tag)=>'<div class="nt-fin-section">'+name+' · MOVIMENTAÇÕES E SALDOS</div>'+
+   '<div class="nt-fin-stats">'+
+   [['SALDO INICIAL',r.inicial],['ENTRADAS',r.entradas],['SALDO FINAL',r.final],['CONSUMO DE '+tag,r.consumo]]
+    .map(([label,value])=>'<div class="nt-fin-stat"><small>'+d.ntPlain(label)+'</small><b>'+money(value)+'</b></div>').join('')+
+   '</div>';
+  const stock=stockSection('MATÉRIA-PRIMA (MP)',x.sections.MP,'MP')+
+   stockSection('USO E CONSUMO (UC)',x.sections.UC,'UC');
+  // O consumo combinado aparece uma vez, na conferência financeira, abaixo das máquinas.
+  // Paginação fixa por grupos equilibrados para evitar a última página quase vazia.
+  const machines=x.maquinas,groups=[];
+  // Usar a altura provável de cada linha: descrições longas podem ocupar 2-3 linhas.
+  const units=m=>Math.max(1,Math.ceil(String(m.modelo||'').length/50));
+  const totalUnits=machines.reduce((sum,m)=>sum+units(m),0);
+  if(totalUnits<=6)groups.push(machines);
+  else{
+   const groupCount=Math.max(2,1+Math.ceil(Math.max(0,totalUnits-6)/8));
+   let remainingUnits=totalUnits,pos=0;
+   for(let k=0;k<groupCount&&pos<machines.length;k++){
+    const left=groupCount-k;
+    const budget=k===0?6:8;
+    const target=Math.min(budget,Math.ceil(remainingUnits/left));
+    const chunk=[];
+    let used=0;
+    while(pos<machines.length){
+     const cost=units(machines[pos]);
+     if(chunk.length&&used+cost>target)break;
+     chunk.push(machines[pos++]);used+=cost;
+     if(used>=target)break;
+    }
+    groups.push(chunk);remainingUnits-=used;
+   }
+   // Fallback para nomes extremamente longos ou aritmética de páginas conservadora.
+   while(pos<machines.length){
+    const chunk=[],budget=8;
+    let used=0;
+    do{const m=machines[pos++];chunk.push(m);used+=units(m);}while(pos<machines.length&&used+units(machines[pos])<=budget);
+    groups.push(chunk);
+   }
+  }
+  const table=items=>'<div class="nt-fin-section">MÁQUINAS PRODUZIDAS · VALORES ESTIMADOS</div>'+
    '<table class="nt-fin-table nt-fin-machine-table">'+
-   '<colgroup><col style="width:43%"><col style="width:13%"><col style="width:22%"><col style="width:22%"></colgroup>'+
+   '<colgroup><col style="width:42%"><col style="width:13%"><col style="width:23%"><col style="width:22%"></colgroup>'+
    '<thead><tr><th>MÁQUINA / MODELO</th><th>QUANTIDADE</th><th>VALOR POR MÁQUINA</th><th>VALOR TOTAL</th></tr></thead>'+
    '<tbody>'+(items.length?items.map(m=>'<tr><td>'+d.ntPlain(m.modelo)+'</td>'+
-    '<td>'+d.ntPlain(m.quantidade)+'</td><td>'+currency(m.valorUnitarioCentavos)+'</td>'+
-    '<td>'+currency(m.totalCentavos)+'</td></tr>').join(''):
-    '<tr><td colspan="4" class="nt-fin-muted">Nenhuma máquina informada nesta data.</td></tr>')+
+    '<td>'+d.ntPlain(m.quantidade)+'</td><td>'+money(m.valorUnitarioCentavos)+'</td>'+
+    '<td>'+money(m.totalCentavos)+'</td></tr>').join(''):
+    '<tr><td colspan="4">Nenhuma máquina informada nesta data.</td></tr>')+
    '</tbody></table>';
-  const overview='<div class="nt-fin-machine-total"><span>QUANTIDADE TOTAL: <b>'+
-   d.ntPlain(x.qtdMaquinas)+'</b></span><span>VALOR ESTIMADO DAS MÁQUINAS: <b>'+
-   currency(x.valorMaquinas)+'</b></span></div>';
-  const hasMachines=machineItems.length>0;
-  const difference=hasMachines?x.diferencaGeral:null;
-  const status=!hasMachines?'Sem máquinas informadas para comparação':
-   x.diferencaGeral>0?'Valor das máquinas maior que o consumo total de MP e UC':
-   x.diferencaGeral<0?'Consumo total de MP e UC maior que o valor das máquinas':
-   'Valores conferem';
-  const cards='<div class="nt-fin-section">CONFERÊNCIA FINANCEIRA DO DIA</div>'+
+  const total='<div class="nt-fin-machine-total"><span>TOTAL PRODUZIDO: <b>'+
+   d.ntPlain(x.qtdMaquinas)+' MÁQUINAS</b></span><span>VALOR ESTIMADO TOTAL: <b>'+
+   money(x.valorMaquinas)+'</b></span></div>';
+  const diff=machines.length?x.diferencaGeral:null;
+  const status=diff===null?'Sem máquinas informadas para comparação':
+   diff>0?'Valor das máquinas maior que o consumo conjunto de MP e UC':
+   diff<0?'Consumo conjunto de MP e UC maior que o valor das máquinas':'Valores conferem';
+  const finish='<div class="nt-fin-section">CONFERÊNCIA FINANCEIRA DO DIA</div>'+
    '<div class="nt-fin-figures">'+
    [['CONSUMO TOTAL · MP + UC',x.totals.consumo],['VALOR TOTAL DAS MÁQUINAS',x.valorMaquinas],
-    ['DIFERENÇA PARA CONFERÊNCIA',difference]].map(([title,value],i)=>
-     '<div class="nt-fin-figure'+(i===2&&difference!==0&&difference!==null?' nt-fin-difference':'')+'">'+
-     '<small>'+d.ntPlain(title)+'</small><b>'+(value===null?'NÃO APLICÁVEL':currency(value))+
-     '</b></div>').join('')+'</div>'+
-   '<p class="nt-fin-status">'+d.ntPlain(status)+'</p>';
-  const note='<p class="nt-fin-remark">Valores informados manualmente. A diferença apresentada compara o valor estimado das máquinas com o consumo conjunto de Matéria-Prima e Uso e Consumo; não comprova lucro ou prejuízo.'+
+    ['DIFERENÇA PARA CONFERÊNCIA',diff]].map(([name,value],i)=>
+    '<div class="nt-fin-figure'+(i===2&&value!==null&&value<0?' nt-fin-difference':'')+'">'+
+    '<small>'+d.ntPlain(name)+'</small><b>'+(value===null?'NÃO APLICÁVEL':money(value))+
+    '</b></div>').join('')+'</div>'+
+   '<p class="nt-fin-status">'+d.ntPlain(status)+'</p>'+
+   '<p class="nt-fin-remark">Valores informados manualmente. A diferença compara o consumo conjunto de MP e UC com o valor estimado das máquinas; não comprova lucro ou prejuízo.'+
    (record.observacao?' <b>OBSERVAÇÃO:</b> '+d.ntPlain(record.observacao):'')+'</p>';
-  const pages=[];
-  groups.forEach((items,i)=>{
+  return groups.map((items,i)=>{
    const first=i===0,last=i===groups.length-1;
-   pages.push('<section class="page landscape nt-fin-report">'+
+   return '<section class="page landscape nt-fin-report">'+
     d.ntTop('CONCILIAÇÃO FINANCEIRA DO ESTOQUE',
-      first?'Fechamento diário · Matéria-Prima e Uso e Consumo':'Fechamento diário · Continuação das máquinas',date)+
-    (first?stock:'')+machineTable(items)+(last?overview+cards+note:'')+marker+'</section>');
+     first?'Fechamento diário · Matéria-Prima e Uso e Consumo':'Fechamento diário · Continuação das máquinas',date)+
+    (first?stock:'')+table(items)+(last?total+finish:'')+marker+'</section>';
   });
-  return pages;
  }
  function individualHTML(record){
   const marker='__NT_FIN_FOOTER__';
@@ -400,13 +395,11 @@ export function createFinancialClosing(d){
   if(!record)return '';
   const x=calc(record);
   return 'Fechamento manual — MP: consumo '+brl(x.sections.MP.consumo)+
-   ', variação '+brl(x.sections.MP.variacao)+
    '; UC: consumo '+brl(x.sections.UC.consumo)+
-   ', variação '+brl(x.sections.UC.variacao)+
-   '; TOTAL MP + UC: consumo '+brl(x.totals.consumo)+
-   '; máquinas estimadas: '+brl(x.valorMaquinas)+
-   '; diferença máquinas − consumo MP + UC: '+brl(x.diferencaGeral)+
-   '. Valores informados manualmente; estoques preservados.';
+   '; consumo conjunto '+brl(x.totals.consumo)+
+   '; máquinas estimadas '+brl(x.valorMaquinas)+
+   '; diferença para conferência '+(x.maquinas.length?brl(x.diferencaGeral):'não aplicável')+
+   '. Sem alteração do estoque.';
  }
  async function action(a,button){
   if(a==='nt-fin-open')return open();
