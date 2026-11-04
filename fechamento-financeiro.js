@@ -59,16 +59,12 @@ export function createFinancialClosing(d){
    return {...x,quantidade:quantity,valorUnitarioCentavos:unit,totalCentavos:total};
   });
   const valorMaquinas=maquinas.reduce((a,x)=>a+x.totalCentavos,0);
-  const consumoTotal=section.MP.consumo+section.UC.consumo;
-  const variacaoTotal=section.MP.variacao+section.UC.variacao;
-  const estoqueInicialTotal=section.MP.inicial+section.UC.inicial;
-  const entradasTotal=section.MP.entradas+section.UC.entradas;
-  const estoqueFinalTotal=section.MP.final+section.UC.final;
-  if(![valorMaquinas,consumoTotal,variacaoTotal,estoqueInicialTotal,entradasTotal,estoqueFinalTotal].every(Number.isSafeInteger))
-   throw Error('Total financeiro excedeu o limite seguro.');
-  return {sections:section,maquinas,valorMaquinas,consumoTotal,variacaoTotal,estoqueInicialTotal,entradasTotal,estoqueFinalTotal,
-   diferencaMP:valorMaquinas-section.MP.consumo,diferencaTotal:valorMaquinas-consumoTotal,
-   qtdMaquinas:maquinas.reduce((a,x)=>a+x.quantidade,0)};
+  const qtdMaquinas=maquinas.reduce((a,x)=>a+x.quantidade,0);
+  if(!Number.isSafeInteger(valorMaquinas)||!Number.isSafeInteger(qtdMaquinas))
+   throw Error('Valores das máquinas excederam o limite seguro.');
+  // MP e UC são apurados separadamente: nenhum total combinado é calculado.
+  return {sections:section,maquinas,valorMaquinas,
+   diferencaMP:valorMaquinas-section.MP.consumo,qtdMaquinas};
  }
  async function readAll(){
   checkReady();
@@ -116,18 +112,16 @@ export function createFinancialClosing(d){
   try{
    const x=calc(parseForm(false));
    const part=(name,r)=>'<div style="background:#eef6f7;border-left:3px solid #1d9da4;padding:10px;margin:8px 0;border-radius:6px">'+
-    '<strong>'+esc(name)+'</strong><div class="small">Inicial: '+brl(r.inicial)+' + Entradas: '+brl(r.entradas)+
-    ' = Disponível: '+brl(r.disponivel)+'</div><div class="small">Disponível: '+brl(r.disponivel)+
-    ' − Final: '+brl(r.final)+'</div><b>Consumo: '+brl(r.consumo)+'</b></div>';
+    '<strong>'+esc(name)+'</strong><div class="small">Inicial: '+brl(r.inicial)+
+    ' · Entradas: '+brl(r.entradas)+' · Final: '+brl(r.final)+'</div>'+
+    '<b>Consumo calculado: '+brl(r.consumo)+'</b></div>';
    el.innerHTML='<h3>Prévia do fechamento diário</h3>'+
     part('Matéria-Prima (MP)',x.sections.MP)+part('Uso e Consumo (UC)',x.sections.UC)+
-    '<div style="background:#e7f1f2;padding:12px;border-radius:6px"><b>CONSUMO TOTAL: '+
-    brl(x.consumoTotal)+'</b><div class="small">Valor estimado das máquinas: '+brl(x.valorMaquinas)+
-    '</div><div class="small">Diferença das máquinas em relação à MP: <b>'+
-    (x.maquinas.length?brl(x.diferencaMP):'não aplicável')+'</b></div><div class="small">Diferença em relação a MP + UC: <b>'+
-    (x.maquinas.length?brl(x.diferencaTotal):'não aplicável')+'</b></div></div>'+
-    '<p class="small" style="margin-top:8px">Comparação gerencial: diferença não comprova lucro, prejuízo ou erro.</p>';
-  }catch(e){el.innerHTML='<strong>Prévia do fechamento diário</strong><p class="small">Preencha os valores iniciais, entradas e finais de MP e UC para visualizar o cálculo.</p>';}
+    '<div style="background:#e7f1f2;padding:12px;border-radius:6px"><b>Valor estimado das máquinas: '+
+    brl(x.valorMaquinas)+'</b><div class="small">Diferença das máquinas em relação apenas à MP: <b>'+
+    (x.maquinas.length?brl(x.diferencaMP):'não aplicável')+'</b></div></div>'+
+    '<p class="small" style="margin-top:8px">MP e UC têm consumos independentes. O comparativo das máquinas usa somente MP e não representa lucro ou prejuízo contábil.</p>';
+  }catch(e){el.innerHTML='<strong>Prévia do fechamento diário</strong><p class="small">Preencha os valores iniciais, entradas e finais de MP e UC para visualizar os resultados separados.</p>';}
  }
  function modal(){
   if(!draft)return;
@@ -205,7 +199,8 @@ export function createFinancialClosing(d){
   '.nt-fin-report .nt-fin-table tbody td{padding:2.6mm 1.5mm;border-bottom:1px solid #d3e2e6;text-align:center;vertical-align:middle;overflow-wrap:anywhere}'+
   '.nt-fin-report .nt-fin-table tbody tr:nth-child(even){background:#eff5f6}'+
   '.nt-fin-report .nt-fin-table tbody tr.nt-fin-total{background:#dcebef;font-weight:800}'+
-  '.nt-fin-report .nt-fin-table td:first-child{text-align:left;font-weight:700}'+
+  '.nt-fin-report .nt-fin-stock-table tbody td:first-child{text-align:center;font-weight:400}'+
+  '.nt-fin-report .nt-fin-machine-table tbody td:first-child{text-align:left;font-weight:700}'+
   '.nt-fin-report .nt-fin-table tbody tr.nt-fin-total td:last-child{font-size:11pt;color:#127e88;font-weight:800}'+
   '.nt-fin-report .nt-fin-machine-table tbody td{padding:2mm 1.5mm}'+
   '.nt-fin-report .nt-fin-machine-table td:nth-child(2){text-align:center}'+
@@ -227,19 +222,15 @@ export function createFinancialClosing(d){
  function reportPages(record,date,marker){
   if(!record||record.dia!==date)return [];
   const x=calc(record),mp=x.sections.MP,uc=x.sections.UC;
-  const sum={inicial:x.estoqueInicialTotal,entradas:x.entradasTotal,
-   final:x.estoqueFinalTotal,consumo:x.consumoTotal};
   const currency=value=>d.ntPlain(brl(value));
-  const rows=[['MATÉRIA-PRIMA (MP)',mp],['USO E CONSUMO (UC)',uc],['TOTAL',sum]];
-  const stock='<div class="nt-fin-section">ESTOQUE FINANCEIRO · MOVIMENTAÇÕES E SALDOS</div>'+
-   '<table class="nt-fin-table nt-fin-stock-table"><colgroup><col style="width:25%">'+
-   '<col style="width:18.75%"><col style="width:18.75%"><col style="width:18.75%">'+
-   '<col style="width:18.75%"></colgroup>'+
-   '<thead><tr><th>CLASSIFICAÇÃO</th><th>INICIAL</th><th>ENTRADAS</th><th>FINAL</th><th>CONSUMO</th></tr></thead>'+
-   '<tbody>'+rows.map(([name,r],i)=>'<tr'+(i===2?' class="nt-fin-total"':'')+'>'+
-    '<td>'+d.ntPlain(name)+'</td>'+
-    [r.inicial,r.entradas,r.final,r.consumo].map(v=>'<td>'+currency(v)+'</td>').join('')+
-    '</tr>').join('')+'</tbody></table>';
+  // Cada categoria possui sua própria tabela, sem linha TOTAL e sem soma MP + UC.
+  const stockSection=(name,r)=>'<div class="nt-fin-section">'+d.ntPlain(name)+' · MOVIMENTAÇÕES E SALDOS</div>'+
+   '<table class="nt-fin-table nt-fin-stock-table"><colgroup>'+
+   '<col style="width:25%"><col style="width:25%"><col style="width:25%"><col style="width:25%"></colgroup>'+
+   '<thead><tr><th>INICIAL</th><th>ENTRADAS</th><th>FINAL</th><th>CONSUMO</th></tr></thead>'+
+   '<tbody><tr>'+[r.inicial,r.entradas,r.final,r.consumo].map(v=>'<td>'+currency(v)+'</td>').join('')+
+   '</tr></tbody></table>';
+  const stock=stockSection('MATÉRIA-PRIMA (MP)',mp)+stockSection('USO E CONSUMO (UC)',uc);
   const machineItems=x.maquinas;
   // As linhas são distribuídas antes de imprimir: evita sobrepor o rodapé
   // e preserva o nome, quantidade e valor de cada máquina.
@@ -314,12 +305,13 @@ export function createFinancialClosing(d){
  function summary(record){
   if(!record)return '';
   const x=calc(record);
-  return 'Fechamento manual — consumo MP: '+brl(x.sections.MP.consumo)+
-   '; consumo UC: '+brl(x.sections.UC.consumo)+
-   '; variação do estoque: '+brl(x.variacaoTotal)+
+  return 'Fechamento manual — MP: consumo '+brl(x.sections.MP.consumo)+
+   ', variação '+brl(x.sections.MP.variacao)+
+   '; UC: consumo '+brl(x.sections.UC.consumo)+
+   ', variação '+brl(x.sections.UC.variacao)+
    '; máquinas estimadas: '+brl(x.valorMaquinas)+
-   '; diferença máquinas − consumo total: '+brl(x.diferencaTotal)+
-   '. Valores independentes do cadastro de materiais.';
+   '; diferença máquinas − consumo MP: '+brl(x.diferencaMP)+
+   '. MP e UC apurados separadamente; valores independentes do cadastro de materiais.';
  }
  async function action(a,button){
   if(a==='nt-fin-open')return open();
