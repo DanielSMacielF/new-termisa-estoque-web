@@ -290,6 +290,21 @@ export function createFinancialClosing(d){
   '.nt-fin-report .nt-fin-machine-total b{font-size:12pt;font-weight:800;color:#087e89}'+
   '.nt-fin-report .nt-fin-status{font-size:9pt;font-weight:700;color:#244c59;margin:2mm 0 0}'+
   '.nt-fin-report .nt-fin-remark{font-size:8pt;color:#526d79;line-height:1.34;margin:3mm 0}'+
+  /* Ajustes validados no Chrome A4: compactação moderada sem reduzir as colunas ou ocultar linhas. */
+  '.nt-fin-report .desc{margin-bottom:2mm}'+
+  '.nt-fin-report .nt-fin-section{margin:2mm 0 1mm;font-size:9pt}'+
+  '.nt-fin-report .nt-fin-table{margin-bottom:1.5mm;line-height:1.2}'+
+  '.nt-fin-report .nt-fin-table thead th{padding:1.7mm 1.3mm;font-size:8.2pt}'+
+  '.nt-fin-report .nt-fin-table tbody td{padding:1.7mm 1.2mm;line-height:1.2}'+
+  '.nt-fin-report .nt-fin-machine-table tbody td{padding:1.4mm 1mm;line-height:1.2}'+
+  '.nt-fin-report .nt-fin-grand-total{padding:1.5mm 2.5mm;margin:1.1mm 0 1.5mm}'+
+  '.nt-fin-report .nt-fin-machine-total{padding:1.5mm 2.5mm;margin:1mm 0;min-height:0}'+
+  '.nt-fin-report .nt-fin-figures{margin:1.5mm 0}'+
+  '.nt-fin-report .nt-fin-figure{min-height:15mm;padding:1.5mm 2.5mm}'+
+  '.nt-fin-report .nt-fin-figure small{font-size:7.5pt}'+
+  '.nt-fin-report .nt-fin-figure b{font-size:12pt;margin-top:1mm}'+
+  '.nt-fin-report .nt-fin-status{margin:1mm 0 0;font-size:8pt}'+
+  '.nt-fin-report .nt-fin-remark{margin:1mm 0;font-size:7.5pt;line-height:1.2}'+
   '.nt-fin-report .nt-fin-muted{color:#536e79;font-size:8.5pt;line-height:1.35;margin:2mm 0}'+
   '@media print{.nt-fin-report table tr{break-inside:avoid;page-break-inside:avoid}}'+
   '</style>';}
