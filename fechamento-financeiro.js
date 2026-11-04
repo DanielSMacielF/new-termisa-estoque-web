@@ -285,6 +285,21 @@ export function createFinancialClosing(d){
   '.nt-fin-report .nt-fin-figure.nt-fin-difference small,.nt-fin-report .nt-fin-figure.nt-fin-difference b{color:#a14a3e}'+
   '.nt-fin-report .nt-fin-status{font-size:8.9pt;font-weight:700;color:#a14a3e;margin:2mm 0 1mm}'+
   '.nt-fin-report .nt-fin-remark{font-size:8.2pt;color:#526d79;line-height:1.32;margin:1mm 0 2mm}'+
+  /* A4 paisagem: ajustar apenas a Conciliação (PDF individual e Relatório Geral). */
+  '.nt-fin-report .desc{margin-bottom:2mm}'+
+  '.nt-fin-report .nt-fin-section{margin:1.25mm 0 .85mm;font-size:10pt}'+
+  '.nt-fin-report .nt-fin-stats{gap:2mm;margin:.7mm 0 1.6mm}'+
+  '.nt-fin-report .nt-fin-stat{padding:1.5mm 2.5mm;min-height:15mm}'+
+  '.nt-fin-report .nt-fin-stat small{font-size:7.6pt;line-height:1.2}'+
+  '.nt-fin-report .nt-fin-stat b{font-size:12.3pt;margin-top:.8mm}'+
+  '.nt-fin-report .nt-fin-table thead th{padding:1.5mm 1.3mm}'+
+  '.nt-fin-report .nt-fin-machine-table tbody td{padding:1.5mm 1.3mm}'+
+  '.nt-fin-report .nt-fin-machine-total{padding:1.7mm 2.8mm;margin:1mm 0 1.4mm}'+
+  '.nt-fin-report .nt-fin-figures{margin:.8mm 0;gap:2.2mm}'+
+  '.nt-fin-report .nt-fin-figure{min-height:16mm;padding:1.7mm 2.6mm}'+
+  '.nt-fin-report .nt-fin-figure b{font-size:13.5pt;margin-top:.7mm}'+
+  '.nt-fin-report .nt-fin-status{margin:.8mm 0 .5mm}'+
+  '.nt-fin-report .nt-fin-remark{margin:.5mm 0 .8mm;line-height:1.23;font-size:8.1pt}'+
   '@media print{.nt-fin-report table tr{break-inside:avoid;page-break-inside:avoid}}'+
   '</style>';}
  function reportPages(record,date,marker){
