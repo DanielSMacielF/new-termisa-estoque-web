@@ -300,13 +300,34 @@ export function createFinancialClosing(d){
   // O consumo combinado aparece uma vez, na conferência financeira, abaixo das máquinas.
   // Paginação fixa por grupos equilibrados para evitar a última página quase vazia.
   const machines=x.maquinas,groups=[];
-  if(machines.length<=5)groups.push(machines);
+  // Usar a altura provável de cada linha: descrições longas podem ocupar 2-3 linhas.
+  const units=m=>Math.max(1,Math.ceil(String(m.modelo||'').length/50));
+  const totalUnits=machines.reduce((sum,m)=>sum+units(m),0);
+  if(totalUnits<=6)groups.push(machines);
   else{
-   const firstTake=Math.min(6,Math.ceil(machines.length/2));
-   groups.push(machines.slice(0,firstTake));
-   const rest=machines.slice(firstTake),otherPages=Math.ceil(rest.length/8);
-   const perPage=Math.ceil(rest.length/otherPages);
-   for(let i=0;i<rest.length;i+=perPage)groups.push(rest.slice(i,i+perPage));
+   const groupCount=Math.max(2,1+Math.ceil(Math.max(0,totalUnits-6)/8));
+   let remainingUnits=totalUnits,pos=0;
+   for(let k=0;k<groupCount&&pos<machines.length;k++){
+    const left=groupCount-k;
+    const budget=k===0?6:8;
+    const target=Math.min(budget,Math.ceil(remainingUnits/left));
+    const chunk=[];
+    let used=0;
+    while(pos<machines.length){
+     const cost=units(machines[pos]);
+     if(chunk.length&&used+cost>target)break;
+     chunk.push(machines[pos++]);used+=cost;
+     if(used>=target)break;
+    }
+    groups.push(chunk);remainingUnits-=used;
+   }
+   // Fallback para nomes extremamente longos ou aritmética de páginas conservadora.
+   while(pos<machines.length){
+    const chunk=[],budget=8;
+    let used=0;
+    do{const m=machines[pos++];chunk.push(m);used+=units(m);}while(pos<machines.length&&used+units(machines[pos])<=budget);
+    groups.push(chunk);
+   }
   }
   const table=items=>'<div class="nt-fin-section">MÁQUINAS PRODUZIDAS · VALORES ESTIMADOS</div>'+
    '<table class="nt-fin-table nt-fin-machine-table">'+
