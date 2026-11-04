@@ -195,7 +195,7 @@ setTimeout(function(){
 },12000);
 </script><script type="module">
 import {exportarExcelFuncional} from './relatorio-excel-funcional.js?v=20261029r6';
-import {createFinancialClosing} from './fechamento-financeiro.js?v=20261103m6';
+import {createFinancialClosing} from './fechamento-financeiro.js?v=20261103m7';
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import {getFirestore,collection,doc,setDoc,getDocsFromServer,getDocFromServer,onSnapshot,query,where,orderBy,limit,writeBatch,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
@@ -811,7 +811,7 @@ function closeView(){
  '<div class="nt-rc-date card"><div class="field"><label for="dateInput">Data dos relatórios diários</label><input type="date" id="dateInput" value="'+esc(dateFilter)+'"></div></div>'+
  '<div class="nt-rc-group">Operação diária</div><div class="nt-rc-grid">'+
  ntCenterCard('Relatório Geral do Dia','Todos os setores em um documento: produção, pedidos, fornecedores, saldos e conferência.','Automático + dados manuais',button('nt-geral-pdf','PDF completo')+button('nt-geral-excel','Excel (.xlsx)','alt'))+
- ntCenterCard('Conciliação Financeira do Estoque','Preenchimento 100% manual: valor inicial, entradas e final de MP e UC; consumo calculado e comparativo das máquinas. Não usa preços dos materiais.','Manual · MP e UC',button('nt-fin-open','Lançar / corrigir valores')+button('nt-fin-pdf','PDF financeiro','alt')+button('nt-fin-history','Histórico','ghost'))+
+ ntCenterCard('Conciliação Financeira do Estoque','Preenchimento manual de MP e UC em quadros independentes, sem somar categorias. Consumo calculado por categoria; máquinas comparadas somente com MP. Não usa preços dos materiais.','Manual · MP e UC',button('nt-fin-open','Lançar / corrigir valores')+button('nt-fin-pdf','PDF financeiro','alt')+button('nt-fin-history','Histórico','ghost'))+
  ntCenterCard('Comunicação Interna','Pedidos e entregas de materiais do dia '+date+'.','Automático',button('nt-requests-pdf','Gerar PDF'))+
  ntCenterCard('QR Codes · Materiais Entregues','Selecione vários dias de retirada. Um QR por material, com saldo registrado até a última data.','Automático · leitura',button('nt-daily-qr-pdf','Selecionar datas e gerar QR Codes'))+
  ntCenterCard('Fechamento Diário','Entradas, saídas, devoluções e saldos antes e depois de cada movimentação.','Automático',button('nt-saldos-pdf','Gerar PDF'))+
