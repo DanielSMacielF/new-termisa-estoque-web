@@ -381,7 +381,7 @@ export function createFinancialClosing(d){
  function individualHTML(record){
   const marker='__NT_FIN_FOOTER__';
   const pages=reportPages(record,record.dia,marker);
-  const html=d.ntHtml('Conciliação Financeira do Estoque · '+dateLabel(record.dia),
+  const html=(d.individualPdfHtml||d.ntHtml)('Conciliação Financeira do Estoque · '+dateLabel(record.dia),
    pages.map((p,i)=>p.replace(marker,d.ntFooter(i+1,pages.length))));
   return html.replace('</head>',css()+'</head>');
  }

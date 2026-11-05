@@ -195,7 +195,7 @@ setTimeout(function(){
 },12000);
 </script><script type="module">
 import {exportarExcelFuncional} from './relatorio-excel-funcional.js?v=20261029r6';
-import {createFinancialClosing} from './fechamento-financeiro.js?v=20261104mpucA4fit13';
+import {createFinancialClosing} from './fechamento-financeiro.js?v=20261105individualA4v15';
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import {getFirestore,collection,doc,setDoc,getDocsFromServer,getDocFromServer,onSnapshot,query,where,orderBy,limit,writeBatch,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
@@ -655,8 +655,9 @@ function ntReposReportHtml(snapshot,catalog,consultadoEm){
  // Individual e Geral usam rigorosamente o mesmo gerador de páginas.
  const date=ntRepoLocalDay(snapshot)||day(),marker='__NT_REPOS_INDIVIDUAL_RODAPE__';
  const pages=ntGeneralReposPages([snapshot],date,marker,catalog,consultadoEm);
+ for(let i=0;i<pages.length;i++)pages[i]=pages[i].replace('class="page landscape nt-general-repos"','class="page landscape nt-general-repos nt-repos-individual"');
  if(!pages.length)pages.push('<section class="page landscape nt-general-repos">'+ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais para análise e aquisição.',date)+'<p class="note">Nenhum material selecionado para reposição.</p>'+marker+'</section>');
- return ntHtml('Reposição de materiais · New Termisa',pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
+ return ntIndividualReportHtml('Reposição de materiais · New Termisa',pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 function ntReposOpenPDF(snapshot,popup,catalog,consultadoEm){
  if(!popup){notice('O navegador bloqueou a janela de relatório. Permita pop-ups.',true);return false}
@@ -827,7 +828,7 @@ function closeView(){
 
 /* Valores financeiros independentes e digitados manualmente. */
 const ntFin=createFinancialClosing({
- esc,ntPlain,ntDate,ntTop,ntFooter,ntHtml,
+ esc,ntPlain,ntDate,ntTop,ntFooter,ntHtml,individualPdfHtml:ntIndividualReportHtml,
  getDb:()=>db,getUser:()=>user,isReady:()=>serverReady,getDate:()=>dateFilter,
  panel,close,notice,loader,
  collection,doc,query,where,getDocsFromServer,getDocFromServer,setDoc,serverTimestamp
@@ -2025,14 +2026,14 @@ function ntReceiptReport(records,date,receiptRows=[]){
    ntTop('RECEBIMENTO DE MATERIAIS','Consolidado diário · entregas identificadas por fornecedor, nota e pedido.',date)+
    '<p class="note">Nenhum recebimento registrado nesta data.</p>'+marker+'</section>');
  }
- return ntHtml('Recebimento de materiais · '+ntDate(date),
+ return ntIndividualReportHtml('Recebimento de materiais · '+ntDate(date),
   pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 function ntProductionReport(records,date){
  // MESMA fonte de layout utilizada na página Produção do Relatório Geral.
  const rows=ntDayMachineRows(Array.isArray(records)?records:[]);
  const marker='__NT_PRODUCAO_RODAPE__',pages=ntGeneralProductionPages(rows,date,marker);
- return ntHtml('Produção de máquinas · '+ntDate(date),
+ return ntIndividualReportHtml('Produção de máquinas · '+ntDate(date),
   pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 async function ntManualPDF(kind,single=null){
@@ -2913,7 +2914,7 @@ function ntGeneralStockPages(stock,date,marker){
 }
 function ntSaldosIndividualPDF(model){
  const marker='__NT_SALDOS_INDIVIDUAL_RODAPE__',pages=ntGeneralStockPages(model.stockRows,model.date,marker);
- return ntHtml('Saldos do Almoxarifado · '+ntDate(model.date),
+ return ntIndividualReportHtml('Saldos do Almoxarifado · '+ntDate(model.date),
   pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 async function ntSaldosIndividualOpen(){
@@ -2954,7 +2955,7 @@ function ntGeneralRequestsPages(model,date,marker){
 }
 function ntRequestsIndividualPDF(model){
  const marker='__NT_MATERIAIS_INDIVIDUAL_RODAPE__',pages=ntGeneralRequestsPages(model,model.date,marker);
- return ntHtml('Materiais entregues · '+ntDate(model.date),
+ return ntIndividualReportHtml('Materiais entregues · '+ntDate(model.date),
   pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 
@@ -3526,7 +3527,7 @@ function ntGeneralDailyIntelligencePages(model,date,marker){
 function ntDailyIntelligenceIndividualPDF(model){
  const marker='__NT_INTELIGENCIA_INDIVIDUAL_RODAPE__';
  const pages=ntGeneralDailyIntelligencePages(model,model.date,marker);
- return ntHtml('Inteligência do Estoque · '+ntDate(model.date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
+ return ntIndividualReportHtml('Inteligência do Estoque · '+ntDate(model.date),pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
 async function ntDailyIntelligenceIndividualOpen(){
  const selected=dateFilter,popup=window.open('','_blank');
@@ -3649,6 +3650,30 @@ function ntGeneralDayPDF(model){
   '.page.nt-v3-page{overflow:visible!important}</style>';
  return html.slice(0,from).replace('</head>',(model.financeiroManual?ntFin.css():'')+css+'</head>')+
   '<script>'+ntGeneralV3Engine+scriptEndTag+html.slice(to+scriptEndTag.length);
+}
+
+
+// PDF INDIVIDUAL: mesmo motor de layout do Geral, sem alterar o Relatório Geral.
+function ntIndividualReportHtml(title,pages){
+ const html=ntHtml(title,pages),endTag='</scr'+'ipt>';
+ const start=html.lastIndexOf('<script>'),end=html.indexOf(endTag,start);
+ if(start<0||end<start)throw Error('Não foi possível preparar a impressão individual.');
+ const sameAsGeneralCss='<style> /* Layout aprovado: cartão compacto apenas quando três entregas cabem no A4.    Fonte, texto, quantidade e unidades não mudam. */ .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-metrics{margin:1.2mm 0 1.6mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-metrics .metric{min-height:15mm!important;padding:1.5mm 3mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-banner{min-height:13mm!important;margin:1.1mm 0 .7mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-body{padding:.6mm 2.8mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-table th{padding:1.0mm 1.3mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-table td{padding:1.1mm 1.3mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-table{margin-bottom:.5mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-note{margin-top:1.5mm!important;padding:1mm 2mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-entry + .nt-rx-entry{margin-top:.8mm!important}   /* Inteligência com espaçamento responsivo e proteção real do rodapé.    Não altera tamanhos de fontes; só reduz margens caso seja necessário. */ .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-panel{padding:1.2mm 2.2mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-columns{gap:2mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-section{margin-top:1mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-section h3{margin-bottom:.7mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-unitrow{padding:.3mm 0!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-di-barrow{min-height:4.2mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-di-bars{gap:.3mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-subhead{margin:.7mm 0 .5mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx{margin-top:.6mm!important;padding:.9mm 1.7mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-row{padding:.35mm 0!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-desc{margin-bottom:.5mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-metric{padding:.4mm 1mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-metrics{gap:.4mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-help{margin-top:.2mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-di-metrics{margin-bottom:1mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-di-eyebrow{margin:.5mm 0!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-panel{padding:.5mm 1mm!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-unitlist{gap:0!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-section{margin-top:.5mm!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-subhead{margin:.4mm 0!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-rx{margin-top:.4mm!important;padding:.5mm 1mm!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-rx-row{padding:.15mm 0!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-panel{padding:1.2mm 2mm!important;min-height:0!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-barrow{min-height:5mm!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-bars{gap:.4mm!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-insighthead{margin:1mm 0 .5mm!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-insight{padding:1mm 1.8mm!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-footnote{margin:.5mm 0!important;padding-top:.5mm!important} .nt-general-stock-intel.nt-v3-tight-intelligence .nt-di-barrow{min-height:4mm!important} .nt-general-stock-intel.nt-v3-tight-intelligence .nt-di-insight{padding:.5mm 1mm!important;min-height:0!important} .nt-v3-intelligence-continuation .nt-deep-rx{margin:6mm 0 0!important} @page{size:A4 landscape;margin:0}'+
+  '@media print{.page.landscape{height:204mm!important;min-height:204mm!important;page-break-after:always!important}.page:last-of-type{page-break-after:auto!important}}'+
+  '@media screen{.page.landscape{height:204mm!important;min-height:204mm!important}}'+
+  '.page.nt-v3-page{overflow:visible!important}</style>';
+ const individualReposCss='<style>'+
+ '.page.nt-repos-individual .sectionline{margin:3mm 0 2.3mm!important}'+
+ '.page.nt-repos-individual .nt-day-repos-meta{margin:2.5mm 0 3mm!important}'+
+ '.page.nt-repos-individual .nt-day-repos-meta>div{padding:2.5mm 3.5mm!important}'+
+ '.page.nt-repos-individual table th{padding:2.5mm 1.4mm!important}'+
+ '.page.nt-repos-individual table td{padding:2.4mm 1.4mm!important;line-height:1.3!important}'+
+ '.page.nt-repos-individual .nt-repos-stock-date{margin:1.8mm 0 2mm!important;line-height:1.32!important}'+
+ '.page.nt-repos-individual .sectionline+.note{margin:3mm 0 0!important;line-height:1.35!important}'+
+ '</style>';
+ const css=sameAsGeneralCss+individualReposCss;
+ return html.slice(0,start).replace('</head>',css+'</head>')+
+ '<script>'+ntGeneralV3Engine+endTag+html.slice(end+endTag.length);
 }
 
 /* Exportação Excel: criada localmente no navegador com SheetJS.
