@@ -655,7 +655,10 @@ function ntReposReportHtml(snapshot,catalog,consultadoEm){
  // Individual e Geral usam rigorosamente o mesmo gerador de páginas.
  const date=ntRepoLocalDay(snapshot)||day(),marker='__NT_REPOS_INDIVIDUAL_RODAPE__';
  const pages=ntGeneralReposPages([snapshot],date,marker,catalog,consultadoEm);
- for(let i=0;i<pages.length;i++)pages[i]=pages[i].replace('class="page landscape nt-general-repos"','class="page landscape nt-general-repos nt-repos-individual"');
+ for(let i=0;i<pages.length;i++)pages[i]=pages[i]
+  .replace('class="page landscape nt-general-repos"','class="page landscape nt-general-repos nt-repos-individual"')
+  // Retirar apenas do PDF individual a faixa Encaminhamento; manter a observação e os dados.
+  .replace('<div class="sectionline"><span>ENCAMINHAMENTO</span></div>','');
  if(!pages.length)pages.push('<section class="page landscape nt-general-repos">'+ntTop('RELATÓRIO DE REPOSIÇÃO DE MATERIAIS','Relação de materiais para análise e aquisição.',date)+'<p class="note">Nenhum material selecionado para reposição.</p>'+marker+'</section>');
  return ntIndividualReportHtml('Reposição de materiais · New Termisa',pages.map((p,i)=>p.replace(marker,ntFooter(i+1,pages.length))));
 }
@@ -3667,9 +3670,9 @@ function ntIndividualReportHtml(title,pages){
  '.page.nt-repos-individual .nt-day-repos-meta{margin:2.5mm 0 3mm!important}'+
  '.page.nt-repos-individual .nt-day-repos-meta>div{padding:2.5mm 3.5mm!important}'+
  '.page.nt-repos-individual table th{padding:2.5mm 1.4mm!important}'+
- '.page.nt-repos-individual table td{padding:2.4mm 1.4mm!important;line-height:1.3!important}'+
+ '.page.nt-repos-individual table td{padding:2.05mm 1.4mm!important;line-height:1.3!important}'+
  '.page.nt-repos-individual .nt-repos-stock-date{margin:1.8mm 0 2mm!important;line-height:1.32!important}'+
- '.page.nt-repos-individual .sectionline+.note{margin:3mm 0 0!important;line-height:1.35!important}'+
+ '.page.nt-repos-individual .nt-repos-stock-date+.note{margin:1.6mm 0 0!important;line-height:1.3!important}'+
  '</style>';
  const css=sameAsGeneralCss+individualReposCss;
  return html.slice(0,start).replace('</head>',css+'</head>')+
