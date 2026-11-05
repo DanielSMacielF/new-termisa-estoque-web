@@ -3658,12 +3658,11 @@ function ntIndividualReportHtml(title,pages){
  const html=ntHtml(title,pages),endTag='</scr'+'ipt>';
  const start=html.lastIndexOf('<script>'),end=html.indexOf(endTag,start);
  if(start<0||end<start)throw Error('Não foi possível preparar a impressão individual.');
- const css='<style>'+
- '@page{size:A4 landscape;margin:0}'+
- '@media print{.page.landscape{height:204mm!important;min-height:204mm!important;page-break-after:always!important}.page:last-of-type{page-break-after:auto!important}}'+
- '@media screen{.page.landscape{height:204mm!important;min-height:204mm!important}}'+
- '.page.nt-v3-page{overflow:visible!important}'+
- /* Reposição individual: menos margens antes do rodapé; mesma fonte e tabela do Geral. */
+ const sameAsGeneralCss='<style> /* Layout aprovado: cartão compacto apenas quando três entregas cabem no A4.    Fonte, texto, quantidade e unidades não mudam. */ .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-metrics{margin:1.2mm 0 1.6mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-metrics .metric{min-height:15mm!important;padding:1.5mm 3mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-banner{min-height:13mm!important;margin:1.1mm 0 .7mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-body{padding:.6mm 2.8mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-table th{padding:1.0mm 1.3mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-table td{padding:1.1mm 1.3mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-table{margin-bottom:.5mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-note{margin-top:1.5mm!important;padding:1mm 2mm!important} .page.nt-general-receipt.nt-rx-sparse.nt-v3-triple-receipt .nt-rx-entry + .nt-rx-entry{margin-top:.8mm!important}   /* Inteligência com espaçamento responsivo e proteção real do rodapé.    Não altera tamanhos de fontes; só reduz margens caso seja necessário. */ .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-panel{padding:1.2mm 2.2mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-columns{gap:2mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-section{margin-top:1mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-section h3{margin-bottom:.7mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-unitrow{padding:.3mm 0!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-di-barrow{min-height:4.2mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-di-bars{gap:.3mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-subhead{margin:.7mm 0 .5mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx{margin-top:.6mm!important;padding:.9mm 1.7mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-row{padding:.35mm 0!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-desc{margin-bottom:.5mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-metric{padding:.4mm 1mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-metrics{gap:.4mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-help{margin-top:.2mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-di-metrics{margin-bottom:1mm!important} .nt-general-stock-deep.nt-v3-compact-intelligence .nt-di-eyebrow{margin:.5mm 0!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-panel{padding:.5mm 1mm!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-unitlist{gap:0!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-section{margin-top:.5mm!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-subhead{margin:.4mm 0!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-rx{margin-top:.4mm!important;padding:.5mm 1mm!important} .nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-rx-row{padding:.15mm 0!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-panel{padding:1.2mm 2mm!important;min-height:0!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-barrow{min-height:5mm!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-bars{gap:.4mm!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-insighthead{margin:1mm 0 .5mm!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-insight{padding:1mm 1.8mm!important} .nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-footnote{margin:.5mm 0!important;padding-top:.5mm!important} .nt-general-stock-intel.nt-v3-tight-intelligence .nt-di-barrow{min-height:4mm!important} .nt-general-stock-intel.nt-v3-tight-intelligence .nt-di-insight{padding:.5mm 1mm!important;min-height:0!important} .nt-v3-intelligence-continuation .nt-deep-rx{margin:6mm 0 0!important} @page{size:A4 landscape;margin:0}'+
+  '@media print{.page.landscape{height:204mm!important;min-height:204mm!important;page-break-after:always!important}.page:last-of-type{page-break-after:auto!important}}'+
+  '@media screen{.page.landscape{height:204mm!important;min-height:204mm!important}}'+
+  '.page.nt-v3-page{overflow:visible!important}</style>';
+ const individualReposCss='<style>'+
  '.page.nt-repos-individual .sectionline{margin:2mm 0 1.5mm!important}'+
  '.page.nt-repos-individual .nt-day-repos-meta{margin:2mm 0 2mm!important}'+
  '.page.nt-repos-individual .nt-day-repos-meta>div{padding:2mm 3mm!important}'+
@@ -3671,22 +3670,8 @@ function ntIndividualReportHtml(title,pages){
  '.page.nt-repos-individual table td{padding:1.85mm 1.3mm!important;line-height:1.24!important}'+
  '.page.nt-repos-individual .nt-repos-stock-date{margin:1.1mm 0 1.6mm!important;line-height:1.25!important}'+
  '.page.nt-repos-individual .sectionline+.note{margin:1.2mm 0 0!important;line-height:1.3!important}'+
- /* Fases alternativas da Inteligência, equivalentes às aplicadas no Geral. */
- '.nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-panel{padding:1.2mm 2.2mm!important}'+
- '.nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-columns{gap:2mm!important}'+
- '.nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-unitrow{padding:.3mm 0!important}'+
- '.nt-general-stock-deep.nt-v3-compact-intelligence .nt-di-barrow{min-height:4.2mm!important}'+
- '.nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx{margin-top:.6mm!important;padding:.9mm 1.7mm!important}'+
- '.nt-general-stock-deep.nt-v3-compact-intelligence .nt-deep-rx-row{padding:.35mm 0!important}'+
- '.nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-panel{padding:.5mm 1mm!important}'+
- '.nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-unitlist{gap:0!important}'+
- '.nt-general-stock-deep.nt-v3-tight-intelligence .nt-deep-rx{padding:.5mm 1mm!important}'+
- '.nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-panel{padding:1.2mm 2mm!important;min-height:0!important}'+
- '.nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-barrow{min-height:5mm!important}'+
- '.nt-general-stock-intel.nt-v3-compact-intelligence .nt-di-insight{padding:1mm 1.8mm!important}'+
- '.nt-general-stock-intel.nt-v3-tight-intelligence .nt-di-barrow{min-height:4mm!important}'+
- '.nt-general-stock-intel.nt-v3-tight-intelligence .nt-di-insight{padding:.5mm 1mm!important;min-height:0!important}'+
  '</style>';
+ const css=sameAsGeneralCss+individualReposCss;
  return html.slice(0,start).replace('</head>',css+'</head>')+
  '<script>'+ntGeneralV3Engine+endTag+html.slice(end+endTag.length);
 }
