@@ -3630,7 +3630,10 @@ function ntGeneralDayLegacyPDF(model){
  if(receiptDocs.length){
   pages.push(...ntGeneralReceiptPagesAudited(receiptDocs,model.receiptRows,date,marker));
  }
- if(model.repos?.length)pages.push(...ntGeneralReposPages(model.repos,date,marker,model.materialCatalog,model.catalogConsultedAt));
+ if(model.repos?.length)pages.push(...ntGeneralReposPages(model.repos,date,marker,model.materialCatalog,model.catalogConsultedAt).map(p=>p
+  // Somente a seção de Reposição do Relatório Geral: mesmo visual do PDF individual.
+  .replace('class="page landscape nt-general-repos"','class="page landscape nt-general-repos nt-repos-geral"')
+  .replace('<div class="sectionline"><span>ENCAMINHAMENTO</span></div>','')));
  if(model.stockRows?.length)pages.push(...ntGeneralStockPages(model.stockRows,date,marker));
  if(model.financeiroManual)pages.push(...ntFin.reportPages(model.financeiroManual,date,marker));
  if(model.stockRows?.length||model.requests?.length||model.receipts?.length)pages.push(...ntGeneralDailyIntelligencePages(model,date,marker));
@@ -3651,7 +3654,16 @@ function ntGeneralDayPDF(model){
   '@media print{.page.landscape{height:204mm!important;min-height:204mm!important;page-break-after:always!important}.page:last-of-type{page-break-after:auto!important}}'+
   '@media screen{.page.landscape{height:204mm!important;min-height:204mm!important}}'+
   '.page.nt-v3-page{overflow:visible!important}</style>';
- return html.slice(0,from).replace('</head>',(model.financeiroManual?ntFin.css():'')+css+'</head>')+
+ const ntReposGeneralCss='<style>'+
+ '.page.nt-repos-geral .sectionline{margin:3mm 0 2.3mm!important}'+
+ '.page.nt-repos-geral .nt-day-repos-meta{margin:2.5mm 0 3mm!important}'+
+ '.page.nt-repos-geral .nt-day-repos-meta>div{padding:2.5mm 3.5mm!important}'+
+ '.page.nt-repos-geral table th{padding:2.5mm 1.4mm!important}'+
+ '.page.nt-repos-geral table td{padding:2.05mm 1.4mm!important;line-height:1.3!important}'+
+ '.page.nt-repos-geral .nt-repos-stock-date{margin:1.8mm 0 2mm!important;line-height:1.32!important}'+
+ '.page.nt-repos-geral .nt-repos-stock-date+.note{margin:1.6mm 0 0!important;line-height:1.3!important}'+
+ '</style>';
+ return html.slice(0,from).replace('</head>',(model.financeiroManual?ntFin.css():'')+css+ntReposGeneralCss+'</head>')+
   '<script>'+ntGeneralV3Engine+scriptEndTag+html.slice(to+scriptEndTag.length);
 }
 
