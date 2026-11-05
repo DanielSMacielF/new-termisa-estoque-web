@@ -3663,13 +3663,13 @@ function ntIndividualReportHtml(title,pages){
   '@media screen{.page.landscape{height:204mm!important;min-height:204mm!important}}'+
   '.page.nt-v3-page{overflow:visible!important}</style>';
  const individualReposCss='<style>'+
- '.page.nt-repos-individual .sectionline{margin:2mm 0 1.5mm!important}'+
- '.page.nt-repos-individual .nt-day-repos-meta{margin:2mm 0 2mm!important}'+
- '.page.nt-repos-individual .nt-day-repos-meta>div{padding:2mm 3mm!important}'+
- '.page.nt-repos-individual table th{padding:1.8mm 1.3mm!important}'+
- '.page.nt-repos-individual table td{padding:1.85mm 1.3mm!important;line-height:1.24!important}'+
- '.page.nt-repos-individual .nt-repos-stock-date{margin:1.1mm 0 1.6mm!important;line-height:1.25!important}'+
- '.page.nt-repos-individual .sectionline+.note{margin:1.2mm 0 0!important;line-height:1.3!important}'+
+ '.page.nt-repos-individual .sectionline{margin:3mm 0 2.3mm!important}'+
+ '.page.nt-repos-individual .nt-day-repos-meta{margin:2.5mm 0 3mm!important}'+
+ '.page.nt-repos-individual .nt-day-repos-meta>div{padding:2.5mm 3.5mm!important}'+
+ '.page.nt-repos-individual table th{padding:2.5mm 1.4mm!important}'+
+ '.page.nt-repos-individual table td{padding:2.4mm 1.4mm!important;line-height:1.3!important}'+
+ '.page.nt-repos-individual .nt-repos-stock-date{margin:1.8mm 0 2mm!important;line-height:1.32!important}'+
+ '.page.nt-repos-individual .sectionline+.note{margin:3mm 0 0!important;line-height:1.35!important}'+
  '</style>';
  const css=sameAsGeneralCss+individualReposCss;
  return html.slice(0,start).replace('</head>',css+'</head>')+
