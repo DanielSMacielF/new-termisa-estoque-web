@@ -2719,7 +2719,7 @@ function ntGeneralReceiptPages(records,date,marker){
   '<div class="metric"><small>'+ntPlain(x[0])+'</small><strong>'+ntPlain(x[1])+'</strong></div>').join('')+'</div>';
  // Paginação com reserva obrigatória para observação e rodapé.
  // A folha 1 possui quatro indicadores: nela cabem no máximo duas entregas.
- // Nas seguintes, três entregas pequenas podem caber sem reduzir as fontes.
+ // As seguintes também usam no máximo duas entregas, mantendo as fontes originais.
  // Orçamentos em milímetros já descontam margens, título, nota e rodapé.
  const budget=index=>index===0?90:118;
  const rowHeight=x=>{
@@ -2732,8 +2732,7 @@ function ntGeneralReceiptPages(records,date,marker){
   items.reduce((n,x)=>n+rowHeight(x),0);
  const maxDeliveriesPerPage=2;
  // A página com resumo exige mais espaço para os indicadores e nunca recebe
- // três entregas, independentemente da estimativa de altura.
- const maxPartsOnPage=index=>index===0?2:maxDeliveriesPerPage;
+ // duas entregas, independentemente da estimativa de altura.
  // A divisão de uma entrega extensa conserva todos os itens na ordem original.
  const segments=[];
  for(let ri=0;ri<allRecords.length;ri++){
@@ -2747,49 +2746,17 @@ function ntGeneralReceiptPages(records,date,marker){
    offset+=chunk.length;
   }while(offset<all.length);
  }
- // Escolhe a distribuição global: (1) menor número de folhas;
- // (2) menos páginas com uma única entrega; (3) melhor equilíbrio visual.
- // Ex.: 7 entregas pequenas => 2/2/3 ou 2/3/2, não 3/3/1.
- const n=segments.length,dp=Array(n+1).fill(null);
- dp[n]={pages:0,singles:0,slack:0,next:n};
- for(let i=n-1;i>=0;i--){
-  let used=0,seen=new Set();
-  for(let j=i;j<Math.min(n,i+maxPartsOnPage(i===0?0:1));j++){
-   const part=segments[j];
-   if(!seen.has(part.ri)&&seen.size>=maxDeliveriesPerPage)break;
-   seen.add(part.ri);used+=part.weight;
-   if(used>budget(i===0?0:1)+.001)break;
-   const following=dp[j+1];if(!following)continue;
-   const candidate={
-    pages:1+following.pages,
-    singles:following.singles+(seen.size===1&&n>1?1:0),
-    slack:following.slack+Math.pow(budget(i===0?0:1)-used,2),
-    firstPageCount:i===0?seen.size:0,
-    next:j+1
-   };
-   const prior=dp[i];
-   // Em empate, preencher primeiro a folha de indicadores com DUAS
-   // entregas quando couber. Evita o defeito de 1/2 e o grande vazio.
-   if(!prior||candidate.pages<prior.pages||
-    (candidate.pages===prior.pages&&(candidate.singles<prior.singles||
-    (candidate.singles===prior.singles&&(
-     (i===0&&candidate.firstPageCount>prior.firstPageCount)||
-     ((i!==0||candidate.firstPageCount===prior.firstPageCount)&&candidate.slack<prior.slack)))))){
-    dp[i]=candidate;
-   }
+ // Dividir em pares sequenciais para um padrão estável mesmo com centenas de páginas.
+ // Uma entrega ímpar fica sozinha somente na última folha, quando os pares cabem.
+ // O verificador A4 continua dividindo registros extensos sem apagar materiais.
+ for(let i=0;i<segments.length;){
+  const parts=[segments[i++]];
+  const limit=budget(sheets.length);
+  let used=parts[0].weight;
+  while(parts.length<maxDeliveriesPerPage&&i<segments.length&&used+segments[i].weight<=limit){
+   parts.push(segments[i]);used+=segments[i].weight;i++;
   }
-  // Mesmo quando uma linha extraordinária ultrapassa a estimativa,
-  // sua informação não é omitida.
-  if(!dp[i]&&dp[i+1])dp[i]={
-   pages:1+dp[i+1].pages,singles:dp[i+1].singles+1,
-   slack:dp[i+1].slack,next:i+1
-  };
- }
- for(let i=0;i<n;){
-  const next=dp[i]?.next||i+1;
-  const parts=segments.slice(i,next);
-  sheets.push({parts,used:parts.reduce((t,p)=>t+p.weight,0)});
-  i=next;
+  sheets.push({parts,used});
  }
  for(let pageIndex=0;pageIndex<sheets.length;pageIndex++){
   const parts=sheets[pageIndex].parts;
