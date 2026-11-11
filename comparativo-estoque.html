@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b2440">
+<title>Comparativo de Estoque | New Termisa</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#ebf5ff;background:#071b30;--line:#33536e;--card:#102b48;--muted:#a9c0d6;--blue:#3496f5;--ok:#7ce5bb;--warn:#ffd281;--bad:#ff9499}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,#17416a,#071b30 57%)}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
+.shell{max-width:1120px;margin:auto;padding:22px 16px 70px}.top{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:21px;flex-wrap:wrap}
+.eyebrow{font-size:.75rem;font-weight:800;letter-spacing:1.3px;color:#78cddc;text-transform:uppercase}h1{font-size:clamp(1.45rem,3.2vw,2.05rem);letter-spacing:-.5px;margin:5px 0}h2{font-size:1.12rem;margin:0 0 13px}
+p{line-height:1.5}a{color:#b9e0ff;text-decoration:none}.back{display:inline-block;border:1px solid var(--line);border-radius:12px;padding:12px 16px;background:#143657;color:#eaf5ff;font-weight:700}
+.card{background:linear-gradient(115deg,#143456,#102b48);border:1px solid var(--line);border-radius:18px;padding:18px;margin:0 0 16px;box-shadow:0 12px 30px #0002}
+.lead{color:#bcd4e9;font-size:.91rem;margin:0 0 17px}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:14px}.file{border:1px solid #456f8d;border-radius:15px;padding:14px;background:#0c2945;min-width:0}
+.file b{display:block;margin:0 0 4px}.file .help{font-size:.78rem;color:#a9c0d6;min-height:34px}.file input{width:100%;border:1px solid #48718f;color:#d5eaff;background:#071d33;border-radius:11px;padding:11px;margin-top:9px;max-width:100%}
+.file .chosen{font-size:.8rem;margin:8px 0 0;color:#a0dcbf;overflow-wrap:anywhere}
+.buttons{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:16px}
+.btn{border:1px solid #52a9fc;background:#267fcb;color:white;border-radius:12px;font-weight:750;padding:12px 15px}.btn.alt{background:#1c4467;border-color:#426a8a}
+.warn{background:#402f1c;border:1px solid #8b6a3a;border-radius:13px;color:#ffe3ad;padding:12px 14px;font-size:.86rem}
+.note{font-size:.83rem;color:#a9c0d6;margin:13px 0 0}.hidden{display:none!important}.status{margin-top:13px;font-size:.85rem;color:#c9e2f8;min-height:1.5em}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px}.stat{background:#0c2945;border:1px solid #355675;border-radius:13px;padding:12px;min-width:0}
+.stat .num{font-size:1.7rem;font-weight:850;line-height:1.1;margin-top:5px;font-variant-numeric:tabular-nums}.stat .lbl{font-size:.77rem;color:#b9d1e3}.stat.add .num{color:#80d6f7}.stat.minus .num{color:#ffb4a5}.stat.equal .num{color:#91daba}.stat.review .num{color:#ffd281}
+.toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}.toolbar label{font-size:.85rem;color:#b8d3e8}
+.toolbar select,.toolbar input{color:white;background:#071d33;border:1px solid #456f8d;border-radius:10px;padding:10px 11px}
+.toolbar input{min-width:180px;flex:1;max-width:440px}.table-wrap{overflow:auto;max-height:65vh;border:1px solid #31536f;border-radius:13px;background:#0b2741}
+table{border-collapse:collapse;width:100%;min-width:940px;font-size:.82rem}th{position:sticky;top:0;z-index:1;background:#1b4568;color:#edf6ff;text-align:left;font-weight:800;padding:12px 9px;white-space:nowrap}
+td{border-top:1px solid #284761;padding:9px;vertical-align:top}tbody tr:nth-child(even){background:#ffffff06}
+td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}td.code{font-variant-numeric:tabular-nums;white-space:nowrap}td.name{min-width:230px;max-width:335px}
+.tag{display:inline-block;border-radius:7px;padding:3px 8px;font-weight:850;min-width:46px;text-align:center}.tag.A{color:#a5e6ff;background:#12465b}.tag.D{color:#ffc1b8;background:#5c2d2f}.tag.OK{color:#bbf2d3;background:#164c37}.tag.REVISAR{color:#ffe4a3;background:#654b23}
+.summary{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:#b6cee3;font-size:.83rem}.list{font-size:.85rem;line-height:1.7;color:#c2d9eb;margin:8px 0;padding-left:19px}
+@media(max-width:670px){.files{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stats .stat:first-child{grid-column:span 2}.top{align-items:start}.buttons .btn{flex:1}.shell{padding:17px 11px 55px}}
+@media print{body{background:#fff;color:#111}.back,.buttons,.toolbar,.file,.note{display:none!important}.card{box-shadow:none;border:0}table{font-size:8pt;min-width:0}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="top">
+ <div><div class="eyebrow">New Termisa · Almoxarifado</div><h1>Comparativo de Estoque</h1><div class="lead">Conferência de saldos entre dois relatórios, sem movimentar o estoque.</div></div>
+ <a class="back" href="./index.html">← Voltar ao sistema</a>
+</header>
+<section class="card" aria-labelledby="upload-title">
+ <h2 id="upload-title">1. Selecione os dois relatórios</h2>
+ <p class="lead">O primeiro é o <b>saldo correto de referência</b>. O segundo é o estoque que você deseja corrigir. Aceita PDF, Excel (.xlsx ou .xls) e CSV.</p>
+ <div class="files">
+  <label class="file"><b>Meu sistema · saldo de referência</b><div class="help">Informe o arquivo que contém as quantidades que deverão permanecer ao final.</div><input id="fileRef" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf"><div class="chosen" id="nameRef">Nenhum arquivo escolhido</div></label>
+  <label class="file"><b>Sistema a atualizar · saldo atual</b><div class="help">Informe o arquivo que mostra quanto há hoje no outro sistema.</div><input id="fileTarget" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf"><div class="chosen" id="nameTarget">Nenhum arquivo escolhido</div></label>
+ </div>
+ <div class="buttons"><button class="btn" id="compare" type="button">Comparar os estoques</button><button class="btn alt" id="clear" type="button">Limpar arquivos</button></div>
+ <div class="status" id="status" role="status" aria-live="polite"></div>
+ <p class="note">Processamento local no navegador. Os arquivos não são enviados ao Firebase. Para PDFs, o texto precisa ser selecionável; relatórios escaneados devem ser convertidos para Excel ou PDF com texto antes da análise.</p>
+</section>
+<section id="results" class="card hidden" aria-label="Resultado da comparação">
+ <h2>2. Resultado e ajustes recomendados</h2>
+ <div class="stats">
+  <div class="stat"><div class="lbl">Códigos analisados</div><div class="num" id="total">0</div></div>
+  <div class="stat add"><div class="lbl">A · Aumentar</div><div class="num" id="add">0</div></div>
+  <div class="stat minus"><div class="lbl">D · Diminuir</div><div class="num" id="minus">0</div></div>
+  <div class="stat equal"><div class="lbl">OK · Iguais</div><div class="num" id="equal">0</div></div>
+  <div class="stat review"><div class="lbl">Conferir</div><div class="num" id="review">0</div></div>
+ </div>
+ <div id="warnings" class="warn hidden"></div>
+ <div class="toolbar"><label for="filter">Visualizar</label><select id="filter"><option value="ALL">Todos os códigos</option><option value="A">A · Aumentar</option><option value="D">D · Diminuir</option><option value="OK">OK · Iguais</option><option value="REVISAR">Conferir pendências</option></select><input id="search" placeholder="Pesquisar por código ou material" aria-label="Pesquisar código ou material"></div>
+ <div class="table-wrap"><table><thead><tr><th>Código</th><th>Material</th><th>Un.</th><th>Meu sistema</th><th>Outro sistema</th><th>Diferença</th><th>A / D</th><th>Observação</th></tr></thead><tbody id="rows"></tbody></table></div>
+ <div class="summary"><span id="shown"></span><span>A = acrescentar · D = diminuir · OK = sem alteração</span></div>
+ <div class="buttons"><button id="pdf" type="button" class="btn">Gerar PDF comparativo</button><button id="xlsx" type="button" class="btn alt">Exportar Excel (.xlsx)</button></div>
+ <p class="note">A diferença é calculada como <b>saldo de referência − saldo do outro sistema</b>. Códigos ausentes, valores inválidos ou duplicatas suspeitas ficam em <b>Conferir</b>, nunca recebem ajuste automático.</p>
+</section>
+</div>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script defer src="./comparativo-estoque.js?v=20261111a"></script>
+</body></html>
