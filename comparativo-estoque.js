@@ -292,7 +292,7 @@ function ntPdfShortText(doc,value,maxWidth){
 function ntDrawComparativoHeader(doc,pn,stat,logo){
  var dark=[21,59,74],ink=[21,62,76],teal=[32,159,163],soft=[231,241,242],sub=[64,91,102];
  if(logo){
-  try{doc.addImage(logo,"PNG",15,7,59,11.2)}catch(e){logo=null}
+  try{doc.addImage(logo,"PNG",15,7.3,59,10)}catch(e){logo=null}
  }
  if(!logo){
   doc.setFont("helvetica","bold");doc.setFontSize(15);doc.setTextColor.apply(doc,ink);
@@ -351,7 +351,7 @@ async function exportPdf(){
  doc.autoTable({
   startY:87, margin:{left:15,right:15,top:51,bottom:20},
   head:[["CÓDIGO","MATERIAL / DESCRIÇÃO","UN.","MEU SISTEMA","OUTRO SISTEMA","DIFERENÇA","A / D","OBSERVAÇÃO"]],
-  body:body,theme:"striped",
+  body:body,theme:"striped",rowPageBreak:"avoid",
   tableWidth:267,
   styles:{
    font:"helvetica",fontSize:7.7,fontStyle:"normal",textColor:[21,62,76],
