@@ -266,42 +266,134 @@ function exportXlsx(){
  if(pending.length)window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.aoa_to_sheet([["Código","Material","Unidade","Meu sistema","Outro sistema","Motivo"]].concat(pending)),"Pendencias");
  window.XLSX.writeFile(wb,"Comparativo_Estoque_New_Termisa_"+new Date().toISOString().slice(0,10)+".xlsx");
 }
-function exportPdf(){
+
+/* Identidade de PDF alinhada à Comunicação Interna.
+ * O logotipo já existe na página principal; seu carregamento é local à origem.
+ * Nenhuma consulta ou alteração de estoque é realizada aqui.
+ */
+var ntComparativoLogoPromise=null;
+function ntComparativoLogo(){
+ if(!ntComparativoLogoPromise){
+  ntComparativoLogoPromise=fetch("./index.html",{cache:"force-cache"})
+   .then(function(r){if(!r.ok)throw Error("Logotipo indisponível");return r.text()})
+   .then(function(html){
+    var m=/const NT_LOGO="(data:image\/png;base64,[^"]+)"/.exec(html);
+    return m?m[1]:null;
+   }).catch(function(){return null});
+ }
+ return ntComparativoLogoPromise;
+}
+function ntPdfShortText(doc,value,maxWidth){
+ var valueText=String(value||"—");
+ if(doc.getTextWidth(valueText)<=maxWidth)return valueText;
+ while(valueText.length>2 && doc.getTextWidth(valueText+"…")>maxWidth)valueText=valueText.slice(0,-1);
+ return valueText+"…";
+}
+function ntDrawComparativoHeader(doc,pn,stat,logo){
+ var dark=[21,59,74],ink=[21,62,76],teal=[32,159,163],soft=[231,241,242],sub=[64,91,102];
+ if(logo){
+  try{doc.addImage(logo,"PNG",15,7,59,11.2)}catch(e){logo=null}
+ }
+ if(!logo){
+  doc.setFont("helvetica","bold");doc.setFontSize(15);doc.setTextColor.apply(doc,ink);
+  doc.text("NEW TERMISA",15,16);
+ }
+ doc.setTextColor.apply(doc,sub);doc.setFont("helvetica","normal");doc.setFontSize(8.2);
+ doc.text("ALMOXARIFADO / NEW TERMISA",282,12.6,{align:"right"});
+ doc.setFontSize(8.2);doc.text(String(meta.at||"").split(",")[0],282,18,{align:"right"});
+ doc.setDrawColor.apply(doc,teal);doc.setLineWidth(.65);doc.line(15,24,282,24);
+ doc.setFont("helvetica","bold");doc.setTextColor.apply(doc,ink);doc.setFontSize(17);
+ doc.text("COMPARATIVO DE ESTOQUE",15,33.5);
+ doc.setFont("helvetica","normal");doc.setTextColor.apply(doc,sub);doc.setFontSize(8.9);
+ doc.text("Conferência de saldos entre os sistemas, sem movimentação de estoque.",15,39.2);
+ if(pn!==1){
+  doc.setFont("helvetica","bold");doc.setFontSize(8.6);doc.setTextColor.apply(doc,dark);
+  doc.text("RESULTADO POR MATERIAL · CONTINUAÇÃO",15,46.8);
+  return;
+ }
+ var labels=[
+  ["CÓDIGOS",stat.ALL],
+  ["A · AUMENTAR",stat.A],
+  ["D · DIMINUIR",stat.D],
+  ["OK · IGUAIS",stat.OK],
+  ["CONFERIR",stat.REVISAR]
+ ];
+ var gap=2.7,w=(267-gap*4)/5,yy=44.1,hh=15.5;
+ for(var z=0;z<labels.length;z++){
+  var x=15+z*(w+gap);
+  doc.setFillColor.apply(doc,soft);doc.roundedRect(x,yy,w,hh,1.8,1.8,"F");
+  doc.setFillColor.apply(doc,teal);doc.rect(x,yy,.9,hh,"F");
+  doc.setTextColor.apply(doc,sub);doc.setFont("helvetica","bold");doc.setFontSize(7.2);
+  doc.text(labels[z][0],x+3.2,yy+5.4);
+  doc.setTextColor.apply(doc,ink);doc.setFontSize(14.4);
+  doc.text(String(labels[z][1]),x+3.2,yy+12.6);
+ }
+ doc.setFont("helvetica","bold");doc.setFontSize(8.3);doc.setTextColor.apply(doc,dark);
+ doc.text("ARQUIVOS COMPARADOS",15,65.1);
+ doc.setDrawColor(216,231,234);doc.setLineWidth(.23);doc.line(15,67.2,282,67.2);
+ doc.setFont("helvetica","bold");doc.setFontSize(7.2);doc.setTextColor.apply(doc,sub);
+ doc.text("REFERÊNCIA · MEU SISTEMA",15,71.3);
+ doc.text("SALDO ATUAL · OUTRO SISTEMA",152,71.3);
+ doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor.apply(doc,ink);
+ doc.text(ntPdfShortText(doc,meta.ref.source,128),15,76.1);
+ doc.text(ntPdfShortText(doc,meta.target.source,128),152,76.1);
+ doc.setFont("helvetica","bold");doc.setFontSize(8.6);doc.text("RESULTADO POR MATERIAL",15,83.3);
+ doc.setFont("helvetica","normal");doc.setTextColor.apply(doc,sub);doc.setFontSize(7.7);
+ doc.text("A = aumentar  |  D = diminuir  |  OK = sem ajuste  |  CONFERIR = verificar",282,83.3,{align:"right"});
+}
+async function exportPdf(){
  if(!meta||!current.length)return;
  if(!window.jspdf||!window.jspdf.jsPDF){setStatus("Biblioteca de PDF não carregou. Verifique a conexão.",true);return}
+ var logo=await ntComparativoLogo();
  var doc=new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:"a4"}),s=stats(current);
  if(typeof doc.autoTable!=="function"){setStatus("Gerador de tabela PDF não carregou. Recarregue a página.",true);return}
- doc.setTextColor(25,50,77);doc.setFont("helvetica","bold");doc.setFontSize(17);
- doc.text("NEW TERMISA | COMPARATIVO DE ESTOQUE",14,16);
- doc.setFont("helvetica","normal");doc.setFontSize(8.7);
- doc.text("Referencia: "+meta.ref.source.slice(0,95),14,24);
- doc.text("Outro sistema: "+meta.target.source.slice(0,95),14,29);
- doc.text("Emissao: "+meta.at+"  |  A: "+s.A+"  D: "+s.D+"  OK: "+s.OK+"  Conferir: "+s.REVISAR,14,35);
- doc.setFontSize(8);doc.setTextColor(85,99,114);
- doc.text("Diferença = Meu sistema - Outro sistema.  A = aumentar / D = diminuir / OK = sem ajuste.",14,41);
- doc.text("Codigo ausente, quantidade invalida ou possivel duplicidade: CONFERIR, sem ajuste automatico.",14,46);
  var body=current.map(function(r){return [r.code,r.name,r.unit,br(r.ours),br(r.other),signed(r.diff),r.status,r.obs]});
  doc.autoTable({
-  startY:53,margin:{left:10,right:10,top:18,bottom:16},
-  head:[["CODIGO","MATERIAL / DESCRICAO","UN.","MEU SISTEMA","OUTRO SISTEMA","DIFERENCA","A / D","OBSERVACAO"]],
-  body:body,theme:"grid",
-  styles:{font:"helvetica",fontSize:7,cellPadding:2.3,overflow:"linebreak",valign:"middle",lineColor:[220,231,239],lineWidth:.14,textColor:[34,51,68]},
-  headStyles:{fillColor:[24,61,93],textColor:[255,255,255],fontStyle:"bold"},
-  alternateRowStyles:{fillColor:[246,249,252]},
-  columnStyles:{0:{cellWidth:25},1:{cellWidth:81},2:{cellWidth:12},3:{cellWidth:27,halign:"right"},4:{cellWidth:28,halign:"right"},5:{cellWidth:28,halign:"right"},6:{cellWidth:18,halign:"center"},7:{cellWidth:58}},
+  startY:87, margin:{left:15,right:15,top:51,bottom:20},
+  head:[["CÓDIGO","MATERIAL / DESCRIÇÃO","UN.","MEU SISTEMA","OUTRO SISTEMA","DIFERENÇA","A / D","OBSERVAÇÃO"]],
+  body:body,theme:"striped",
+  tableWidth:267,
+  styles:{
+   font:"helvetica",fontSize:7.7,fontStyle:"normal",textColor:[21,62,76],
+   cellPadding:{top:2.05,right:1.35,bottom:2.05,left:1.35},
+   overflow:"linebreak",valign:"middle",minCellHeight:6,
+   lineColor:[220,232,234],lineWidth:0
+  },
+  headStyles:{fillColor:[25,73,87],textColor:[255,255,255],fontStyle:"bold",fontSize:7.1,cellPadding:{top:2.8,right:1.2,bottom:2.8,left:1.2}},
+  alternateRowStyles:{fillColor:[234,243,245]},
+  columnStyles:{
+   0:{cellWidth:24},
+   1:{cellWidth:75},
+   2:{cellWidth:12,halign:"center"},
+   3:{cellWidth:23,halign:"right"},
+   4:{cellWidth:23,halign:"right"},
+   5:{cellWidth:22,halign:"right"},
+   6:{cellWidth:18,halign:"center"},
+   7:{cellWidth:70}
+  },
   didParseCell:function(ctx){
    if(ctx.section!=="body")return;
+   if(ctx.column.index===0)ctx.cell.styles.fontStyle="bold";
    if(ctx.column.index===6){
     var st=String(ctx.cell.raw);
-    if(st==="A")ctx.cell.styles.textColor=[19,117,157];
-    else if(st==="D")ctx.cell.styles.textColor=[164,54,51];
-    else if(st==="OK")ctx.cell.styles.textColor=[19,129,79];
-    else ctx.cell.styles.textColor=[156,103,25];
-    ctx.cell.styles.fontStyle="bold";
+    ctx.cell.styles.fontStyle="bold";ctx.cell.styles.halign="center";
+    if(st==="A")ctx.cell.styles.textColor=[7,123,136];
+    else if(st==="D")ctx.cell.styles.textColor=[176,64,57];
+    else if(st==="OK")ctx.cell.styles.textColor=[31,119,84];
+    else ctx.cell.styles.textColor=[155,102,24];
    }
   },
-  didDrawPage:function(){var n=doc.internal.getCurrentPageInfo().pageNumber;doc.setFontSize(7.5);doc.setTextColor(108,127,142);doc.text("NEW TERMISA · Almoxarifado | Somente leitura",11,202);doc.text("Pagina "+n,286,202,{align:"right"})}
+  didDrawPage:function(){
+   ntDrawComparativoHeader(doc,doc.internal.getCurrentPageInfo().pageNumber,s,logo);
+  }
  });
+ var total=doc.internal.getNumberOfPages();
+ for(var n=1;n<=total;n++){
+  doc.setPage(n);doc.setDrawColor(220,232,234);doc.setLineWidth(.25);doc.line(15,197.4,282,197.4);
+  doc.setTextColor(64,91,102);doc.setFont("helvetica","normal");doc.setFontSize(7.8);
+  doc.text("NEW TERMISA  |  ALMOXARIFADO",15,202);
+  doc.text("PÁGINA "+n+" DE "+total,282,202,{align:"right"});
+ }
  doc.save("Comparativo_Estoque_New_Termisa_"+new Date().toISOString().slice(0,10)+".pdf");
 }
 $("compare").addEventListener("click",run);
