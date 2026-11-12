@@ -158,6 +158,19 @@ async function parsePdf(file){
  return {rows:entries,issues:issues,source:file.name,recognized:entries.length,kind:"PDF",sheets:pdf.numPages};
 }
 async function loadFile(file){checkFile(file);return /\.pdf$/i.test(file.name)?parsePdf(file):parseExcel(file)}
+function categoryFromItems(items){
+ // Usa somente as categorias informadas pelos arquivos. Nunca deduz pelo nome do material.
+ var types=new Set();
+ items.forEach(function(r){
+  var c=norm(r.cat);
+  if(/\bmp\b|materia prima/.test(c))types.add("MP");
+  if(/\buc\b|uso e consumo/.test(c))types.add("UC");
+  if(/\bpa\b|produto acabado/.test(c))types.add("PA");
+ });
+ if(!types.size)return "Não informada";
+ if(types.has("MP")&&types.has("UC")&&types.size===2)return "MP/UC";
+ return Array.from(types).sort().join(" + ");
+}
 function aggregate(list){
  var map=new Map();
  list.forEach(function(r){
@@ -178,6 +191,7 @@ function aggregate(list){
   });
   a.qty=valid?total/Q:null;
   a.categories=a.items.map(function(x){return x.cat||"sem categoria"}).join(" + ");
+  a.category=categoryFromItems(a.items);
   a.note=a.items.length>1?"Soma de "+a.categories:"";
   a.suspect=a.items.length>1&&(catRepeated||catSet.size!==a.items.length)||units.size>1;
   if(a.suspect)a.note="Possível duplicidade: verificar "+a.categories;
@@ -201,7 +215,7 @@ function compare(ref,target){
   if(ours&&ours.note)notes.push("Referência: "+ours.note);
   if(other&&other.note)notes.push("Outro: "+other.note);
   if(problem)notes.unshift(problem);
-  rows.push({code:code,name:ours&&ours.name||other&&other.name||"",unit:ours&&ours.unit||other&&other.unit||"—",ours:ours?ours.qty:null,other:other?other.qty:null,diff:delta,status:status,obs:notes.join("; ")});
+  rows.push({code:code,name:ours&&ours.name||other&&other.name||"",unit:ours&&ours.unit||other&&other.unit||"—",categoryRef:ours?ours.category:"Não informada",categoryOther:other?other.category:"Não informada",ours:ours?ours.qty:null,other:other?other.qty:null,diff:delta,status:status,obs:notes.join("; ")});
  });
  return rows;
 }
@@ -214,8 +228,8 @@ function draw(){
  var f=$("filter").value,search=norm($("search").value);
  var rows=current.filter(function(r){return(f==="ALL"||r.status===f)&&(!search||norm(r.code+" "+r.name).indexOf(search)>=0)});
  $("rows").innerHTML=rows.map(function(r){
-  return "<tr><td class='code'>"+escapeHtml(r.code)+"</td><td class='name'>"+escapeHtml(r.name)+"</td><td>"+escapeHtml(r.unit)+"</td><td class='num'>"+br(r.ours)+"</td><td class='num'>"+br(r.other)+"</td><td class='num'>"+signed(r.diff)+"</td><td><span class='tag "+r.status+"'>"+r.status+"</span></td><td>"+escapeHtml(r.obs)+"</td></tr>"
- }).join("")||"<tr><td colspan='8'>Nenhum material para esse filtro.</td></tr>";
+  return "<tr><td class='code'>"+escapeHtml(r.code)+"</td><td class='name'>"+escapeHtml(r.name)+"</td><td class='cat-label'>"+escapeHtml(r.categoryRef)+"</td><td class='cat-label'>"+escapeHtml(r.categoryOther)+"</td><td>"+escapeHtml(r.unit)+"</td><td class='num'>"+br(r.ours)+"</td><td class='num'>"+br(r.other)+"</td><td class='num'>"+signed(r.diff)+"</td><td><span class='tag "+r.status+"'>"+r.status+"</span></td><td>"+escapeHtml(r.obs)+"</td></tr>"
+ }).join("")||"<tr><td colspan='10'>Nenhum material para esse filtro.</td></tr>";
  $("shown").textContent="Exibindo "+rows.length+" de "+current.length+" códigos · ordenados por código";
 }
 function warningsText(ref,target,result){
@@ -256,14 +270,14 @@ function exportXlsx(){
  if(!meta||!current.length)return;
  if(!window.XLSX){setStatus("Biblioteca Excel indisponível. Verifique a conexão.",true);return}
  var s=stats(current), wb=window.XLSX.utils.book_new();
- var summary=[["NEW TERMISA · COMPARATIVO DE ESTOQUE"],["Emitido",meta.at],["Saldo de referência",meta.ref.source],["Saldo do outro sistema",meta.target.source],["Total de códigos",s.ALL],["A · Aumentar",s.A],["D · Diminuir",s.D],["OK · Sem alteração",s.OK],["Conferir",s.REVISAR],["Regra","Diferença = referência - outro sistema"],["Segurança","Este documento não altera o estoque."]];
+ var summary=[["NEW TERMISA · COMPARATIVO DE ESTOQUE"],["Emitido",meta.at],["Saldo de referência",meta.ref.source],["Saldo do outro sistema",meta.target.source],["Total de códigos",s.ALL],["A · Aumentar",s.A],["D · Diminuir",s.D],["OK · Sem alteração",s.OK],["Conferir",s.REVISAR],["Regra","Diferença = referência - outro sistema"],["MP","Matéria-Prima"],["UC","Uso e Consumo"],["MP/UC","Material listado nas duas categorias"],["Segurança","Este documento não altera o estoque."]];
  window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.aoa_to_sheet(summary),"Resumo");
- var headings=["Código","Material","Unidade","Meu sistema","Outro sistema","Diferença (+ / -)","A / D","Observação"];
- var lines=current.map(function(r){return [r.code,r.name,r.unit,r.ours,r.other,r.diff,r.status,r.obs]});
- var ws=window.XLSX.utils.aoa_to_sheet([headings].concat(lines));ws["!cols"]=[{wch:14},{wch:43},{wch:10},{wch:17},{wch:18},{wch:20},{wch:13},{wch:66}];
+ var headings=["Código","Material","Categoria (meu)","Categoria (outro)","Unidade","Meu sistema","Outro sistema","Diferença (+ / -)","A / D","Observação"];
+ var lines=current.map(function(r){return [r.code,r.name,r.categoryRef,r.categoryOther,r.unit,r.ours,r.other,r.diff,r.status,r.obs]});
+ var ws=window.XLSX.utils.aoa_to_sheet([headings].concat(lines));ws["!cols"]=[{wch:14},{wch:43},{wch:19},{wch:19},{wch:11},{wch:17},{wch:18},{wch:20},{wch:13},{wch:66}];
  window.XLSX.utils.book_append_sheet(wb,ws,"Comparativo");
- var pending=current.filter(function(r){return r.status==="REVISAR"}).map(function(r){return [r.code,r.name,r.unit,r.ours,r.other,r.obs]});
- if(pending.length)window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.aoa_to_sheet([["Código","Material","Unidade","Meu sistema","Outro sistema","Motivo"]].concat(pending)),"Pendencias");
+ var pending=current.filter(function(r){return r.status==="REVISAR"}).map(function(r){return [r.code,r.name,r.categoryRef,r.categoryOther,r.unit,r.ours,r.other,r.obs]});
+ if(pending.length)window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.aoa_to_sheet([["Código","Material","Categoria (meu)","Categoria (outro)","Unidade","Meu sistema","Outro sistema","Motivo"]].concat(pending)),"Pendencias");
  window.XLSX.writeFile(wb,"Comparativo_Estoque_New_Termisa_"+new Date().toISOString().slice(0,10)+".xlsx");
 }
 
@@ -305,7 +319,7 @@ function ntDrawComparativoHeader(doc,pn,stat,logo){
  doc.setFont("helvetica","bold");doc.setTextColor.apply(doc,ink);doc.setFontSize(17);
  doc.text("COMPARATIVO DE ESTOQUE",15,33.5);
  doc.setFont("helvetica","normal");doc.setTextColor.apply(doc,sub);doc.setFontSize(8.9);
- doc.text("Conferência de saldos entre os sistemas, sem movimentação de estoque.",15,39.2);
+ doc.text("MP = Matéria-Prima   |   UC = Uso e Consumo   |   MP/UC = ambas as categorias.",15,39.2);
  if(pn!==1){
   doc.setFont("helvetica","bold");doc.setFontSize(8.6);doc.setTextColor.apply(doc,dark);
   doc.text("RESULTADO POR MATERIAL · CONTINUAÇÃO",15,46.8);
@@ -347,14 +361,14 @@ async function exportPdf(){
  var logo=await ntComparativoLogo();
  var doc=new window.jspdf.jsPDF({orientation:"landscape",unit:"mm",format:"a4"}),s=stats(current);
  if(typeof doc.autoTable!=="function"){setStatus("Gerador de tabela PDF não carregou. Recarregue a página.",true);return}
- var body=current.map(function(r){return [r.code,r.name,r.unit,br(r.ours),br(r.other),signed(r.diff),r.status,r.obs]});
+ var body=current.map(function(r){return [r.code,r.name,r.categoryRef,r.categoryOther,r.unit,br(r.ours),br(r.other),signed(r.diff),r.status,r.obs]});
  doc.autoTable({
   startY:87, margin:{left:15,right:15,top:51,bottom:20},
-  head:[["CÓDIGO","MATERIAL / DESCRIÇÃO","UN.","MEU SISTEMA","OUTRO SISTEMA","DIFERENÇA","A / D","OBSERVAÇÃO"]],
+  head:[["CÓDIGO","MATERIAL / DESCRIÇÃO","CAT. MEU","CAT. OUTRO","UN.","MEU SISTEMA","OUTRO SISTEMA","DIFERENÇA","A / D","OBSERVAÇÃO"]],
   body:body,theme:"striped",rowPageBreak:"avoid",
   tableWidth:267,
   styles:{
-   font:"helvetica",fontSize:7.7,fontStyle:"normal",textColor:[21,62,76],
+   font:"helvetica",fontSize:7.0,fontStyle:"normal",textColor:[21,62,76],
    cellPadding:{top:2.05,right:1.35,bottom:2.05,left:1.35},
    overflow:"linebreak",valign:"middle",minCellHeight:6,
    lineColor:[220,232,234],lineWidth:0
@@ -363,18 +377,20 @@ async function exportPdf(){
   alternateRowStyles:{fillColor:[234,243,245]},
   columnStyles:{
    0:{cellWidth:24},
-   1:{cellWidth:75},
-   2:{cellWidth:12,halign:"center"},
-   3:{cellWidth:23,halign:"right"},
-   4:{cellWidth:23,halign:"right"},
+   1:{cellWidth:63},
+   2:{cellWidth:22,halign:"center"},
+   3:{cellWidth:23,halign:"center"},
+   4:{cellWidth:11,halign:"center"},
    5:{cellWidth:22,halign:"right"},
-   6:{cellWidth:18,halign:"center"},
-   7:{cellWidth:70}
+   6:{cellWidth:22,halign:"right"},
+   7:{cellWidth:22,halign:"right"},
+   8:{cellWidth:15,halign:"center"},
+   9:{cellWidth:43}
   },
   didParseCell:function(ctx){
    if(ctx.section!=="body")return;
    if(ctx.column.index===0)ctx.cell.styles.fontStyle="bold";
-   if(ctx.column.index===6){
+   if(ctx.column.index===8){
     var st=String(ctx.cell.raw);
     ctx.cell.styles.fontStyle="bold";ctx.cell.styles.halign="center";
     if(st==="A")ctx.cell.styles.textColor=[7,123,136];
