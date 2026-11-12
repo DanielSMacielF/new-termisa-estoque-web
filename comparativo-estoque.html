@@ -25,11 +25,11 @@ p{line-height:1.5}a{color:#b9e0ff;text-decoration:none}.back{display:inline-bloc
 .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}.toolbar label{font-size:.85rem;color:#b8d3e8}
 .toolbar select,.toolbar input{color:white;background:#071d33;border:1px solid #456f8d;border-radius:10px;padding:10px 11px}
 .toolbar input{min-width:180px;flex:1;max-width:440px}.table-wrap{overflow:auto;max-height:65vh;border:1px solid #31536f;border-radius:13px;background:#0b2741}
-table{border-collapse:collapse;width:100%;min-width:940px;font-size:.82rem}th{position:sticky;top:0;z-index:1;background:#1b4568;color:#edf6ff;text-align:left;font-weight:800;padding:12px 9px;white-space:nowrap}
+table{border-collapse:collapse;width:100%;min-width:1140px;font-size:.82rem}th{position:sticky;top:0;z-index:1;background:#1b4568;color:#edf6ff;text-align:left;font-weight:800;padding:12px 9px;white-space:nowrap}
 td{border-top:1px solid #284761;padding:9px;vertical-align:top}tbody tr:nth-child(even){background:#ffffff06}
 td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}td.code{font-variant-numeric:tabular-nums;white-space:nowrap}td.name{min-width:230px;max-width:335px}
 .tag{display:inline-block;border-radius:7px;padding:3px 8px;font-weight:850;min-width:46px;text-align:center}.tag.A{color:#a5e6ff;background:#12465b}.tag.D{color:#ffc1b8;background:#5c2d2f}.tag.OK{color:#bbf2d3;background:#164c37}.tag.REVISAR{color:#ffe4a3;background:#654b23}
-.summary{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:#b6cee3;font-size:.83rem}.list{font-size:.85rem;line-height:1.7;color:#c2d9eb;margin:8px 0;padding-left:19px}
+.cat-label{white-space:nowrap;color:#b3e8ee;font-weight:750}.summary{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:#b6cee3;font-size:.83rem}.list{font-size:.85rem;line-height:1.7;color:#c2d9eb;margin:8px 0;padding-left:19px}
 @media(max-width:670px){.files{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stats .stat:first-child{grid-column:span 2}.top{align-items:start}.buttons .btn{flex:1}.shell{padding:17px 11px 55px}}
 @media print{body{background:#fff;color:#111}.back,.buttons,.toolbar,.file,.note{display:none!important}.card{box-shadow:none;border:0}table{font-size:8pt;min-width:0}}
 </style>
@@ -62,7 +62,7 @@ td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}td.
  </div>
  <div id="warnings" class="warn hidden"></div>
  <div class="toolbar"><label for="filter">Visualizar</label><select id="filter"><option value="ALL">Todos os códigos</option><option value="A">A · Aumentar</option><option value="D">D · Diminuir</option><option value="OK">OK · Iguais</option><option value="REVISAR">Conferir pendências</option></select><input id="search" placeholder="Pesquisar por código ou material" aria-label="Pesquisar código ou material"></div>
- <div class="table-wrap"><table><thead><tr><th>Código</th><th>Material</th><th>Un.</th><th>Meu sistema</th><th>Outro sistema</th><th>Diferença</th><th>A / D</th><th>Observação</th></tr></thead><tbody id="rows"></tbody></table></div>
+ <p class="note"><b>MP</b> = Matéria-Prima · <b>UC</b> = Uso e Consumo · <b>MP/UC</b> = ambas as categorias. As categorias dos dois relatórios são exibidas separadamente.</p><div class="table-wrap"><table><thead><tr><th>Código</th><th>Material</th><th>Categoria · meu</th><th>Categoria · outro</th><th>Un.</th><th>Meu sistema</th><th>Outro sistema</th><th>Diferença</th><th>A / D</th><th>Observação</th></tr></thead><tbody id="rows"></tbody></table></div>
  <div class="summary"><span id="shown"></span><span>A = acrescentar · D = diminuir · OK = sem alteração</span></div>
  <div class="buttons"><button id="pdf" type="button" class="btn">Gerar PDF comparativo</button><button id="xlsx" type="button" class="btn alt">Exportar Excel (.xlsx)</button></div>
  <p class="note">A diferença é calculada como <b>saldo de referência − saldo do outro sistema</b>. Códigos ausentes, valores inválidos ou duplicatas suspeitas ficam em <b>Conferir</b>, nunca recebem ajuste automático.</p>
@@ -72,5 +72,5 @@ td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}td.
 <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script defer src="./comparativo-estoque.js?v=20261112-ci"></script>
+<script defer src="./comparativo-estoque.js?v=20261112-cat-mp-uc"></script>
 </body></html>
