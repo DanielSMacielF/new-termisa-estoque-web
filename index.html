@@ -1466,7 +1466,7 @@ function ntFullInventoryReport(items, generatedAt, operator) {
     html,body{padding:0;margin:0;background:#e9eef1;font-family:Arial,Helvetica,sans-serif;color:#102e42}
     .nto-toolbar{position:sticky;top:0;z-index:2;padding:12px 17px;text-align:center;background:#102e42;color:#fff;font-size:13px}
     .nto-toolbar button{background:#158f95;color:#fff;border:0;border-radius:7px;padding:10px 18px;margin-right:12px;font-weight:700;cursor:pointer}
-    .nto-page{position:relative;width:297mm;height:210mm;padding:12mm 15mm 15mm;margin:16px auto;background:white;box-shadow:0 4px 18px #0002;break-after:page;page-break-after:always;overflow:hidden}
+    .nto-page{position:relative;width:297mm;height:210mm;padding:12mm 15mm 15mm;margin:16px auto;background:white;box-shadow:0 4px 18px #0002;break-after:page;page-break-after:always;overflow:visible}
     .nto-page:last-child{break-after:auto;page-break-after:auto}
     .nto-page:before{content:'';position:absolute;top:0;left:0;right:0;height:3.2mm;background:#102e42}
     .nto-page:after{content:'';position:absolute;top:3.2mm;left:0;width:41mm;height:1mm;background:#14979a}
@@ -1503,7 +1503,78 @@ function ntFullInventoryReport(items, generatedAt, operator) {
     .nto-foot strong{color:#102e42}
     @media print{html,body{background:#fff}.nto-toolbar{display:none!important}.nto-page{margin:0;box-shadow:none}}
     </style>`;
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inventário Geral | New Termisa</title>${style}</head><body><div class="nto-toolbar"><button onclick="window.print()">Imprimir / Salvar PDF</button>Relatório geral do inventário • confira os dados antes de imprimir</div>${cover}${list}</body></html>`;
+
+  // Paginação por altura real para o Inventário Geral, inclusive nomes longos.
+  // Apenas o DOM do relatório: nenhum saldo ou histórico é alterado.
+  const ntInventoryA4SafetyScript = String.raw`(function(){
+    'use strict';
+    const q=(n,s)=>n.querySelector(s), qa=(n,s)=>Array.from(n.querySelectorAll(s));
+    const PADDING=14;
+    let ready=false, issue='';
+    function pageOk(page){
+      const foot=q(page,'.nto-foot'),table=q(page,'.nto-table');
+      if(!foot)return false;
+      return !table||table.getBoundingClientRect().bottom<=foot.getBoundingClientRect().top-PADDING;
+    }
+    function paginate(){
+      const originals=qa(document,'.nto-page');
+      const originalRows=originals.slice(1).flatMap(p=>qa(p,'tbody tr'));
+      if(!originalRows.length){ready=true;return true;}
+      const signature=originalRows.map(tr=>tr.textContent.trim()).join('||');
+      const template=originals[1],host=template.parentElement;
+      if(!template||!host)throw Error('Páginas do inventário não identificadas');
+      const made=[];
+      const newPage=()=>{
+        const page=template.cloneNode(true);
+        q(page,'tbody').replaceChildren();
+        host.insertBefore(page,template);
+        made.push(page);
+        return page;
+      };
+      try{
+        let page=newPage(),body=q(page,'tbody');
+        for(const original of originalRows){
+          const row=original.cloneNode(true);
+          body.appendChild(row);
+          if(pageOk(page))continue;
+          body.removeChild(row);
+          if(!body.children.length)throw Error('Uma descrição é maior que a área da página');
+          page=newPage();body=q(page,'tbody');
+          body.appendChild(row);
+          if(!pageOk(page))throw Error('Descrição extensa não coube em uma página A4');
+        }
+        const check=made.flatMap(p=>qa(p,'tbody tr')).map(tr=>tr.textContent.trim()).join('||');
+        if(signature!==check||made.some(p=>!pageOk(p)))throw Error('A paginação alterou ou cortou itens');
+        originals.slice(1).forEach(p=>p.remove());
+        const result=qa(document,'.nto-page'),total=result.length;
+        let offset=0;
+        result.forEach((p,i)=>{
+          const line=q(p,'.nto-tablehead b'),count=qa(p,'tbody tr').length;
+          if(line){line.textContent='REGISTROS '+(offset+1)+' A '+(offset+count)+' DE '+originalRows.length;offset+=count;}
+          const number=q(p,'.nto-foot strong');if(number)number.textContent=(i+1)+' / '+total;
+        });
+        ready=true;issue='';
+        return true;
+      }catch(err){made.forEach(p=>p.remove());throw err;}
+    }
+    function audit(){
+      for(const p of qa(document,'.nto-page'))if(!pageOk(p))throw Error('Tabela invadiu o rodapé');
+    }
+    function run(){
+      if(ready)return true;
+      try{paginate();audit();document.documentElement.dataset.inventoryPdf='ready';return true}
+      catch(e){issue=String(e.message||e);document.documentElement.dataset.inventoryPdf='error';
+        const bar=q(document,'.nto-toolbar');if(bar)bar.append(' · Impressão bloqueada: '+issue);return false}
+    }
+    window.ntInventorySafePrint=function(){
+      if(!run()){alert('PDF não liberado: '+issue);return;}
+      window.print();
+    };
+    if(document.readyState==='complete')run();
+    else window.addEventListener('load',run,{once:true});
+  })();`;
+
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inventário Geral | New Termisa</title>${style}</head><body><div class="nto-toolbar"><button onclick="window.ntInventorySafePrint ? window.ntInventorySafePrint() : alert('Conferindo paginação do inventário.')">Imprimir / Salvar PDF</button>Relatório geral do inventário • confira os dados antes de imprimir</div>${cover}${list}<script>${ntInventoryA4SafetyScript}<\/script></body></html>`;
 }
 
 function ntOpenFullInventory(){
