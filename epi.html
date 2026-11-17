@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b2440">
+<title>New Termisa | Controle de EPI — Demonstração</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#eaf5ff;background:#071b30;--bg:#071b30;--card:#102b48;--card2:#133656;--line:#33536e;--muted:#aec4d8;--blue:#3496f5;--green:#7ce5bb;--warn:#ffda95;--bad:#ff9c9c}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top left,#17416a,#071b30 55%);min-height:100vh}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.55}input,select,textarea{min-width:0}h1,h2,h3,p{margin:0}h1{font-size:clamp(1.45rem,2.5vw,2rem)}h2{font-size:1.14rem}h3{font-size:.98rem}p{line-height:1.5}a{color:#a5d9ff}.app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh}.sidebar{background:#081d33;border-right:1px solid #2c4d68;padding:26px 17px;display:flex;flex-direction:column;gap:15px}.brand{display:flex;align-items:center;gap:12px;margin-bottom:12px}.brand-logo{background:#163b5b;border:2px solid #406b90;border-radius:16px;width:53px;height:53px;display:grid;place-items:center;font-weight:900;color:#b6e2ff;letter-spacing:-1px}.brand strong{font-size:1.07rem}.muted{color:var(--muted)}.micro{font-size:.76rem;color:#a9c0d6}.sidebar .micro{letter-spacing:.5px;text-transform:uppercase}.nav{display:flex;flex-direction:column;gap:6px}.nav button{background:transparent;color:#c5d8e9;border:1px solid transparent;text-align:left;padding:12px 14px;border-radius:12px;font-weight:700}.nav button.active,.nav button:hover{background:#19456b;color:#fff;border-color:#3c719d}.safety{margin-top:auto;background:#18374e;border:1px solid #496979;padding:12px;border-radius:13px;color:#f6dca6;font-size:.8rem;line-height:1.45}.main{max-width:1250px;width:100%;margin:0 auto;padding:26px 28px 56px}.top{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;margin-bottom:23px;flex-wrap:wrap}.eyebrow{color:#7ed2de;text-transform:uppercase;font-size:.74rem;font-weight:800;letter-spacing:1.2px;margin-bottom:7px}.subtitle{color:#bfd2e4;font-size:.9rem;margin-top:8px}.tag{display:inline-block;border:1px solid #6487a2;background:#194261;border-radius:30px;padding:8px 12px;font-size:.77rem;color:#d7efff;font-weight:750}.tag.warn{border-color:#a88443;background:#513a22;color:#ffdf9d}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.stat{background:#102c49;border:1px solid #355b78;padding:17px;border-radius:17px}.stat b{display:block;font-size:1.9rem;margin:8px 0 1px;font-variant-numeric:tabular-nums}.stat small{color:#b2cde3;font-size:.82rem}.card{background:linear-gradient(120deg,#143456,#102b48);border:1px solid var(--line);border-radius:19px;padding:22px;margin:16px 0;box-shadow:0 9px 25px #00000018}.headrow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:17px}.note{background:#143a57;border:1px solid #386481;border-radius:13px;padding:13px 15px;color:#bfdef2;font-size:.83rem;line-height:1.5;margin:13px 0}.field label{display:block;color:#c2d7e9;font-size:.84rem;margin-bottom:6px}.field input,.field select,.field textarea{background:#071d33;color:#f0f8ff;border:1px solid #4b718f;border-radius:12px;padding:12px 13px;width:100%;outline:none}.field input:focus,.field select:focus,.field textarea:focus{border-color:#7ac4ff}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.formgrid.three{grid-template-columns:2fr 1fr 1fr}.field.full{grid-column:1/-1}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:17px;align-items:center}.btn{background:#267fcb;border:1px solid #52a9fc;border-radius:11px;color:#fff;font-weight:740;padding:11px 16px;white-space:normal}.btn:hover{filter:brightness(1.12)}.btn.alt{background:#1c4467;border-color:#426a8a}.btn.ghost{background:transparent;border-color:#446989}.btn.danger{background:#673d45;border-color:#ad666d}.btn.sm{font-size:.8rem;padding:7px 10px}.btn:focus-visible,.nav button:focus-visible{outline:3px solid #a4e5ff;outline-offset:2px}.tablewrap{overflow:auto;border:1px solid #365a75;border-radius:13px;background:#0b2945}.table{border-collapse:collapse;width:100%;font-size:.88rem}.table th{background:#1b4568;color:#eaf5ff;text-align:left;font-size:.8rem;white-space:nowrap}.table th,.table td{padding:12px;border-bottom:1px solid #2b4d66;vertical-align:middle}.table tr:last-child td{border-bottom:0}.table td{overflow-wrap:anywhere}.table .right{text-align:right}.empty{padding:25px;text-align:center;color:#a9c5da;font-size:.9rem}.chip{background:#1c5265;color:#aaedd8;border-radius:30px;padding:4px 8px;font-size:.75rem;white-space:nowrap}.searchline{display:flex;gap:10px;align-items:center;margin:12px 0}.searchline input{padding:11px 13px;border-radius:11px;border:1px solid #456e8d;background:#071d33;color:#fff;width:100%}.detail{color:#aec4d8;font-size:.82rem;line-height:1.6}.page{display:none}.page.active{display:block}.cart-check{font-size:.84rem;margin-top:10px;color:#cae8ff}.modalback{position:fixed;inset:0;background:#031423db;z-index:9;display:none;place-items:center;padding:15px}.modalback.show{display:grid}.modal{background:#112f4f;border:1px solid #5383a3;border-radius:20px;width:min(710px,100%);max-height:94vh;overflow:auto;padding:22px}.modal h2{margin-bottom:5px}.modal .field{margin-top:13px}.signature-pad{background:#fff;border-radius:12px;border:2px solid #6b9cbb;margin:12px 0 0;overflow:hidden;position:relative}.signature-pad canvas{display:block;width:100%;height:185px;touch-action:none;cursor:crosshair}.sig-placeholder{position:absolute;color:#87939e;font-size:.85rem;pointer-events:none;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}.checkline{display:flex;align-items:flex-start;gap:10px;margin:13px 0;color:#d7e6f2;font-size:.85rem;line-height:1.45}.checkline input{margin-top:3px;accent-color:#58b7f5;width:18px;height:18px;flex:none}.close{border:1px solid #466982;background:#214761;color:#fff;border-radius:10px;padding:7px 10px;float:right}.toast{position:fixed;z-index:15;bottom:24px;left:50%;transform:translateX(-50%);background:#1a5977;color:white;border:1px solid #8bc6e5;border-radius:12px;padding:12px 18px;font-size:.9rem;box-shadow:0 8px 40px #0006;display:none;max-width:90vw}.toast.show{display:block}.footer{color:#91b0c9;font-size:.78rem;margin-top:21px}.print-area{display:none} .mini-flex{display:flex;align-items:center;gap:10px;flex-wrap:wrap} .file-button{display:inline-block;position:relative;overflow:hidden}.file-button input{position:absolute;inset:0;opacity:0;cursor:pointer} .num{font-variant-numeric:tabular-nums} .grow{flex:1} .center{text-align:center} .emph{color:#90e1c7}
+@media(max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.app{grid-template-columns:210px minmax(0,1fr)}}
+@media(max-width:700px){.app{display:block}.sidebar{padding:13px 12px 7px;border-right:0;border-bottom:1px solid #33536e;gap:8px}.brand{margin:0 0 5px}.brand-logo{width:40px;height:40px;font-size:.82rem;border-radius:12px}.brand strong{font-size:.95rem}.nav{flex-direction:row;overflow:auto;gap:4px}.nav button{font-size:.76rem;white-space:nowrap;padding:10px 9px}.safety{margin-top:4px;padding:8px 10px;font-size:.72rem}.main{padding:20px 12px 56px}.card{padding:15px;border-radius:15px}.formgrid,.formgrid.three{grid-template-columns:1fr}.stat{padding:13px}.stat b{font-size:1.55rem}.modal{padding:16px}.signature-pad canvas{height:200px}.top{margin-bottom:14px}.table th,.table td{padding:10px 9px}.actions .btn{flex:1}}
+@media print{ @page{size:A4 portrait;margin:16mm} body{background:white!important;color:#172a3d!important} .app,.modalback,.toast{display:none!important}.print-area{display:block!important;color:#172a3d;line-height:1.4;font-family:Arial,sans-serif;font-size:11pt}.receipt-head{display:flex;justify-content:space-between;border-bottom:2px solid #173b5a;padding-bottom:13px;margin-bottom:16px}.receipt-head h1{font-size:19pt;margin:0 0 4px}.receipt-sub{font-size:9pt;color:#41566e}.receipt-block{padding:13px 0;border-bottom:1px solid #dae4ec}.receipt-block h3{font-size:11pt;margin:0 0 8px}.receipt-table{width:100%;border-collapse:collapse;margin-top:11px;font-size:9.5pt}.receipt-table th,.receipt-table td{border:1px solid #bdcbd6;padding:9px;text-align:left}.receipt-table th{background:#eaf1f7}.receipt-sig{display:block;width:250px;height:85px;object-fit:contain;margin:10px 0 0;border-bottom:1px solid #43566a}.receipt-small{color:#4c5a67;font-size:8.4pt;margin-top:15px;overflow-wrap:anywhere}.receipt-terms{font-size:10pt;line-height:1.55}.receipt-logo{border:2px solid #234868;border-radius:8px;width:48px;height:48px;display:grid;place-items:center;font-weight:bold}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand"><div class="brand-logo">NT</div><div><strong>New Termisa</strong><div class="muted micro">Controle de EPI</div></div></div>
+  <a href="./index.html" style="display:block;background:#143a5b;border:1px solid #456e8b;color:#e6f3ff;text-decoration:none;text-align:center;padding:11px;border-radius:12px;font-weight:700;font-size:.89rem">← Voltar ao almoxarifado</a>
+  <div class="nav" role="navigation" aria-label="Seções do sistema">
+    <button type="button" data-page="entregas" class="active">✍️ Entregas</button>
+    <button type="button" data-page="funcionarios">👥 Funcionários</button>
+    <button type="button" data-page="equipamentos">⛑️ Equipamentos</button>
+    <button type="button" data-page="historico">📋 Histórico</button>
+  </div>
+  <div class="safety"><strong>AMBIENTE DE DEMONSTRAÇÃO</strong><br>Os registros ficam apenas neste navegador. Não use para documentação oficial nem para entregas reais.</div>
+</aside>
+<main class="main">
+  <div class="top"><div><div class="eyebrow">New Termisa · Almoxarifado</div><h1>Controle de entrega de EPI</h1><p class="subtitle">Entrega individual, assinatura na tela e comprovante imprimível.</p></div><span class="tag warn">Protótipo local · sem Firebase</span></div>
+  <section id="page-entregas" class="page active">
+    <div class="grid">
+      <div class="stat"><small>Entregas registradas</small><b id="statDeliveries">0</b><small>Com assinatura</small></div>
+      <div class="stat"><small>Funcionários</small><b id="statEmployees">0</b><small>Cadastrados neste navegador</small></div>
+      <div class="stat"><small>Modelos de EPI</small><b id="statEpi">0</b><small>Itens cadastrados</small></div>
+      <div class="stat"><small>Entregas hoje</small><b id="statToday">0</b><small>Data local</small></div>
+    </div>
+    <div class="card"><div class="headrow"><h2>Nova entrega de EPI</h2><span class="chip">Assinatura a cada entrega</span></div>
+      <div class="formgrid">
+        <div class="field"><label for="employeeSelect">Funcionário *</label><select id="employeeSelect"><option value="">Selecione o funcionário</option></select></div>
+        <div class="field"><label for="operator">Responsável pela entrega *</label><input id="operator" placeholder="Nome do responsável" autocomplete="name" maxlength="120"></div>
+      </div>
+      <div class="note">O funcionário deve conferir os equipamentos e assinar pessoalmente. A assinatura não será reutilizada em entregas futuras.</div>
+      <div class="formgrid three">
+        <div class="field"><label for="epiSelect">Equipamento *</label><select id="epiSelect"><option value="">Selecione o equipamento</option></select></div>
+        <div class="field"><label for="quantity">Quantidade *</label><input id="quantity" type="number" min="1" step="1" value="1"></div>
+        <div class="field"><label for="reason">Tipo de entrega</label><select id="reason"><option>Primeira entrega</option><option>Reposição regular</option><option>Substituição por desgaste</option><option>Substituição por dano</option><option>Substituição por extravio</option><option>Outro</option></select></div>
+      </div>
+      <div class="actions"><button id="addToCart" class="btn alt" type="button">+ Adicionar equipamento</button></div>
+      <div style="height:14px"></div>
+      <div class="tablewrap"><table class="table"><thead><tr><th>EPI / CA</th><th>Quantidade</th><th>Tipo</th><th></th></tr></thead><tbody id="cartRows"><tr><td colspan="4" class="empty">Adicione um ou mais equipamentos.</td></tr></tbody></table></div>
+      <div class="actions"><button type="button" class="btn" id="reviewDelivery">Conferir e coletar assinatura</button><button type="button" class="btn ghost" id="resetCart">Limpar lista</button></div>
+    </div>
+    <div class="card"><div class="headrow"><h2>Últimas entregas</h2><button class="btn alt sm" type="button" data-page="historico">Ver histórico completo</button></div><div id="recentList" class="detail">Nenhuma entrega registrada ainda.</div></div>
+  </section>
+  <section id="page-funcionarios" class="page">
+    <div class="card"><h2>Cadastro de funcionários</h2><p class="subtitle">Utilize matrícula ou outro identificador interno. Não é necessário cadastrar CPF nesta demonstração.</p>
+      <form id="employeeForm"><div class="formgrid" style="margin-top:16px">
+        <div class="field"><label for="empName">Nome completo *</label><input id="empName" required maxlength="150"></div>
+        <div class="field"><label for="empId">Matrícula *</label><input id="empId" required maxlength="40"></div>
+        <div class="field"><label for="empSector">Setor *</label><input id="empSector" required maxlength="100"></div>
+        <div class="field"><label for="empRole">Função</label><input id="empRole" maxlength="100"></div>
+      </div><div class="actions"><button class="btn" type="submit">Cadastrar funcionário</button></div></form>
+    </div>
+    <div class="card"><div class="headrow"><h2>Funcionários cadastrados</h2><span id="empCount" class="chip">0 registros</span></div><div class="tablewrap"><table class="table"><thead><tr><th>Nome</th><th>Matrícula</th><th>Setor / Função</th></tr></thead><tbody id="empRows"></tbody></table></div></div>
+  </section>
+  <section id="page-equipamentos" class="page">
+    <div class="card"><h2>Cadastro de equipamentos de proteção</h2><p class="subtitle">Cadastro separado do estoque principal da empresa.</p>
+      <form id="epiForm"><div class="formgrid" style="margin-top:16px">
+        <div class="field"><label for="epiName">Descrição do EPI *</label><input id="epiName" placeholder="Ex.: Luva de segurança" required maxlength="150"></div>
+        <div class="field"><label for="epiCode">Código interno *</label><input id="epiCode" required maxlength="40"></div>
+        <div class="field"><label for="epiCA">Número do CA *</label><input id="epiCA" required maxlength="30" inputmode="numeric"></div>
+        <div class="field"><label for="epiStock">Estoque inicial (unidades) *</label><input id="epiStock" required type="number" min="0" step="1" value="0"></div>
+        <div class="field"><label for="epiLot">Lote (opcional)</label><input id="epiLot" maxlength="70"></div>
+        <div class="field"><label for="epiManufacturer">Fabricante / Importador (opcional)</label><input id="epiManufacturer" maxlength="100"></div>
+      </div><div class="actions"><button class="btn" type="submit">Cadastrar equipamento</button></div></form>
+    </div>
+    <div class="card"><div class="headrow"><h2>Equipamentos cadastrados</h2><span id="epiCount" class="chip">0 registros</span></div><div class="tablewrap"><table class="table"><thead><tr><th>Código / EPI</th><th>CA / Lote</th><th>Saldo de teste</th><th></th></tr></thead><tbody id="epiRows"></tbody></table></div></div>
+  </section>
+  <section id="page-historico" class="page">
+    <div class="card"><div class="headrow"><div><h2>Histórico de entregas assinadas</h2><p class="subtitle">Registros do navegador atual, sem sincronização.</p></div><button type="button" id="csvExport" class="btn alt">Exportar CSV</button></div>
+      <div class="searchline"><input type="search" id="historySearch" placeholder="Buscar por funcionário, matrícula, EPI ou código" aria-label="Pesquisar histórico"></div>
+      <div class="tablewrap"><table class="table"><thead><tr><th>Data / horário</th><th>Funcionário</th><th>Itens</th><th>Comprovante</th></tr></thead><tbody id="historyRows"></tbody></table></div>
+    </div>
+    <div class="card"><h2>Cópia de segurança da demonstração</h2><p class="subtitle">Como os dados são locais, faça exportações para não perdê-los ao limpar o navegador ou trocar de dispositivo.</p>
+      <div class="actions"><button id="backupExport" class="btn alt" type="button">Baixar backup JSON</button><label class="btn alt file-button">Importar backup JSON<input id="backupImport" aria-label="Importar backup JSON" type="file" accept="application/json,.json"></label></div>
+      <div class="note">A importação substitui todos os dados deste protótipo. Nunca importe dados reais sensíveis para este ambiente de testes.</div>
+    </div>
+  </section>
+  <div class="footer">New Termisa · Protótipo independente de controle de EPI · Uso exclusivo para testes de interface e fluxo de assinatura.</div>
+</main>
+</div>
+<div id="signatureModal" class="modalback" role="dialog" aria-modal="true" aria-label="Conferência e assinatura de entrega" aria-hidden="true">
+  <div class="modal"><button class="close" id="closeModal" type="button" aria-label="Fechar">✕</button><div class="eyebrow">Confirmação do funcionário</div><h2>Termo de recebimento de EPI</h2>
+    <div class="detail" id="reviewSummary" style="margin:14px 0"></div>
+    <p class="detail">Declaro que recebi gratuitamente os equipamentos de proteção individual relacionados acima, nas quantidades informadas.</p>
+    <label class="checkline"><input id="confirmReceipt" type="checkbox"><span>O funcionário confirma que conferiu os itens e está assinando pessoalmente este recebimento.</span></label>
+    <label class="checkline"><input id="confirmInfo" type="checkbox"><span>O responsável confirma que as orientações cabíveis sobre uso, conservação, limitações e substituição foram fornecidas.</span></label>
+    <div class="field"><label>Assinatura do funcionário *</label><div class="signature-pad"><canvas id="signCanvas" width="950" height="300" aria-label="Área de assinatura" role="img"></canvas><div class="sig-placeholder" id="sigHint">Assine aqui com o dedo ou mouse</div></div></div>
+    <div class="actions"><button id="clearSign" type="button" class="btn ghost sm">Limpar assinatura</button></div>
+    <div class="actions"><button type="button" class="btn" id="finalize">Confirmar e registrar entrega</button><button type="button" class="btn alt" id="cancelModal">Cancelar</button></div>
+    <p class="micro" style="margin-top:12px">Demonstração: assinatura desenhada na tela, sem autenticação forte, carimbo do tempo confiável nem armazenamento corporativo. Não substitui uma solução de produção validada.</p>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="printArea" class="print-area" aria-hidden="true"></div>
+<script>
+(()=>{'use strict';
+const KEY='new-termisa-epi-demonstracao-v1';
+const $=id=>document.getElementById(id);
+const empty=()=>({employees:[],epis:[],deliveries:[]});
+let state=empty(),cart=[],hasSignature=false, toastTimer=null;
+try{const stored=JSON.parse(localStorage.getItem(KEY)||'null');if(validState(stored))state=stored;}catch(err){console.warn('Falha ao carregar dados locais',err);}
+function validState(s){return !!(s&&Array.isArray(s.employees)&&Array.isArray(s.epis)&&Array.isArray(s.deliveries));}
+function cloneState(){return JSON.parse(JSON.stringify(state));}
+function commit(change){const next=cloneState();change(next);try{localStorage.setItem(KEY,JSON.stringify(next));state=next;render();return true;}catch(err){showToast('Não foi possível salvar no navegador. Exporte um backup e libere espaço.');console.error(err);return false;}}
+function uuid(){return (globalThis.crypto&&crypto.randomUUID)?crypto.randomUUID():'R'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function showToast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.classList.remove('show'),4200);}
+function dateTime(iso){try{return new Date(iso).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});}catch{return iso||'—';}}
+function today(d){return new Date(d).toLocaleDateString('en-CA');}
+function displayPage(page){document.querySelectorAll('.page').forEach(e=>e.classList.toggle('active',e.id==='page-'+page));document.querySelectorAll('[data-page]').forEach(e=>e.classList.toggle('active',e.dataset.page===page));window.scrollTo({top:0,behavior:'instant'});}
+document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>displayPage(b.dataset.page)));
+function textOptions(items, selected, placeholder, value, label){let out='<option value="">'+esc(placeholder)+'</option>';for(const x of items){out+='<option value="'+esc(value(x))+'"'+(selected===value(x)?' selected':'')+'>'+esc(label(x))+'</option>';}return out;}
+function render(){
+ $('statDeliveries').textContent=state.deliveries.length;$('statEmployees').textContent=state.employees.length;$('statEpi').textContent=state.epis.length;$('statToday').textContent=state.deliveries.filter(d=>today(d.at)===today(new Date())).length;
+ $('empCount').textContent=state.employees.length+' registro(s)';$('epiCount').textContent=state.epis.length+' registro(s)';
+ let es=$('employeeSelect').value,ps=$('epiSelect').value;
+ $('employeeSelect').innerHTML=textOptions(state.employees,es,'Selecione o funcionário',x=>x.id,x=>x.name+' · '+x.matricula);
+ $('epiSelect').innerHTML=textOptions(state.epis,ps,'Selecione o equipamento',x=>x.id,x=>x.name+' · CA '+x.ca+' · saldo '+x.stock);
+ $('empRows').innerHTML=state.employees.length?state.employees.map(e=>'<tr><td><strong>'+esc(e.name)+'</strong></td><td>'+esc(e.matricula)+'</td><td>'+esc(e.sector)+'<div class="micro">'+esc(e.role||'—')+'</div></td></tr>').join(''):'<tr><td colspan="3" class="empty">Nenhum funcionário cadastrado.</td></tr>';
+ $('epiRows').innerHTML=state.epis.length?state.epis.map(e=>'<tr><td><strong>'+esc(e.name)+'</strong><div class="micro">'+esc(e.code)+'</div></td><td>CA '+esc(e.ca)+'<div class="micro">Lote: '+esc(e.lot||'—')+'</div></td><td class="num">'+e.stock+' UN</td><td><button class="btn sm alt" data-stock="'+esc(e.id)+'" type="button">Adicionar saldo de teste</button></td></tr>').join(''):'<tr><td colspan="4" class="empty">Nenhum EPI cadastrado.</td></tr>';
+ renderCart();renderHistory();
+ const recent=state.deliveries.slice(-4).reverse();$('recentList').innerHTML=recent.length?recent.map(d=>'<div style="padding:10px 0;border-bottom:1px solid #32536b"><b>'+esc(d.employee.name)+'</b> · '+esc(dateTime(d.at))+'<div class="micro">'+d.items.length+' tipo(s) de EPI · '+esc(d.id.slice(0,13))+'</div></div>').join(''):'Nenhuma entrega registrada ainda.';
+}
+function renderCart(){if(!cart.length){$('cartRows').innerHTML='<tr><td colspan="4" class="empty">Adicione um ou mais equipamentos.</td></tr>';return;}$('cartRows').innerHTML=cart.map((v,i)=>{const e=state.epis.find(x=>x.id===v.epiId);return'<tr><td><strong>'+esc(e?.name||'EPI removido')+'</strong><div class="micro">CA '+esc(e?.ca||'—')+'</div></td><td>'+v.qty+' UN</td><td>'+esc(v.reason)+'</td><td><button type="button" class="btn sm ghost" data-remove="'+i+'">Retirar</button></td></tr>';}).join('');}
+$('employeeForm').addEventListener('submit',ev=>{ev.preventDefault();const name=$('empName').value.trim(),matricula=$('empId').value.trim(),sector=$('empSector').value.trim(),role=$('empRole').value.trim();if(!name||!matricula||!sector)return showToast('Preencha nome, matrícula e setor.');if(state.employees.some(e=>e.matricula.toLowerCase()===matricula.toLowerCase()))return showToast('Essa matrícula já está cadastrada.');if(commit(s=>s.employees.push({id:uuid(),name,matricula,sector,role}))){ev.target.reset();showToast('Funcionário cadastrado para teste.');}});
+$('epiForm').addEventListener('submit',ev=>{ev.preventDefault();const name=$('epiName').value.trim(),code=$('epiCode').value.trim(),ca=$('epiCA').value.trim(),lot=$('epiLot').value.trim(),manufacturer=$('epiManufacturer').value.trim(),stock=Number($('epiStock').value);if(!name||!code||!ca||!Number.isInteger(stock)||stock<0)return showToast('Confira os campos obrigatórios e o estoque.');if(state.epis.some(e=>e.code.toLowerCase()===code.toLowerCase()))return showToast('Esse código interno já foi cadastrado.');if(commit(s=>s.epis.push({id:uuid(),name,code,ca,lot,manufacturer,stock}))){ev.target.reset();$('epiStock').value='0';showToast('Equipamento cadastrado para teste.');}});
+$('epiRows').addEventListener('click',ev=>{const b=ev.target.closest('[data-stock]');if(!b)return;const id=b.dataset.stock,e=state.epis.find(x=>x.id===id);if(!e)return;const v=prompt('Quantidade de teste a acrescentar em '+e.name+':','1');if(v===null)return;const num=Number(v);if(!Number.isInteger(num)||num<=0)return showToast('Informe uma quantidade inteira e positiva.');if(commit(s=>{s.epis.find(x=>x.id===id).stock+=num;}))showToast('Saldo de teste atualizado.');});
+$('addToCart').addEventListener('click',()=>{const id=$('epiSelect').value,qty=Number($('quantity').value),e=state.epis.find(x=>x.id===id),reason=$('reason').value;if(!e)return showToast('Selecione um EPI cadastrado.');if(!Number.isSafeInteger(qty)||qty<=0)return showToast('A quantidade precisa ser inteira e positiva.');const reserved=cart.filter(x=>x.epiId===id).reduce((n,x)=>n+x.qty,0);if(qty+reserved>e.stock)return showToast('Saldo de teste insuficiente para essa entrega.');const same=cart.find(x=>x.epiId===id&&x.reason===reason);if(same)same.qty+=qty;else cart.push({epiId:id,qty,reason});renderCart();$('quantity').value='1';showToast('Equipamento adicionado à lista.');});
+$('cartRows').addEventListener('click',ev=>{const b=ev.target.closest('[data-remove]');if(!b)return;cart.splice(Number(b.dataset.remove),1);renderCart();});
+$('resetCart').addEventListener('click',()=>{cart=[];renderCart();});
+function clearCanvas(){const c=$('signCanvas'),ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);hasSignature=false;$('sigHint').style.display='block';}
+function closeModal(){clearCanvas();$('signatureModal').classList.remove('show');$('signatureModal').setAttribute('aria-hidden','true');}
+function getEmployee(){return state.employees.find(e=>e.id===$('employeeSelect').value);}
+$('reviewDelivery').addEventListener('click',()=>{const employee=getEmployee(),operator=$('operator').value.trim();if(!employee)return showToast('Selecione o funcionário.');if(!operator)return showToast('Identifique o responsável pela entrega.');if(!cart.length)return showToast('Adicione pelo menos um EPI.');for(const i of cart){const e=state.epis.find(x=>x.id===i.epiId);if(!e||i.qty>e.stock)return showToast('Estoque insuficiente; revise os equipamentos.');}
+ $('reviewSummary').innerHTML='<b>'+esc(employee.name)+'</b> · Matrícula '+esc(employee.matricula)+'<br>Setor: '+esc(employee.sector)+'<br>Responsável: '+esc(operator)+'<br><br>'+cart.map(x=>{const e=state.epis.find(v=>v.id===x.epiId);return'• '+esc(e.name)+' · '+x.qty+' UN · CA '+esc(e.ca)+'<br>';}).join('');$('confirmReceipt').checked=false;$('confirmInfo').checked=false;clearCanvas();$('signatureModal').classList.add('show');$('signatureModal').setAttribute('aria-hidden','false');});
+$('closeModal').addEventListener('click',closeModal);$('cancelModal').addEventListener('click',closeModal);$('clearSign').addEventListener('click',clearCanvas);
+const canvas=$('signCanvas'),ctx=canvas.getContext('2d');ctx.strokeStyle='#122a44';ctx.lineWidth=3.4;ctx.lineCap='round';ctx.lineJoin='round';let drawing=false;
+function xy(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(canvas.width/r.width),y:(ev.clientY-r.top)*(canvas.height/r.height)};}
+canvas.addEventListener('pointerdown',ev=>{ev.preventDefault();drawing=true;canvas.setPointerCapture(ev.pointerId);const p=xy(ev);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+.15,p.y+.15);ctx.stroke();hasSignature=true;$('sigHint').style.display='none';});
+canvas.addEventListener('pointermove',ev=>{if(!drawing)return;ev.preventDefault();const p=xy(ev);ctx.lineTo(p.x,p.y);ctx.stroke();});
+['pointerup','pointercancel','lostpointercapture'].forEach(name=>canvas.addEventListener(name,()=>{drawing=false;}));
+async function checksum(s){try{if(!crypto?.subtle)return '';const bytes=new TextEncoder().encode(s),data=await crypto.subtle.digest('SHA-256',bytes);return Array.from(new Uint8Array(data),b=>b.toString(16).padStart(2,'0')).join('');}catch{return '';}}
+$('finalize').addEventListener('click',async()=>{if(!$('confirmReceipt').checked||!$('confirmInfo').checked)return showToast('Marque as duas confirmações.');if(!hasSignature)return showToast('O funcionário precisa assinar na área indicada.');const emp=getEmployee(),operator=$('operator').value.trim();if(!emp||!operator||!cart.length)return showToast('Dados incompletos. Refaça a conferência.');const items=[];for(const i of cart){const e=state.epis.find(x=>x.id===i.epiId);if(!e||e.stock<i.qty)return showToast('Saldo mudou: revise a entrega.');items.push({epiId:e.id,code:e.code,name:e.name,ca:e.ca,lot:e.lot||'',manufacturer:e.manufacturer||'',qty:i.qty,reason:i.reason});}
+ const record={id:uuid(),at:new Date().toISOString(),employee:{id:emp.id,name:emp.name,matricula:emp.matricula,sector:emp.sector,role:emp.role||''},operator,items,ackReceipt:true,ackGuidance:true,signature:canvas.toDataURL('image/png')};record.digest=await checksum(JSON.stringify({...record,signature:record.signature}));if(commit(s=>{for(const i of items){const e=s.epis.find(x=>x.id===i.epiId);e.stock-=i.qty;}s.deliveries.push(record);})){cart=[];closeModal();showToast('Entrega de demonstração registrada. Você pode imprimir o comprovante.');displayPage('historico');}});
+function renderHistory(){const q=$('historySearch').value.trim().toLocaleLowerCase('pt-BR');const records=state.deliveries.slice().reverse().filter(d=>[d.employee.name,d.employee.matricula,...d.items.map(i=>i.name+' '+i.code)].join(' ').toLocaleLowerCase('pt-BR').includes(q));$('historyRows').innerHTML=records.length?records.map(d=>'<tr><td class="num">'+esc(dateTime(d.at))+'<div class="micro">'+esc(d.id.slice(0,13))+'</div></td><td><strong>'+esc(d.employee.name)+'</strong><div class="micro">Matrícula '+esc(d.employee.matricula)+'</div></td><td>'+esc(d.items.map(i=>i.name+' ('+i.qty+')').join(', '))+'</td><td><button type="button" class="btn alt sm" data-print="'+esc(d.id)+'">Imprimir PDF</button></td></tr>').join(''):'<tr><td colspan="4" class="empty">Nenhuma entrega encontrada.</td></tr>';}
+$('historySearch').addEventListener('input',renderHistory);
+$('historyRows').addEventListener('click',ev=>{const btn=ev.target.closest('[data-print]');if(btn)printReceipt(btn.dataset.print);});
+function printReceipt(id){const r=state.deliveries.find(d=>d.id===id);if(!r)return showToast('Comprovante não encontrado.');const el=$('printArea');el.innerHTML=`<div class="receipt-head"><div><h1>Comprovante de entrega de EPI</h1><div class="receipt-sub">NEW TERMISA · Demonstrativo local — sem validação de assinatura digital</div></div><div class="receipt-logo">NT</div></div>
+<div class="receipt-block"><h3>Funcionário</h3><strong>${esc(r.employee.name)}</strong><br>Matrícula: ${esc(r.employee.matricula)} · Setor: ${esc(r.employee.sector)} · Função: ${esc(r.employee.role||'—')}</div>
+<div class="receipt-block"><h3>Dados da entrega</h3><b>Data e hora:</b> ${esc(dateTime(r.at))}<br><b>Responsável:</b> ${esc(r.operator)}<br><b>Registro:</b> ${esc(r.id)}</div>
+<div class="receipt-block"><h3>Equipamentos entregues</h3><table class="receipt-table"><thead><tr><th>Código / Equipamento</th><th>CA</th><th>Qtd.</th><th>Motivo</th></tr></thead><tbody>${r.items.map(i=>`<tr><td>${esc(i.code)} · ${esc(i.name)}${i.lot?'<br>Lote: '+esc(i.lot):''}</td><td>${esc(i.ca)}</td><td>${i.qty} UN</td><td>${esc(i.reason)}</td></tr>`).join('')}</tbody></table></div>
+<div class="receipt-block receipt-terms">Declaro que recebi gratuitamente os equipamentos de proteção individual relacionados neste comprovante, nas quantidades informadas.<br><br><strong>Confirmação de orientações:</strong> o responsável declarou ter prestado as orientações cabíveis quanto ao uso, conservação, limitações e substituição dos equipamentos.</div>
+<div class="receipt-block"><h3>Assinatura do funcionário</h3><img class="receipt-sig" src="${r.signature}" alt="Assinatura desenhada pelo funcionário"><div>${esc(r.employee.name)} · Matrícula ${esc(r.employee.matricula)}</div></div>
+<p class="receipt-small">Registro de demonstração, armazenado exclusivamente no navegador em que foi gerado. A assinatura desenhada não equivale, por si só, a uma assinatura digital certificada. ${r.digest?'Resumo técnico SHA-256 (sem carimbo do tempo): '+esc(r.digest):''}</p>`;window.print();}
+window.addEventListener('afterprint',()=>{$('printArea').innerHTML='';});
+function download(name,data,mime){const blob=new Blob([data],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+function csvCell(x){return '"'+String(x??'').replace(/"/g,'""')+'"';}
+$('csvExport').addEventListener('click',()=>{const rows=[['Registro','Data/hora (ISO)','Matrícula','Funcionário','Setor','Responsável pela entrega','Código EPI','Equipamento','CA','Lote','Quantidade','Motivo','Assinado'],...state.deliveries.flatMap(d=>d.items.map(i=>[d.id,d.at,d.employee.matricula,d.employee.name,d.employee.sector,d.operator,i.code,i.name,i.ca,i.lot,i.qty,i.reason,'SIM']))];download('new-termisa-epi-demonstracao.csv','\uFEFF'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');showToast('Histórico CSV exportado.');});
+$('backupExport').addEventListener('click',()=>{download('new-termisa-epi-backup-demo.json',JSON.stringify({kind:'NewTermisaEpiDemo',version:1,exportedAt:new Date().toISOString(),data:state},null,2),'application/json;charset=utf-8');showToast('Backup de demonstração exportado.');});
+$('backupImport').addEventListener('change',async ev=>{const file=ev.target.files?.[0];if(!file)return;try{if(file.size>15*1024*1024)throw new Error('Arquivo muito grande');const parsed=JSON.parse(await file.text());if(parsed.kind!=='NewTermisaEpiDemo'||parsed.version!==1||!validState(parsed.data))throw new Error('Formato inválido');if(!confirm('Substituir TODOS os dados locais desta demonstração pelos dados do backup?'))return;const raw=JSON.stringify(parsed.data);localStorage.setItem(KEY,raw);state=parsed.data;cart=[];render();showToast('Backup importado.');}catch(err){showToast('Não foi possível importar: '+err.message);}finally{ev.target.value='';}});
+render();
+})();
+</script>
+</body>
+</html>
